@@ -97,6 +97,11 @@
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
       clearInterval(checkInterval);
+      // Canvas's new "widget_dashboard" layout no longer adds this class to <body>,
+      // which is what Canvas's own CSS uses to give #right-side-wrapper real width
+      // and visibility. #right-side still exists in the DOM either way, so restore
+      // the class ourselves rather than depending on Canvas to add it.
+      document.body.classList.add('with-right-side');
       injectWidget(rightSide);
     }
   }, 500);
