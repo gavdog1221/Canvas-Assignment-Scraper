@@ -1,0 +1,27 @@
+{
+  "manifest_version": 2,
+  "name": "Canvas & Gradescope Unified Tasks",
+  "version": "1.3",
+  "description": "Displays module-embedded Canvas assignments and Gradescope tasks directly on the UNH Canvas Dashboard.",
+  "permissions": [
+    "https://mycourses.unh.edu/*",
+    "https://www.gradescope.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mycourses.unh.edu/",
+        "https://mycourses.unh.edu/?*",
+        "https://mycourses.unh.edu/courses"
+      ],
+      "js": ["content.js"],
+      "css": ["sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "canvas-module-sidebar@local.firefox"
+    }
+  }
+}

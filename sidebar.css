@@ -1,0 +1,251 @@
+#module-tasks-widget {
+background: #18191a !important;
+color: #e4e6eb !important;
+border-radius: 10px !important;
+padding: 14px !important;
+margin-bottom: 24px !important;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4) !important;
+box-sizing: border-box !important;
+border: 1px solid #2f3031 !important;
+}
+
+#module-tasks-widget * {
+box-sizing: border-box !important;
+}
+
+#module-tasks-widget .header {
+display: flex !important;
+justify-content: space-between !important;
+align-items: center !important;
+border-bottom: 1px solid #2e2f30 !important;
+padding-bottom: 10px !important;
+margin-bottom: 10px !important;
+}
+
+#module-tasks-widget .header-title-wrap {
+display: flex !important;
+align-items: center !important;
+gap: 8px !important;
+}
+
+#module-tasks-widget .title {
+font-weight: 700 !important;
+font-size: 14px !important;
+color: #f5f6f7 !important;
+}
+
+.widget-controls {
+    display: flex !important;
+    gap: 6px !important;
+}
+
+.icon-btn {
+    background: #242526 !important;
+    border: 1px solid #3a3b3c !important;
+    color: #b0b3b8 !important;
+    border-radius: 6px !important;
+    padding: 4px 8px !important;
+    cursor: pointer !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    transition: all 0.15s ease !important;
+}
+.icon-btn:hover {
+    background: #3a3b3c !important;
+    color: #ffffff !important;
+}
+.icon-btn.active {
+    background: #008ee2 !important;
+    color: #fff !important;
+    border-color: #008ee2 !important;
+}
+
+/* Course Accordion */
+.course-accordion {
+    margin-bottom: 8px !important;
+    border: 1px solid #2f3031 !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    background: #242526 !important;
+}
+
+.course-header {
+    padding: 9px 12px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    background: #242526 !important;
+    user-select: none !important;
+    transition: background 0.15s ease !important;
+}
+
+.course-header:hover {
+    background: #2d2e30 !important;
+}
+
+.course-title-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    overflow: hidden !important;
+}
+
+.course-arrow {
+    font-size: 10px !important;
+    color: #777 !important;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.course-accordion.open .course-arrow {
+    transform: rotate(90deg) !important;
+}
+
+.course-name {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #e4e6eb !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.course-badge {
+    background: #008ee2 !important;
+    color: #fff !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    padding: 2px 7px !important;
+    border-radius: 12px !important;
+    flex-shrink: 0 !important;
+}
+
+.course-content {
+    display: none;
+    padding: 8px 10px !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    background: #18191a !important;
+    border-top: 1px solid #28292a !important;
+}
+
+.course-accordion.open .course-content {
+    display: flex !important;
+}
+
+/* Task Cards */
+.mod-task-card {
+    background: #242526 !important;
+    border: 1px solid #333436 !important;
+    border-left: 4px solid #008ee2 !important;
+    border-radius: 6px !important;
+    padding: 8px 10px !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 9px !important;
+    transition: background 0.15s ease !important;
+}
+.mod-task-card:hover {
+    background: #2b2c2e !important;
+}
+
+/* Urgency Color Accents */
+.mod-task-card.due-critical {
+    border-left-color: #f85149 !important; /* Urgent Red */
+}
+.mod-task-card.due-soon {
+    border-left-color: #f0883e !important; /* Warning Orange */
+}
+.mod-task-card.undated {
+    border-left-color: #d29922 !important; /* Golden Amber */
+}
+.mod-task-card.is-completed {
+    opacity: 0.55 !important;
+    border-left-color: #2ea043 !important; /* Done Green */
+}
+.mod-task-card.is-completed .mod-task-title {
+    text-decoration: line-through !important;
+    color: #8b949e !important;
+}
+
+.task-checkbox {
+    margin-top: 3px !important;
+    cursor: pointer !important;
+    accent-color: #008ee2 !important;
+    width: 14px !important;
+    height: 14px !important;
+}
+
+.task-body {
+    flex-grow: 1 !important;
+    min-width: 0 !important;
+}
+
+.mod-task-title {
+    display: block !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    color: #58a6ff !important;
+    text-decoration: none !important;
+    margin-bottom: 4px !important;
+    word-break: break-word !important;
+    line-height: 1.3 !important;
+}
+.mod-task-title:hover {
+    text-decoration: underline !important;
+}
+
+.task-meta-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    font-size: 11px !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+}
+
+.due-indicator {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-weight: 500 !important;
+}
+
+.badge-tag {
+    font-size: 9.5px !important;
+    padding: 1px 5px !important;
+    border-radius: 4px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+}
+.badge-tag.today {
+    background: rgba(248, 81, 73, 0.2) !important;
+    color: #ff7b72 !important;
+}
+.badge-tag.tomorrow {
+    background: rgba(240, 136, 62, 0.2) !important;
+    color: #ffa657 !important;
+}
+.badge-tag.gradescope {
+    background: rgba(88, 166, 255, 0.15) !important;
+    color: #79c0ff !important;
+    cursor: pointer !important;
+}
+
+.mod-empty-msg {
+    color: #8b949e !important;
+    font-size: 12px !important;
+    text-align: center !important;
+    padding: 12px 0 !important;
+}
+
+/* Gradescope task styling */
+.mod-task-card.gradescope-item {
+    border-left-color: #2db366 !important; /* Gradescope Green */
+}
+.badge-tag.gs-source {
+    background: rgba(45, 179, 102, 0.2) !important;
+    color: #2db366 !important;
+    font-weight: 700 !important;
+}
