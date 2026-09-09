@@ -5,12 +5,14 @@
   const STORAGE_KEY_FLAT = 'canvas_mod_tasks_flat_view_v1';
   const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v1';
   const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v1';
+  const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
 
   let currentTab = 'upcoming'; // 'upcoming' | 'overdue' | 'completed'
   let activeCourseFilter = 'ALL';
   let activeDayFilter = null; // null or YYYY-MM-DD
   let searchQuery = '';
   let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
+  let isHiddenMenuOpen = false;
   let cachedCourseMap = {};
 
   function isCurrentSemesterCourse(name) {
@@ -38,9 +40,9 @@
     const tokenMatch = t.match(/\b([a-z]{1,3}\s*\d{1,2})\b/);
     if (tokenMatch) return tokenMatch[1].replace(/\s+/g, '');
     return t.replace(/\.pdf|\.docx?|\.zip/g, '')
-            .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, '')
-            .replace(/assignment|homework|hw|problem\s*set|revised/gi, '')
-            .replace(/[^a-z0-9]/g, '');
+    .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, '')
+    .replace(/assignment|homework|hw|problem\s*set|revised/gi, '')
+    .replace(/[^a-z0-9]/g, '');
   }
 
   function getCompletedTasks() {
@@ -54,6 +56,42 @@
     if (isDone) data[taskId] = Date.now();
     else delete data[taskId];
     localStorage.setItem(STORAGE_KEY_DONE, JSON.stringify(data));
+  }
+
+  function getHiddenCourses() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDDEN_COURSES) || '[]');
+    } catch { return []; }
+  }
+
+  function hideCourse(courseKey) {
+    const hidden = getHiddenCourses();
+    if (!hidden.includes(courseKey)) {
+      hidden.push(courseKey);
+      localStorage.setItem(STORAGE_KEY_HIDDEN_COURSES, JSON.stringify(hidden));
+    }
+    if (activeCourseFilter === courseKey) {
+      activeCourseFilter = 'ALL';
+    }
+    renderFilterPills();
+    updateHiddenMenuButton();
+    updateProgressBar();
+    renderWorkloadStrip();
+    renderCurrentView();
+  }
+
+  function unhideCourse(courseKey) {
+    let hidden = getHiddenCourses();
+    hidden = hidden.filter(k => k !== courseKey);
+    localStorage.setItem(STORAGE_KEY_HIDDEN_COURSES, JSON.stringify(hidden));
+    if (hidden.length === 0) {
+      isHiddenMenuOpen = false;
+    }
+    renderFilterPills();
+    updateHiddenMenuButton();
+    updateProgressBar();
+    renderWorkloadStrip();
+    renderCurrentView();
   }
 
   function getSavedAccordions() {
@@ -97,10 +135,6 @@
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
       clearInterval(checkInterval);
-      // Canvas's new "widget_dashboard" layout no longer adds this class to <body>,
-      // which is what Canvas's own CSS uses to give #right-side-wrapper real width
-      // and visibility. #right-side still exists in the DOM either way, so restore
-      // the class ourselves rather than depending on Canvas to add it.
       document.body.classList.add('with-right-side');
       injectWidget(rightSide);
     }
@@ -110,45 +144,55 @@
     const widget = document.createElement('div');
     widget.id = 'module-tasks-widget';
     widget.innerHTML = `
-      <div class="header">
-        <div class="title-row">
-          <span class="title">Tasks Hub (Fall 2026)</span>
-        </div>
-        <div class="widget-controls">
-          <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
-          <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
-          <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
-        </div>
-      </div>
+    <div class="header">
+    <div class="title-row">
+    <span class="title">Tasks Hub</span>
+    </div>
+    <div class="widget-controls">
+    <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes" style="display: none;">👁<span class="eye-badge"></span></button>
+    <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
+    <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
+    <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
+    </div>
+    </div>
 
-      <!-- 7-Day Workload Density Strip -->
-      <div class="workload-strip" id="workload-strip-container"></div>
+    <!-- Hidden Courses Popover -->
+    <div class="hidden-courses-popover" id="hidden-courses-popover" style="display: none;">
+    <div class="hidden-popover-header">
+    <span class="hidden-popover-title">Hidden Classes</span>
+    <button class="hidden-popover-close" id="close-hidden-courses-btn" title="Close">✕</button>
+    </div>
+    <div class="hidden-pills-list" id="hidden-pills-container"></div>
+    </div>
 
-      <div class="progress-container">
-        <div class="progress-meta">
-          <span id="progress-label">0% completed</span>
-          <span id="progress-count">0/0</span>
-        </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progress-bar-fill"></div>
-        </div>
-      </div>
+    <!-- 7-Day Workload Density Strip -->
+    <div class="workload-strip" id="workload-strip-container"></div>
 
-      <div class="search-wrapper">
-        <input type="text" class="search-input" id="task-search-input" placeholder="🔍 Search tasks..." />
-      </div>
+    <div class="progress-container">
+    <div class="progress-meta">
+    <span id="progress-label">0% completed</span>
+    <span id="progress-count">0/0</span>
+    </div>
+    <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    </div>
+    </div>
 
-      <div class="view-tabs">
-        <button class="tab-btn active" data-tab="upcoming">Upcoming</button>
-        <button class="tab-btn overdue" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></button>
-        <button class="tab-btn" data-tab="completed">Completed</button>
-      </div>
+    <div class="search-wrapper">
+    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks or assignments..." />
+    </div>
 
-      <div class="course-pills" id="course-pills-container"></div>
+    <div class="view-tabs">
+    <button class="tab-btn active" data-tab="upcoming">Upcoming</button>
+    <button class="tab-btn overdue" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></button>
+    <button class="tab-btn" data-tab="completed">Completed</button>
+    </div>
 
-      <div id="module-tasks-list">
-        <div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>
-      </div>
+    <div class="course-pills" id="course-pills-container"></div>
+
+    <div id="module-tasks-list">
+    <div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>
+    </div>
     `;
 
     container.prepend(widget);
@@ -156,6 +200,24 @@
     document.getElementById('refresh-mod-tasks').addEventListener('click', () => loadTasks(true));
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
     updateToggleAllButtonState();
+
+    const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
+    const closeBtn = document.getElementById('close-hidden-courses-btn');
+
+    // Robust toggle: toggles visibility state on every click
+    eyeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      isHiddenMenuOpen = !isHiddenMenuOpen;
+      updateHiddenMenuButton();
+    });
+
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      isHiddenMenuOpen = false;
+      updateHiddenMenuButton();
+    });
 
     document.getElementById('toggle-view-mode').addEventListener('click', (e) => {
       isFlatView = !isFlatView;
@@ -175,7 +237,7 @@
         widget.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentTab = btn.getAttribute('data-tab');
-        activeDayFilter = null; // Clear day filter on tab switch
+        activeDayFilter = null;
         renderCurrentView();
       });
     });
@@ -193,6 +255,7 @@
     if (cached && Object.keys(cached).length > 0) {
       cachedCourseMap = cached;
       renderFilterPills();
+      updateHiddenMenuButton();
       updateProgressBar();
       renderWorkloadStrip();
       renderCurrentView();
@@ -205,6 +268,43 @@
     }
   }
 
+  function updateHiddenMenuButton() {
+    const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
+    const popover = document.getElementById('hidden-courses-popover');
+    const container = document.getElementById('hidden-pills-container');
+    const hidden = getHiddenCourses();
+
+    if (!eyeBtn || !popover || !container) return;
+
+    if (hidden.length > 0) {
+      eyeBtn.style.display = 'inline-flex';
+
+      if (isHiddenMenuOpen) {
+        eyeBtn.classList.add('active');
+        popover.style.display = 'flex';
+        container.innerHTML = '';
+        hidden.forEach(k => {
+          const btn = document.createElement('button');
+          btn.className = 'hidden-pill-btn';
+          btn.innerHTML = `<span>+</span> ${escapeHTML(k)}`;
+          btn.title = `Click to restore ${escapeHTML(k)}`;
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            unhideCourse(k);
+          });
+          container.appendChild(btn);
+        });
+      } else {
+        eyeBtn.classList.remove('active');
+        popover.style.display = 'none';
+      }
+    } else {
+      eyeBtn.style.display = 'none';
+      popover.style.display = 'none';
+      isHiddenMenuOpen = false;
+    }
+  }
+
   // --- RENDER 7-DAY WORKLOAD STRIP ---
   function renderWorkloadStrip() {
     const container = document.getElementById('workload-strip-container');
@@ -212,13 +312,14 @@
     container.innerHTML = '';
 
     const completedMap = getCompletedTasks();
+    const hiddenCourses = getHiddenCourses();
     const now = new Date();
     const days = [];
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
       const isoKey = localDateKey(d);
-      
+
       let label = d.toLocaleDateString([], { weekday: 'short' });
       if (i === 0) label = 'Today';
       else if (i === 1) label = 'Tmrw';
@@ -231,7 +332,8 @@
       });
     }
 
-    Object.values(cachedCourseMap).forEach(course => {
+    Object.entries(cachedCourseMap).forEach(([courseKey, course]) => {
+      if (hiddenCourses.includes(courseKey)) return;
       course.tasks.forEach(t => {
         if (!t.dueDate || completedMap[t.id]) return;
         const taskKey = localDateKey(t.dueDate);
@@ -244,13 +346,13 @@
       const dayEl = document.createElement('div');
       dayEl.className = `workload-day ${day.count > 0 ? 'has-tasks' : ''} ${day.isUrgent && day.count > 0 ? 'has-urgent' : ''} ${activeDayFilter === day.dateKey ? 'active' : ''}`;
       dayEl.innerHTML = `
-        <span class="day-name">${day.label}</span>
-        <span class="day-count">${day.count}</span>
+      <span class="day-name">${day.label}</span>
+      <span class="day-count">${day.count}</span>
       `;
 
       dayEl.addEventListener('click', () => {
         if (activeDayFilter === day.dateKey) {
-          activeDayFilter = null; // Toggle off
+          activeDayFilter = null;
         } else {
           activeDayFilter = day.dateKey;
           currentTab = 'upcoming';
@@ -266,10 +368,12 @@
 
   function updateProgressBar() {
     const completedMap = getCompletedTasks();
+    const hiddenCourses = getHiddenCourses();
     let total = 0;
     let completed = 0;
 
-    Object.values(cachedCourseMap).forEach(c => {
+    Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
+      if (hiddenCourses.includes(courseKey)) return;
       c.tasks.forEach(t => {
         total++;
         if (completedMap[t.id]) completed++;
@@ -286,19 +390,17 @@
     if (countEl) countEl.innerText = `${completed}/${total}`;
   }
 
-  // "Toggle" only means anything in Group view — Timeline view has no accordions
-  // to collapse/expand, so the button was previously a silent no-op there.
   function updateToggleAllButtonState() {
     const btn = document.getElementById('toggle-all-accordions');
     if (!btn) return;
     btn.disabled = isFlatView;
     btn.title = isFlatView
-      ? 'Switch to Group view to collapse/expand courses'
-      : 'Collapse/Expand All';
+    ? 'Switch to Group view to collapse/expand courses'
+    : 'Collapse/Expand All';
   }
 
   function toggleAllAccordions() {
-    if (isFlatView) return; // nothing to toggle in Timeline view
+    if (isFlatView) return;
     const accordions = Array.from(document.querySelectorAll('.course-accordion'));
     if (accordions.length === 0) return;
     const anyClosed = accordions.some(acc => !acc.classList.contains('open'));
@@ -314,10 +416,6 @@
     return match ? decodeURIComponent(match[1]) : '';
   }
 
-  // Returns YYYY-MM-DD using the browser's LOCAL calendar date, not UTC.
-  // .toISOString() converts to UTC first, which silently pushes late-night
-  // local due times (e.g. 11:59 PM) into the next day — this is what was
-  // causing tasks to show up under the wrong day in the workload strip.
   function localDateKey(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -358,11 +456,11 @@
     }
 
     cleanTitle = cleanTitle
-      .replace(/\(\s*\)/g, '')
-      .replace(/\[\s*\]/g, '')
-      .replace(/^[-\s:|]+|[-\s:|]+$/g, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
+    .replace(/\(\s*\)/g, '')
+    .replace(/\[\s*\]/g, '')
+    .replace(/^[-\s:|]+|[-\s:|]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
     return { title: cleanTitle || rawTitle, dueDate };
   }
@@ -417,7 +515,7 @@
           rows.forEach(row => {
             const btnEl = row.querySelector('button.js-submitAssignment, [data-assignment-title]');
             const linkEl = row.querySelector('.table--primaryLink a, a[href*="/assignments/"]');
-            
+
             let title = '';
             if (btnEl) title = btnEl.getAttribute('data-assignment-title') || btnEl.innerText.trim();
             else if (linkEl) title = linkEl.innerText.trim();
@@ -458,15 +556,15 @@
 
             tasks.push({
               id: generateTaskId(courseKey, title),
-              title: title,
-              url: url,
-              dueDate: dueDate,
-              points: null,
-              isUndatedHw: !dueDate,
-              isGradescope: true,
-              courseKey: courseKey,
-              courseName: course.name,
-              downloadUrl: null
+                       title: title,
+                       url: url,
+                       dueDate: dueDate,
+                       points: null,
+                       isUndatedHw: !dueDate,
+                       isGradescope: true,
+                       courseKey: courseKey,
+                       courseName: course.name,
+                       downloadUrl: null
             });
           });
 
@@ -551,7 +649,6 @@
                   let dueDate = item.content_details?.due_at ? new Date(item.content_details.due_at) : parsed.dueDate;
                   const mentionsGradescope = /grade\w*scope/i.test(item.title) || /grade\w*scope/i.test(mod.name || '');
 
-                  // Detect Direct PDF / File download URL
                   let downloadUrl = null;
                   if (item.type === 'File' && item.content_id) {
                     downloadUrl = `${origin}/courses/${course.id}/files/${item.content_id}/download?download_frd=1`;
@@ -562,17 +659,17 @@
                   if (dueDate || isHwFolder) {
                     unifiedCourseMap[courseKey].tasks.push({
                       id: generateTaskId(courseKey, item.title),
-                      title: parsed.title,
-                      url: item.html_url || `${origin}/courses/${course.id}/modules/items/${item.id}`,
-                      dueDate: dueDate,
-                      moduleName: mod.name,
-                      points: item.content_details?.points_possible ?? null,
-                      isUndatedHw: !dueDate && isHwFolder,
-                      gradescope: mentionsGradescope,
-                      isGradescope: false,
-                      courseKey: courseKey,
-                      courseName: rawCourseName,
-                      downloadUrl: downloadUrl
+                                                           title: parsed.title,
+                                                           url: item.html_url || `${origin}/courses/${course.id}/modules/items/${item.id}`,
+                                                           dueDate: dueDate,
+                                                           moduleName: mod.name,
+                                                           points: item.content_details?.points_possible ?? null,
+                                                           isUndatedHw: !dueDate && isHwFolder,
+                                                           gradescope: mentionsGradescope,
+                                                           isGradescope: false,
+                                                           courseKey: courseKey,
+                                                           courseName: rawCourseName,
+                                                           downloadUrl: downloadUrl
                     });
                   }
                 }
@@ -597,16 +694,16 @@
                 if (a.due_at) {
                   unifiedCourseMap[courseKey].tasks.push({
                     id: generateTaskId(courseKey, a.name),
-                    title: a.name,
-                    url: a.html_url,
-                    dueDate: new Date(a.due_at),
-                    points: a.points_possible ?? null,
-                    isUndatedHw: false,
-                    gradescope: /grade\w*scope/i.test(a.description || ''),
-                    isGradescope: false,
-                    courseKey: courseKey,
-                    courseName: rawCourseName,
-                    downloadUrl: null
+                                                         title: a.name,
+                                                         url: a.html_url,
+                                                         dueDate: new Date(a.due_at),
+                                                         points: a.points_possible ?? null,
+                                                         isUndatedHw: false,
+                                                         gradescope: /grade\w*scope/i.test(a.description || ''),
+                                                         isGradescope: false,
+                                                         courseKey: courseKey,
+                                                         courseName: rawCourseName,
+                                                         downloadUrl: null
                   });
                 }
               }
@@ -649,7 +746,6 @@
           });
 
           if (duplicateGsTask) {
-            // Adopt Canvas points & download URL into Gradescope card if available
             if (duplicateGsTask.points === null && cTask.points !== null) {
               duplicateGsTask.points = cTask.points;
             }
@@ -667,13 +763,14 @@
       cachedCourseMap = unifiedCourseMap;
       saveLocalCache(unifiedCourseMap);
       renderFilterPills();
+      updateHiddenMenuButton();
       updateProgressBar();
       renderWorkloadStrip();
       renderCurrentView();
     } catch (fatalErr) {
       console.error('Task Scanner Error:', fatalErr);
       if (!cachedCourseMap || Object.keys(cachedCourseMap).length === 0) {
-        listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#ff7b72;">Error scanning courses.</div>`;
+        listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#ff7b72; border-color: rgba(248, 81, 73, 0.4);">Error scanning courses.</div>`;
       }
     }
   }
@@ -682,12 +779,16 @@
     const pillsContainer = document.getElementById('course-pills-container');
     pillsContainer.innerHTML = '';
 
-    const keys = Object.keys(cachedCourseMap);
-    if (keys.length === 0) return;
+    const hiddenCourses = getHiddenCourses();
+    const allKeys = Object.keys(cachedCourseMap);
+    const visibleKeys = allKeys.filter(k => !hiddenCourses.includes(k));
 
-    const allPill = document.createElement('button');
+    if (allKeys.length === 0) return;
+
+    // "All" pill
+    const allPill = document.createElement('div');
     allPill.className = `filter-pill ${activeCourseFilter === 'ALL' ? 'active' : ''}`;
-    allPill.innerText = 'All';
+    allPill.innerHTML = `<span>All</span>`;
     allPill.addEventListener('click', () => {
       activeCourseFilter = 'ALL';
       renderFilterPills();
@@ -695,15 +796,27 @@
     });
     pillsContainer.appendChild(allPill);
 
-    keys.forEach(k => {
-      const pill = document.createElement('button');
+    // Visible course pills
+    visibleKeys.forEach(k => {
+      const pill = document.createElement('div');
       pill.className = `filter-pill ${activeCourseFilter === k ? 'active' : ''}`;
-      pill.innerText = k;
-      pill.addEventListener('click', () => {
+      pill.innerHTML = `
+      <span class="pill-label">${escapeHTML(k)}</span>
+      <span class="pill-remove" title="Hide this class">×</span>
+      `;
+
+      pill.querySelector('.pill-label').addEventListener('click', (e) => {
+        e.stopPropagation();
         activeCourseFilter = k;
         renderFilterPills();
         renderCurrentView();
       });
+
+      pill.querySelector('.pill-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideCourse(k);
+      });
+
       pillsContainer.appendChild(pill);
     });
   }
@@ -740,35 +853,34 @@
         const hoursAgo = Math.abs(diffHours);
         const lateStr = hoursAgo < 24 ? `${hoursAgo}h late` : `${Math.floor(hoursAgo / 24)}d late`;
         badgeHtml = `<span class="badge-tag overdue">${lateStr}</span>`;
-        dueLabel = `⚠️ Was due ${dateStr}`;
+        dueLabel = `Was due ${dateStr}`;
       } else if (diffHours < 12) {
         urgencyClass = 'due-today';
         badgeHtml = `<span class="badge-tag today"><span class="pulsing-dot"></span>${diffHours}h ${diffMins}m left</span>`;
-        dueLabel = `📅 Due Today`;
+        dueLabel = `Due Today`;
       } else if (isToday) {
         urgencyClass = 'due-today';
         badgeHtml = `<span class="badge-tag today">Due Today</span>`;
-        dueLabel = `📅 Due ${dateStr}`;
+        dueLabel = `Due ${dateStr}`;
       } else if (isTomorrow) {
         urgencyClass = 'due-tomorrow';
-        badgeHtml = `<span class="badge-tag tomorrow">🚨 DUE TOMORROW</span>`;
-        dueLabel = `📅 Due ${dateStr}`;
+        badgeHtml = `<span class="badge-tag tomorrow">Due Tomorrow</span>`;
+        dueLabel = `Due ${dateStr}`;
       } else {
-        dueLabel = `📅 Due ${dateStr}`;
+        dueLabel = `Due ${dateStr}`;
       }
     } else {
       urgencyClass = 'undated';
-      dueLabel = `📁 Undated [${escapeHTML(task.moduleName || 'HW')}]`;
+      dueLabel = `Undated [${escapeHTML(task.moduleName || 'HW')}]`;
     }
 
     if (task.points !== null) {
       badgeHtml += ` <span class="badge-tag points-chip">${task.points} pts</span>`;
     }
 
-    // Direct PDF / File download quick-action
     let downloadHtml = '';
     if (task.downloadUrl) {
-      downloadHtml = `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">⬇ PDF</a>`;
+      downloadHtml = `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">PDF ⤓</a>`;
     }
 
     if (task.isGradescope) {
@@ -778,17 +890,17 @@
     card.className = `mod-task-card ${urgencyClass} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
 
     card.innerHTML = `
-      <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
-      <div class="task-body">
-        <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
-        <div class="task-meta-row">
-          <span class="due-indicator">${isFlatView ? `<b>[${escapeHTML(task.courseKey)}]</b> ` : ''}${dueLabel}</span>
-          <div class="task-tags-group">
-            ${downloadHtml}
-            ${badgeHtml}
-          </div>
-        </div>
-      </div>
+    <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
+    <div class="task-body">
+    <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
+    <div class="task-meta-row">
+    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}</span>
+    <div class="task-tags-group">
+    ${downloadHtml}
+    ${badgeHtml}
+    </div>
+    </div>
+    </div>
     `;
 
     const checkbox = card.querySelector('.task-checkbox');
@@ -807,13 +919,15 @@
     listContainer.innerHTML = '';
 
     const completedMap = getCompletedTasks();
+    const hiddenCourses = getHiddenCourses();
     const savedAccordionState = getSavedAccordions();
     const now = new Date();
 
     let totalOverdueCount = 0;
     let renderedCount = 0;
 
-    Object.values(cachedCourseMap).forEach(c => {
+    Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
+      if (hiddenCourses.includes(courseKey)) return;
       c.tasks.forEach(t => {
         if (t.dueDate && t.dueDate < now && !completedMap[t.id]) totalOverdueCount++;
       });
@@ -827,6 +941,7 @@
     let allFilteredTasks = [];
 
     Object.keys(cachedCourseMap).forEach(courseKey => {
+      if (hiddenCourses.includes(courseKey)) return;
       if (activeCourseFilter !== 'ALL' && activeCourseFilter !== courseKey) return;
       const course = cachedCourseMap[courseKey];
       if (!course.tasks) return;
@@ -835,7 +950,6 @@
         const isDone = !!completedMap[t.id];
         const isOverdue = t.dueDate && t.dueDate < now;
 
-        // Day Strip filter
         if (activeDayFilter) {
           if (!t.dueDate) return false;
           if (localDateKey(t.dueDate) !== activeDayFilter) return false;
@@ -852,7 +966,7 @@
       allFilteredTasks.push(...tasks);
     });
 
-    // 1. DEFAULT: FLAT TIMELINE VIEW
+    // 1. DEFAULT: TIMELINE VIEW
     if (isFlatView) {
       allFilteredTasks.sort((a, b) => {
         if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
@@ -865,10 +979,11 @@
       allFilteredTasks.forEach(task => {
         listContainer.appendChild(createTaskCard(task, now, completedMap));
       });
-    } 
+    }
     // 2. COURSE ACCORDION VIEW
     else {
       Object.keys(cachedCourseMap).forEach(courseKey => {
+        if (hiddenCourses.includes(courseKey)) return;
         if (activeCourseFilter !== 'ALL' && activeCourseFilter !== courseKey) return;
 
         const course = cachedCourseMap[courseKey];
@@ -907,11 +1022,11 @@
         const header = document.createElement('div');
         header.className = 'course-header';
         header.innerHTML = `
-          <div class="course-title-group">
-            <span class="course-arrow">▶</span>
-            <span class="course-name" title="${escapeHTML(course.name)}">${escapeHTML(course.name)}</span>
-          </div>
-          <span class="course-badge ${currentTab === 'overdue' ? 'overdue-count' : ''}">${visibleTasks.length}</span>
+        <div class="course-title-group">
+        <span class="course-arrow">▶</span>
+        <span class="course-name" title="${escapeHTML(course.name)}">${escapeHTML(course.name)}</span>
+        </div>
+        <span class="course-badge ${currentTab === 'overdue' ? 'overdue-count' : ''}">${visibleTasks.length}</span>
         `;
 
         header.addEventListener('click', () => {
@@ -934,22 +1049,30 @@
 
     if (renderedCount === 0) {
       if (activeDayFilter) {
-        listContainer.innerHTML = `<div class="mod-empty-msg">No tasks scheduled for this day! Click the day again to unfilter.</div>`;
+        listContainer.innerHTML = `<div class="mod-empty-msg">No tasks scheduled for this day.<br><span style="color:#38bdf8;cursor:pointer;font-size:11px;" id="clear-day-filter">Click to view all</span></div>`;
+        const clearBtn = document.getElementById('clear-day-filter');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            activeDayFilter = null;
+            renderWorkloadStrip();
+            renderCurrentView();
+          });
+        }
       } else if (searchQuery) {
         listContainer.innerHTML = `<div class="mod-empty-msg">No assignments match "${escapeHTML(searchQuery)}"</div>`;
       } else if (currentTab === 'overdue') {
         listContainer.innerHTML = '<div class="mod-empty-msg">✨ No overdue assignments! You are all caught up.</div>';
       } else if (currentTab === 'completed') {
-        listContainer.innerHTML = '<div class="mod-empty-msg">No completed assignments saved yet.</div>';
+        listContainer.innerHTML = '<div class="mod-empty-msg">No completed assignments yet.</div>';
       } else {
-        listContainer.innerHTML = '<div class="mod-empty-msg">🎉 No upcoming tasks for this view!</div>';
+        listContainer.innerHTML = '<div class="mod-empty-msg">🎉 All clear! No upcoming tasks due.</div>';
       }
     }
   }
 
   function escapeHTML(str) {
-    return String(str).replace(/[&<>'"]/g, 
-      tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    return String(str).replace(/[&<>'"]/g,
+                               tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
   }
 })();
