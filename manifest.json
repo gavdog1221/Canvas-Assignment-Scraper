@@ -5,14 +5,16 @@
   "description": "Displays module-embedded Canvas assignments and Gradescope tasks directly on the UNH Canvas Dashboard.",
   "permissions": [
     "https://mycourses.unh.edu/*",
-    "https://www.gradescope.com/*"
+    "https://www.gradescope.com/*",
+    "https://unh.instructure.com/*"
   ],
   "content_scripts": [
     {
       "matches": [
         "https://mycourses.unh.edu/",
         "https://mycourses.unh.edu/?*",
-        "https://mycourses.unh.edu/courses"
+        "https://mycourses.unh.edu/courses",
+        "https://unh.instructure.com/*"
       ],
       "js": ["content.js"],
       "css": ["sidebar.css"],

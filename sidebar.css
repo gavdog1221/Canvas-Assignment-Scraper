@@ -1,3 +1,14 @@
+/* Fallback in case Canvas's new dashboard layout no longer gives
+   #right-side-wrapper width/visibility even with .with-right-side restored
+   on <body>. Only kicks in if Canvas's own rules leave it collapsed. */
+#right-side-wrapper {
+  display: block !important;
+  min-width: 260px !important;
+}
+#right-side {
+  display: block !important;
+}
+
 #module-tasks-widget {
   background: #16181d !important;
   color: #e6edf3 !important;
@@ -55,6 +66,15 @@
   background: #30363d !important;
   color: #ffffff !important;
   border-color: #8b949e !important;
+}
+.icon-btn:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+.icon-btn:disabled:hover {
+  background: #21262d !important;
+  color: #c9d1d9 !important;
+  border-color: #363b42 !important;
 }
 
 /* 7-Day Workload Density Bar */
