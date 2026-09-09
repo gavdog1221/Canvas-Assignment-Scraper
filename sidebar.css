@@ -67,6 +67,15 @@
   color: #ffffff !important;
   border-color: #8b949e !important;
 }
+.icon-btn:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+.icon-btn:disabled:hover {
+  background: #21262d !important;
+  color: #c9d1d9 !important;
+  border-color: #363b42 !important;
+}
 
 /* 7-Day Workload Density Bar */
 .workload-strip {

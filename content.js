@@ -155,11 +155,13 @@
 
     document.getElementById('refresh-mod-tasks').addEventListener('click', () => loadTasks(true));
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
-    
+    updateToggleAllButtonState();
+
     document.getElementById('toggle-view-mode').addEventListener('click', (e) => {
       isFlatView = !isFlatView;
       localStorage.setItem(STORAGE_KEY_FLAT, isFlatView);
       e.target.innerText = isFlatView ? 'Group' : 'Timeline';
+      updateToggleAllButtonState();
       renderCurrentView();
     });
 
@@ -215,7 +217,7 @@
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
-      const isoKey = d.toISOString().split('T')[0];
+      const isoKey = localDateKey(d);
       
       let label = d.toLocaleDateString([], { weekday: 'short' });
       if (i === 0) label = 'Today';
@@ -232,7 +234,7 @@
     Object.values(cachedCourseMap).forEach(course => {
       course.tasks.forEach(t => {
         if (!t.dueDate || completedMap[t.id]) return;
-        const taskKey = t.dueDate.toISOString().split('T')[0];
+        const taskKey = localDateKey(t.dueDate);
         const dayMatch = days.find(d => d.dateKey === taskKey);
         if (dayMatch) dayMatch.count++;
       });
@@ -284,7 +286,19 @@
     if (countEl) countEl.innerText = `${completed}/${total}`;
   }
 
+  // "Toggle" only means anything in Group view — Timeline view has no accordions
+  // to collapse/expand, so the button was previously a silent no-op there.
+  function updateToggleAllButtonState() {
+    const btn = document.getElementById('toggle-all-accordions');
+    if (!btn) return;
+    btn.disabled = isFlatView;
+    btn.title = isFlatView
+      ? 'Switch to Group view to collapse/expand courses'
+      : 'Collapse/Expand All';
+  }
+
   function toggleAllAccordions() {
+    if (isFlatView) return; // nothing to toggle in Timeline view
     const accordions = Array.from(document.querySelectorAll('.course-accordion'));
     if (accordions.length === 0) return;
     const anyClosed = accordions.some(acc => !acc.classList.contains('open'));
@@ -298,6 +312,17 @@
   function getCsrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)_csrf_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  // Returns YYYY-MM-DD using the browser's LOCAL calendar date, not UTC.
+  // .toISOString() converts to UTC first, which silently pushes late-night
+  // local due times (e.g. 11:59 PM) into the next day — this is what was
+  // causing tasks to show up under the wrong day in the workload strip.
+  function localDateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   function parseAndCleanTitle(rawTitle) {
@@ -611,11 +636,11 @@
 
         canvasTasks.forEach(cTask => {
           const cToken = extractCoreAssignmentToken(cTask.title);
-          const cDateKey = cTask.dueDate ? cTask.dueDate.toISOString().split('T')[0] : null;
+          const cDateKey = cTask.dueDate ? localDateKey(cTask.dueDate) : null;
 
           const duplicateGsTask = gsTasks.find(gTask => {
             const gToken = extractCoreAssignmentToken(gTask.title);
-            const gDateKey = gTask.dueDate ? gTask.dueDate.toISOString().split('T')[0] : null;
+            const gDateKey = gTask.dueDate ? localDateKey(gTask.dueDate) : null;
 
             if (cToken && gToken && (cToken === gToken || cToken.includes(gToken) || gToken.includes(cToken))) return true;
             if (cTask.gradescope && cDateKey && gDateKey && cDateKey === gDateKey) return true;
@@ -813,7 +838,7 @@
         // Day Strip filter
         if (activeDayFilter) {
           if (!t.dueDate) return false;
-          if (t.dueDate.toISOString().split('T')[0] !== activeDayFilter) return false;
+          if (localDateKey(t.dueDate) !== activeDayFilter) return false;
         }
 
         if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
@@ -853,7 +878,7 @@
 
           if (activeDayFilter) {
             if (!t.dueDate) return false;
-            if (t.dueDate.toISOString().split('T')[0] !== activeDayFilter) return false;
+            if (localDateKey(t.dueDate) !== activeDayFilter) return false;
           }
 
           if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
