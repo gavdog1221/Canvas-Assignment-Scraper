@@ -1000,6 +1000,12 @@
     let badgeHtml = '';
     let isCritical = false;
 
+    // The pencil control to set/edit a personal custom due date only ever
+    // appears layered on top of the badge for tasks with no real due date.
+    const editBtnHtml = !hasRealDueDate
+    ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit your custom due date' : 'Set a due date'}">✏️</button>`
+    : '';
+
     if (dueDate) {
       const diffMs = dueDate.getTime() - now.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -1047,16 +1053,19 @@
       }
 
       if (isCustomDate) {
-        badgeHtml += ` <span class="badge-tag custom-date-chip" title="You set this due date manually">✏️ Custom</span>`;
+        badgeHtml += ` <span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag custom-date-chip" title="You set this due date manually">✏️ Custom</span></span>`;
       }
     } else {
       urgencyClass = 'undated';
-      badgeHtml = `<span class="badge-tag undated-chip">⚠ NO DUE DATE</span>`;
-      dueLabel = `📁 Folder: ${escapeHTML(task.moduleName || 'HW')}`;
+      badgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag undated-chip">⚠ NO DUE DATE</span></span>`;
     }
 
     if (task.points !== null) {
       badgeHtml += ` <span class="badge-tag points-chip">${task.points} pts</span>`;
+    }
+
+    if (task.isGradescope) {
+      badgeHtml += ` <span class="badge-tag gs-source">Gradescope</span>`;
     }
 
     let downloadHtml = '';
@@ -1064,26 +1073,17 @@
       downloadHtml = `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">PDF ⤓</a>`;
     }
 
-    if (task.isGradescope) {
-      badgeHtml += ` <span class="badge-tag gs-source">Gradescope</span>`;
-    }
-
-    // Only tasks with no real due date get the pencil control to set/edit
-    // a personal custom due date.
-    const editDateHtml = !hasRealDueDate
-    ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit your custom due date' : 'Set a due date'}">✏️</button>`
-    : '';
-
-    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''} ${task.downloadUrl ? 'has-download' : ''}`;
+    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
 
     card.innerHTML = `
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
     <div class="task-body">
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
     <div class="task-meta-row">
-    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}${editDateHtml}</span>
+    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}</span>
     <div class="task-tags-group">
     ${badgeHtml}
+    ${downloadHtml}
     </div>
     </div>
     ${!hasRealDueDate ? `
@@ -1094,7 +1094,6 @@
       </div>
       ` : ''}
       </div>
-      ${downloadHtml}
       `;
 
       const checkbox = card.querySelector('.task-checkbox');

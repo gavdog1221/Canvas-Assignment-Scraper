@@ -684,11 +684,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   z-index: 3 !important;
 }
 
-/* Reserve room at the bottom so the pinned download pill never overlaps text */
-.mod-task-card.has-download {
-  padding-bottom: 30px !important;
-}
-
 .mod-task-card:hover {
   background: rgba(28, 34, 46, 0.95) !important;
   transform: translateX(4px) translateY(-1px) !important;
@@ -865,31 +860,42 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
- *  CUSTOM DUE-DATE EDITOR (pencil icon + inline date picker)
+ *  CUSTOM DUE-DATE EDITOR (pencil icon overlaid on the badge + date picker)
  *  ========================================================================== */
+.date-badge-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  margin: 4px 8px 4px 3px !important;
+}
+
 .edit-date-btn {
+  position: absolute !important;
+  top: -7px !important;
+  right: -7px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: rgba(30, 36, 49, 0.8) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: #94a3b8 !important;
-  border-radius: 6px !important;
-  width: 18px !important;
-  height: 18px !important;
+  background: rgba(15, 17, 22, 0.95) !important;
+  border: 1px solid var(--primary-accent) !important;
+  color: var(--primary-accent) !important;
+  border-radius: 50% !important;
+  width: 16px !important;
+  height: 16px !important;
   padding: 0 !important;
-  font-size: 10px !important;
+  font-size: 9px !important;
   line-height: 1 !important;
   cursor: pointer !important;
   flex-shrink: 0 !important;
+  z-index: 5 !important;
+  box-shadow: 0 0 0 2px var(--card-bg), 0 2px 6px rgba(0, 0, 0, 0.6) !important;
   transition: all 0.15s ease !important;
 }
 
 .edit-date-btn:hover {
-  color: #ffffff !important;
-  border-color: var(--primary-accent) !important;
-  box-shadow: 0 0 8px var(--accent-glow) !important;
-  transform: translateY(-1px) !important;
+  color: #000000 !important;
+  background: var(--primary-accent) !important;
+  box-shadow: 0 0 0 2px var(--card-bg), 0 0 8px var(--accent-glow) !important;
+  transform: scale(1.12) !important;
 }
 
 .date-edit-row {
@@ -979,13 +985,11 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 .task-tags-group {
   display: flex !important;
   align-items: center !important;
+  flex-wrap: wrap !important;
   gap: 5px !important;
 }
 
 .download-pill {
-  position: absolute !important;
-  bottom: 8px !important;
-  right: 10px !important;
   display: inline-flex !important;
   align-items: center !important;
   font-size: 10px !important;
@@ -997,7 +1001,8 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   color: var(--primary-accent) !important;
   border: 1px solid var(--accent-glow) !important;
   transition: all 0.15s ease !important;
-  z-index: 4 !important;
+  order: 99 !important;
+  flex-shrink: 0 !important;
 }
 
 .download-pill:hover {
