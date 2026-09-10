@@ -162,6 +162,41 @@
     localStorage.setItem(STORAGE_KEY_DONE, JSON.stringify(data));
   }
 
+  const STORAGE_KEY_CUSTOM_DUE = 'canvas_mod_tasks_custom_due_v1';
+
+  function getCustomDueDates() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_DUE) || '{}');
+    } catch { return {}; }
+  }
+
+  function setCustomDueDate(taskId, isoStringOrNull) {
+    const data = getCustomDueDates();
+    if (isoStringOrNull) data[taskId] = isoStringOrNull;
+    else delete data[taskId];
+    localStorage.setItem(STORAGE_KEY_CUSTOM_DUE, JSON.stringify(data));
+  }
+
+  // Attaches a `.customDueDate` (Date|null) to every task that has no real
+  // Canvas/Gradescope due date but has a user-supplied one saved locally.
+  function applyCustomDueDates() {
+    const customDates = getCustomDueDates();
+    Object.values(cachedCourseMap).forEach(course => {
+      (course.tasks || []).forEach(t => {
+        if (!t.dueDate && customDates[t.id]) {
+          const d = new Date(customDates[t.id]);
+          t.customDueDate = isNaN(d.getTime()) ? null : d;
+        } else {
+          t.customDueDate = null;
+        }
+      });
+    });
+  }
+
+  function effectiveDueDate(t) {
+    return t.dueDate || t.customDueDate || null;
+  }
+
   function getHiddenCourses() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDDEN_COURSES) || '[]');
@@ -381,6 +416,7 @@
 
     if (cached && Object.keys(cached).length > 0) {
       cachedCourseMap = cached;
+      applyCustomDueDates();
       renderFilterPills();
       updateHiddenMenuButton();
       updateProgressBar();
@@ -463,8 +499,9 @@
     Object.entries(cachedCourseMap).forEach(([courseKey, course]) => {
       if (hiddenCourses.includes(courseKey)) return;
       course.tasks.forEach(t => {
-        if (!t.dueDate || completedMap[t.id]) return;
-        const taskKey = localDateKey(t.dueDate);
+        const ed = effectiveDueDate(t);
+        if (!ed || completedMap[t.id]) return;
+        const taskKey = localDateKey(ed);
         const dayMatch = days.find(d => d.dateKey === taskKey);
         if (dayMatch) dayMatch.count++;
       });
@@ -889,6 +926,7 @@
       });
 
       cachedCourseMap = unifiedCourseMap;
+      applyCustomDueDates();
       saveLocalCache(unifiedCourseMap);
       renderFilterPills();
       updateHiddenMenuButton();
@@ -953,17 +991,21 @@
     const isDone = !!completedMap[task.id];
     const card = document.createElement('div');
 
+    const hasRealDueDate = !!task.dueDate;
+    const dueDate = task.dueDate || task.customDueDate || null;
+    const isCustomDate = !hasRealDueDate && !!task.customDueDate;
+
     let urgencyClass = '';
     let dueLabel = '';
     let badgeHtml = '';
     let isCritical = false;
 
-    if (task.dueDate) {
-      const diffMs = task.dueDate.getTime() - now.getTime();
+    if (dueDate) {
+      const diffMs = dueDate.getTime() - now.getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-      const dateStr = task.dueDate.toLocaleDateString([], {
+      const dateStr = dueDate.toLocaleDateString([], {
         weekday: 'short',
         month: 'short',
         day: 'numeric'
@@ -972,10 +1014,10 @@
       const isTomorrow = (() => {
         const d = new Date(now);
         d.setDate(d.getDate() + 1);
-        return task.dueDate.toDateString() === d.toDateString();
+        return dueDate.toDateString() === d.toDateString();
       })();
 
-      const isToday = task.dueDate.toDateString() === now.toDateString();
+      const isToday = dueDate.toDateString() === now.toDateString();
 
       if (diffMs < 0) {
         urgencyClass = 'due-overdue';
@@ -1003,6 +1045,10 @@
       } else {
         dueLabel = `Due ${dateStr}`;
       }
+
+      if (isCustomDate) {
+        badgeHtml += ` <span class="badge-tag custom-date-chip" title="You set this due date manually">✏️ Custom</span>`;
+      }
     } else {
       urgencyClass = 'undated';
       badgeHtml = `<span class="badge-tag undated-chip">⚠ NO DUE DATE</span>`;
@@ -1022,50 +1068,105 @@
       badgeHtml += ` <span class="badge-tag gs-source">Gradescope</span>`;
     }
 
-    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
+    // Only tasks with no real due date get the pencil control to set/edit
+    // a personal custom due date.
+    const editDateHtml = !hasRealDueDate
+    ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit your custom due date' : 'Set a due date'}">✏️</button>`
+    : '';
+
+    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''} ${task.downloadUrl ? 'has-download' : ''}`;
 
     card.innerHTML = `
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
     <div class="task-body">
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
     <div class="task-meta-row">
-    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}</span>
+    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}${editDateHtml}</span>
     <div class="task-tags-group">
-    ${downloadHtml}
     ${badgeHtml}
     </div>
     </div>
-    </div>
-    `;
+    ${!hasRealDueDate ? `
+      <div class="date-edit-row">
+      <input type="date" class="date-edit-input" value="${isCustomDate ? localDateKey(dueDate) : ''}">
+      <button type="button" class="date-edit-save">Save</button>
+      ${isCustomDate ? '<button type="button" class="date-edit-clear">Clear</button>' : ''}
+      </div>
+      ` : ''}
+      </div>
+      ${downloadHtml}
+      `;
 
-    const checkbox = card.querySelector('.task-checkbox');
-    checkbox.addEventListener('change', (e) => {
-      const willBeDone = e.target.checked;
-      playHapticClick();
+      const checkbox = card.querySelector('.task-checkbox');
+      checkbox.addEventListener('change', (e) => {
+        const willBeDone = e.target.checked;
+        playHapticClick();
 
-      if (willBeDone) {
-        const boxRect = checkbox.getBoundingClientRect();
-        launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
+        if (willBeDone) {
+          const boxRect = checkbox.getBoundingClientRect();
+          launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
 
-        if (currentTab !== 'completed') {
-          card.classList.add('dismissing');
-          setTimeout(() => {
-            setTaskCompleted(task.id, true);
+          if (currentTab !== 'completed') {
+            card.classList.add('dismissing');
+            setTimeout(() => {
+              setTaskCompleted(task.id, true);
+              updateProgressBar();
+              renderWorkloadStrip();
+              renderCurrentView();
+            }, 240);
+            return;
+          }
+        }
+
+        setTaskCompleted(task.id, willBeDone);
+        updateProgressBar();
+        renderWorkloadStrip();
+        renderCurrentView();
+      });
+
+      if (!hasRealDueDate) {
+        const editBtn = card.querySelector('.edit-date-btn');
+        const editRow = card.querySelector('.date-edit-row');
+        const dateInput = card.querySelector('.date-edit-input');
+        const saveBtn = card.querySelector('.date-edit-save');
+        const clearBtn = card.querySelector('.date-edit-clear');
+
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const willOpen = !editRow.classList.contains('is-visible');
+          editRow.classList.toggle('is-visible', willOpen);
+          if (willOpen) dateInput.focus();
+        });
+
+          saveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!dateInput.value) {
+              dateInput.focus();
+              return;
+            }
+            const picked = new Date(`${dateInput.value}T23:59:00`);
+            if (isNaN(picked.getTime())) return;
+
+            setCustomDueDate(task.id, picked.toISOString());
+            applyCustomDueDates();
             updateProgressBar();
             renderWorkloadStrip();
             renderCurrentView();
-          }, 240);
-          return;
-        }
+          });
+
+          if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              setCustomDueDate(task.id, null);
+              applyCustomDueDates();
+              updateProgressBar();
+              renderWorkloadStrip();
+              renderCurrentView();
+            });
+          }
       }
 
-      setTaskCompleted(task.id, willBeDone);
-      updateProgressBar();
-      renderWorkloadStrip();
-      renderCurrentView();
-    });
-
-    return card;
+      return card;
   }
 
   function renderCurrentView() {
@@ -1083,7 +1184,8 @@
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
       c.tasks.forEach(t => {
-        if (t.dueDate && t.dueDate < now && !completedMap[t.id]) totalOverdueCount++;
+        const ed = effectiveDueDate(t);
+        if (ed && ed < now && !completedMap[t.id]) totalOverdueCount++;
       });
     });
 
@@ -1102,11 +1204,12 @@
 
       const tasks = course.tasks.filter(t => {
         const isDone = !!completedMap[t.id];
-        const isOverdue = t.dueDate && t.dueDate < now;
+        const ed = effectiveDueDate(t);
+        const isOverdue = ed && ed < now;
 
         if (activeDayFilter) {
-          if (!t.dueDate) return false;
-          if (localDateKey(t.dueDate) !== activeDayFilter) return false;
+          if (!ed) return false;
+          if (localDateKey(ed) !== activeDayFilter) return false;
         }
 
         if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
@@ -1123,9 +1226,11 @@
     // 1. DEFAULT: TIMELINE VIEW
     if (isFlatView) {
       allFilteredTasks.sort((a, b) => {
-        if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
-        if (a.dueDate) return -1;
-        if (b.dueDate) return 1;
+        const edA = effectiveDueDate(a);
+        const edB = effectiveDueDate(b);
+        if (edA && edB) return edA - edB;
+        if (edA) return -1;
+        if (edB) return 1;
         return 0;
       });
 
@@ -1143,11 +1248,12 @@
         const course = cachedCourseMap[courseKey];
         const visibleTasks = course.tasks.filter(t => {
           const isDone = !!completedMap[t.id];
-          const isOverdue = t.dueDate && t.dueDate < now;
+          const ed = effectiveDueDate(t);
+          const isOverdue = ed && ed < now;
 
           if (activeDayFilter) {
-            if (!t.dueDate) return false;
-            if (localDateKey(t.dueDate) !== activeDayFilter) return false;
+            if (!ed) return false;
+            if (localDateKey(ed) !== activeDayFilter) return false;
           }
 
           if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
@@ -1162,9 +1268,11 @@
         renderedCount += visibleTasks.length;
 
         visibleTasks.sort((a, b) => {
-          if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
-          if (a.dueDate) return -1;
-          if (b.dueDate) return 1;
+          const edA = effectiveDueDate(a);
+          const edB = effectiveDueDate(b);
+          if (edA && edB) return edA - edB;
+          if (edA) return -1;
+          if (edB) return 1;
           return 0;
         });
 

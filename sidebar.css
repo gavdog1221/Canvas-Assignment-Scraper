@@ -684,6 +684,11 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   z-index: 3 !important;
 }
 
+/* Reserve room at the bottom so the pinned download pill never overlaps text */
+.mod-task-card.has-download {
+  padding-bottom: 30px !important;
+}
+
 .mod-task-card:hover {
   background: rgba(28, 34, 46, 0.95) !important;
   transform: translateX(4px) translateY(-1px) !important;
@@ -859,6 +864,107 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   letter-spacing: 0.1px !important;
 }
 
+/* ==========================================================================
+ *  CUSTOM DUE-DATE EDITOR (pencil icon + inline date picker)
+ *  ========================================================================== */
+.edit-date-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(30, 36, 49, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #94a3b8 !important;
+  border-radius: 6px !important;
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.edit-date-btn:hover {
+  color: #ffffff !important;
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 8px var(--accent-glow) !important;
+  transform: translateY(-1px) !important;
+}
+
+.date-edit-row {
+  display: none !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1) !important;
+}
+
+.date-edit-row.is-visible {
+  display: flex !important;
+}
+
+.date-edit-input {
+  background: rgba(10, 13, 18, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 7px !important;
+  color: #f8fafc !important;
+  font-size: 11px !important;
+  padding: 5px 8px !important;
+  outline: none !important;
+  color-scheme: dark !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.date-edit-input:focus {
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 0 2px var(--accent-soft) !important;
+}
+
+.date-edit-save,
+.date-edit-clear {
+  border: none !important;
+  border-radius: 7px !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  padding: 5px 9px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+
+.date-edit-save {
+  background: var(--accent-soft) !important;
+  color: var(--primary-accent) !important;
+  border: 1px solid var(--accent-glow) !important;
+}
+
+.date-edit-save:hover {
+  background: var(--primary-accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 10px var(--primary-accent) !important;
+}
+
+.date-edit-clear {
+  background: rgba(30, 36, 49, 0.8) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.date-edit-clear:hover {
+  color: #f87171 !important;
+  border-color: rgba(248, 81, 73, 0.5) !important;
+  background: rgba(248, 81, 73, 0.15) !important;
+}
+
+.badge-tag.custom-date-chip {
+  background: rgba(192, 132, 252, 0.15) !important;
+  color: #d8b4fe !important;
+  border: 1px solid rgba(192, 132, 252, 0.4) !important;
+}
+
 .due-indicator b {
   color: var(--primary-accent) !important;
   font-weight: 800 !important;
@@ -877,6 +983,9 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 .download-pill {
+  position: absolute !important;
+  bottom: 8px !important;
+  right: 10px !important;
   display: inline-flex !important;
   align-items: center !important;
   font-size: 10px !important;
@@ -888,6 +997,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   color: var(--primary-accent) !important;
   border: 1px solid var(--accent-glow) !important;
   transition: all 0.15s ease !important;
+  z-index: 4 !important;
 }
 
 .download-pill:hover {
