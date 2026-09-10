@@ -149,7 +149,7 @@
     <span class="title">Tasks Hub</span>
     </div>
     <div class="widget-controls">
-    <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes" style="display: none;">👁<span class="eye-badge"></span></button>
+    <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
     <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
     <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
     <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
@@ -157,7 +157,7 @@
     </div>
 
     <!-- Hidden Courses Popover -->
-    <div class="hidden-courses-popover" id="hidden-courses-popover" style="display: none;">
+    <div class="hidden-courses-popover" id="hidden-courses-popover">
     <div class="hidden-popover-header">
     <span class="hidden-popover-title">Hidden Classes</span>
     <button class="hidden-popover-close" id="close-hidden-courses-btn" title="Close">✕</button>
@@ -204,7 +204,6 @@
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
     const closeBtn = document.getElementById('close-hidden-courses-btn');
 
-    // Robust toggle: toggles visibility state on every click
     eyeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
@@ -242,11 +241,12 @@
       });
     });
 
+    // Auto-refresh clock & countdown ticker every 30 seconds
     setInterval(() => {
       if (document.getElementById('module-tasks-widget')) {
         renderCurrentView();
       }
-    }, 60000);
+    }, 30000);
 
     const cached = loadLocalCache();
     const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
@@ -270,6 +270,7 @@
 
   function updateHiddenMenuButton() {
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
+    const eyeBadge = document.getElementById('eye-badge');
     const popover = document.getElementById('hidden-courses-popover');
     const container = document.getElementById('hidden-pills-container');
     const hidden = getHiddenCourses();
@@ -277,31 +278,32 @@
     if (!eyeBtn || !popover || !container) return;
 
     if (hidden.length > 0) {
-      eyeBtn.style.display = 'inline-flex';
-
-      if (isHiddenMenuOpen) {
-        eyeBtn.classList.add('active');
-        popover.style.display = 'flex';
-        container.innerHTML = '';
-        hidden.forEach(k => {
-          const btn = document.createElement('button');
-          btn.className = 'hidden-pill-btn';
-          btn.innerHTML = `<span>+</span> ${escapeHTML(k)}`;
-          btn.title = `Click to restore ${escapeHTML(k)}`;
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            unhideCourse(k);
-          });
-          container.appendChild(btn);
-        });
-      } else {
-        eyeBtn.classList.remove('active');
-        popover.style.display = 'none';
-      }
+      eyeBtn.classList.add('has-hidden');
+      if (eyeBadge) eyeBadge.style.display = 'block';
     } else {
-      eyeBtn.style.display = 'none';
-      popover.style.display = 'none';
+      eyeBtn.classList.remove('has-hidden');
+      if (eyeBadge) eyeBadge.style.display = 'none';
       isHiddenMenuOpen = false;
+    }
+
+    if (isHiddenMenuOpen && hidden.length > 0) {
+      eyeBtn.classList.add('active');
+      popover.classList.add('is-visible');
+      container.innerHTML = '';
+      hidden.forEach(k => {
+        const btn = document.createElement('button');
+        btn.className = 'hidden-pill-btn';
+        btn.innerHTML = `<span>+</span> ${escapeHTML(k)}`;
+        btn.title = `Click to restore ${escapeHTML(k)}`;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          unhideCourse(k);
+        });
+        container.appendChild(btn);
+      });
+    } else {
+      eyeBtn.classList.remove('active');
+      popover.classList.remove('is-visible');
     }
   }
 
@@ -854,14 +856,18 @@
         const lateStr = hoursAgo < 24 ? `${hoursAgo}h late` : `${Math.floor(hoursAgo / 24)}d late`;
         badgeHtml = `<span class="badge-tag overdue">${lateStr}</span>`;
         dueLabel = `Was due ${dateStr}`;
-      } else if (diffHours < 12) {
+      } else if (diffMs <= 24 * 60 * 60 * 1000) {
+        // Less than 24 hours left: show live countdown chip
         urgencyClass = 'due-today';
-        badgeHtml = `<span class="badge-tag today"><span class="pulsing-dot"></span>${diffHours}h ${diffMins}m left</span>`;
-        dueLabel = `Due Today`;
-      } else if (isToday) {
-        urgencyClass = 'due-today';
-        badgeHtml = `<span class="badge-tag today">Due Today</span>`;
-        dueLabel = `Due ${dateStr}`;
+        let countdownStr = '';
+        if (diffHours >= 1) {
+          countdownStr = `${diffHours}h ${diffMins}m left`;
+        } else {
+          const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+          countdownStr = `${diffMins}m ${diffSecs}s left`;
+        }
+        badgeHtml = `<span class="badge-tag countdown-urgent"><span class="pulsing-dot"></span>${countdownStr}</span>`;
+        dueLabel = isToday ? `Due Today (${dateStr})` : `Due Tomorrow (${dateStr})`;
       } else if (isTomorrow) {
         urgencyClass = 'due-tomorrow';
         badgeHtml = `<span class="badge-tag tomorrow">Due Tomorrow</span>`;

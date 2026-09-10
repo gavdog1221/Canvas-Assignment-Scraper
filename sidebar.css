@@ -154,10 +154,10 @@ box-shadow: 0 0 10px #38bdf8 !important;
 }
 
 /* ==========================================================================
- *  HIDDEN COURSES POPOVER (HIDDEN BY DEFAULT)
+ *  HIDDEN COURSES POPOVER (HIDDEN BY DEFAULT, SHOWN VIA .is-visible)
  *  ========================================================================== */
 .hidden-courses-popover {
-  display: none; /* hidden by default */
+  display: none;
   flex-direction: column !important;
   gap: 8px !important;
   background: #161b22 !important;
@@ -169,7 +169,6 @@ box-shadow: 0 0 10px #38bdf8 !important;
   animation: fadeInDown 0.15s ease-out !important;
 }
 
-/* Controlled explicitly by adding the .is-visible class */
 .hidden-courses-popover.is-visible {
   display: flex !important;
 }
@@ -783,6 +782,24 @@ box-shadow: 0 0 10px #38bdf8 !important;
   background: rgba(110, 118, 129, 0.15) !important;
   color: #8b949e !important;
   border: 1px solid rgba(110, 118, 129, 0.25) !important;
+}
+
+/* Real-time Countdown Chip (<24 hrs) */
+.badge-tag.countdown-urgent {
+  background: rgba(248, 81, 73, 0.18) !important;
+  color: #ff7b72 !important;
+  border: 1px solid rgba(248, 81, 73, 0.45) !important;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.3px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  box-shadow: 0 0 8px rgba(248, 81, 73, 0.25) !important;
+}
+
+.countdown-urgent .pulsing-dot {
+  margin-right: 2px !important;
 }
 
 .pulsing-dot {
