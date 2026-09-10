@@ -6,6 +6,10 @@
   const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v1';
   const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v1';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
+  const STORAGE_KEY_THEME = 'canvas_mod_tasks_theme_v1';
+
+  const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
+  let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
 
   let currentTab = 'upcoming'; // 'upcoming' | 'overdue' | 'completed'
   let activeCourseFilter = 'ALL';
@@ -14,6 +18,106 @@
   let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
   let isHiddenMenuOpen = false;
   let cachedCourseMap = {};
+
+  // --- AUDIO HAPTIC CLICK (Native browser AudioContext synthesizer) ---
+  function playHapticClick() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.04);
+
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.04);
+    } catch (e) {}
+  }
+
+  // --- FULL VIEWPORT CONFETTI ENGINE ---
+  let activeParticles = [];
+  let isConfettiLoopRunning = false;
+
+  function ensureConfettiCanvas() {
+    let canvas = document.getElementById('canvas-tasks-confetti');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.id = 'canvas-tasks-confetti';
+      document.body.appendChild(canvas);
+    }
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    return canvas;
+  }
+
+  function launchConfetti(originX, originY) {
+    const canvas = ensureConfettiCanvas();
+    const ctx = canvas.getContext('2d');
+    const colors = ['#00f2fe', '#4facfe', '#f43f5e', '#c084fc', '#10b981', '#fb923c', '#eab308'];
+
+    for (let i = 0; i < 50; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 8 + 3;
+      activeParticles.push({
+        x: originX,
+        y: originY,
+        vx: Math.cos(angle) * speed,
+                           vy: Math.sin(angle) * speed - 3.5,
+                           size: Math.random() * 6 + 3,
+                           color: colors[Math.floor(Math.random() * colors.length)],
+                           alpha: 1,
+                           decay: Math.random() * 0.022 + 0.014,
+                           rotation: Math.random() * 360,
+                           rotSpeed: (Math.random() - 0.5) * 12
+      });
+    }
+
+    if (!isConfettiLoopRunning) {
+      isConfettiLoopRunning = true;
+      runConfettiLoop(canvas, ctx);
+    }
+  }
+
+  function runConfettiLoop(canvas, ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = activeParticles.length - 1; i >= 0; i--) {
+      const p = activeParticles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.22; // gravity
+      p.rotation += p.rotSpeed;
+      p.alpha -= p.decay;
+
+      if (p.alpha <= 0 || p.y > canvas.height) {
+        activeParticles.splice(i, 1);
+      } else {
+        ctx.save();
+        ctx.globalAlpha = Math.max(p.alpha, 0);
+        ctx.fillStyle = p.color;
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.5);
+        ctx.restore();
+      }
+    }
+
+    if (activeParticles.length > 0) {
+      requestAnimationFrame(() => runConfettiLoop(canvas, ctx));
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      isConfettiLoopRunning = false;
+    }
+  }
 
   function isCurrentSemesterCourse(name) {
     if (!name) return false;
@@ -143,12 +247,14 @@
   function injectWidget(container) {
     const widget = document.createElement('div');
     widget.id = 'module-tasks-widget';
+    widget.setAttribute('data-theme', currentTheme);
     widget.innerHTML = `
     <div class="header">
     <div class="title-row">
     <span class="title">Tasks Hub</span>
     </div>
     <div class="widget-controls">
+    <button class="icon-btn" id="toggle-theme-btn" title="Cycle Theme (Cyan / Synthwave / Emerald / Stealth)">🎨</button>
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
     <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
     <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
@@ -197,6 +303,28 @@
 
     container.prepend(widget);
 
+    // Track Cursor for Dynamic Edge Glow
+    widget.addEventListener('mousemove', (e) => {
+      const rect = widget.getBoundingClientRect();
+      const x = Math.round(e.clientX - rect.left);
+      const y = Math.round(e.clientY - rect.top);
+      widget.style.setProperty('--mouse-x', `${x}px`);
+      widget.style.setProperty('--mouse-y', `${y}px`);
+    });
+
+    widget.addEventListener('mouseleave', () => {
+      widget.style.setProperty('--mouse-x', `-1000px`);
+      widget.style.setProperty('--mouse-y', `-1000px`);
+    });
+
+    // Theme Switcher Button
+    document.getElementById('toggle-theme-btn').addEventListener('click', () => {
+      const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
+      currentTheme = THEMES[nextIdx];
+      localStorage.setItem(STORAGE_KEY_THEME, currentTheme);
+      widget.setAttribute('data-theme', currentTheme);
+    });
+
     document.getElementById('refresh-mod-tasks').addEventListener('click', () => loadTasks(true));
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
     updateToggleAllButtonState();
@@ -241,7 +369,6 @@
       });
     });
 
-    // Auto-refresh clock & countdown ticker every 30 seconds
     setInterval(() => {
       if (document.getElementById('module-tasks-widget')) {
         renderCurrentView();
@@ -307,7 +434,6 @@
     }
   }
 
-  // --- RENDER 7-DAY WORKLOAD STRIP ---
   function renderWorkloadStrip() {
     const container = document.getElementById('workload-strip-container');
     if (!container) return;
@@ -772,7 +898,7 @@
     } catch (fatalErr) {
       console.error('Task Scanner Error:', fatalErr);
       if (!cachedCourseMap || Object.keys(cachedCourseMap).length === 0) {
-        listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#ff7b72; border-color: rgba(248, 81, 73, 0.4);">Error scanning courses.</div>`;
+        listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; border-color: rgba(248, 113, 113, 0.4);">Error scanning courses.</div>`;
       }
     }
   }
@@ -830,6 +956,7 @@
     let urgencyClass = '';
     let dueLabel = '';
     let badgeHtml = '';
+    let isCritical = false;
 
     if (task.dueDate) {
       const diffMs = task.dueDate.getTime() - now.getTime();
@@ -857,8 +984,9 @@
         badgeHtml = `<span class="badge-tag overdue">${lateStr}</span>`;
         dueLabel = `Was due ${dateStr}`;
       } else if (diffMs <= 24 * 60 * 60 * 1000) {
-        // Less than 24 hours left: show live countdown chip
         urgencyClass = 'due-today';
+        if (diffHours < 2) isCritical = true;
+
         let countdownStr = '';
         if (diffHours >= 1) {
           countdownStr = `${diffHours}h ${diffMins}m left`;
@@ -877,7 +1005,8 @@
       }
     } else {
       urgencyClass = 'undated';
-      dueLabel = `Undated [${escapeHTML(task.moduleName || 'HW')}]`;
+      badgeHtml = `<span class="badge-tag undated-chip">⚠ NO DUE DATE</span>`;
+      dueLabel = `📁 Folder: ${escapeHTML(task.moduleName || 'HW')}`;
     }
 
     if (task.points !== null) {
@@ -893,7 +1022,7 @@
       badgeHtml += ` <span class="badge-tag gs-source">Gradescope</span>`;
     }
 
-    card.className = `mod-task-card ${urgencyClass} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
+    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
 
     card.innerHTML = `
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
@@ -911,7 +1040,26 @@
 
     const checkbox = card.querySelector('.task-checkbox');
     checkbox.addEventListener('change', (e) => {
-      setTaskCompleted(task.id, e.target.checked);
+      const willBeDone = e.target.checked;
+      playHapticClick();
+
+      if (willBeDone) {
+        const boxRect = checkbox.getBoundingClientRect();
+        launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
+
+        if (currentTab !== 'completed') {
+          card.classList.add('dismissing');
+          setTimeout(() => {
+            setTaskCompleted(task.id, true);
+            updateProgressBar();
+            renderWorkloadStrip();
+            renderCurrentView();
+          }, 240);
+          return;
+        }
+      }
+
+      setTaskCompleted(task.id, willBeDone);
       updateProgressBar();
       renderWorkloadStrip();
       renderCurrentView();
@@ -1040,6 +1188,9 @@
           saveAccordionState(courseKey, opened);
         });
 
+        const wrapper = document.createElement('div');
+        wrapper.className = 'accordion-wrapper';
+
         const body = document.createElement('div');
         body.className = 'course-content';
 
@@ -1047,15 +1198,16 @@
           body.appendChild(createTaskCard(task, now, completedMap));
         });
 
+        wrapper.appendChild(body);
         accordion.appendChild(header);
-        accordion.appendChild(body);
+        accordion.appendChild(wrapper);
         listContainer.appendChild(accordion);
       });
     }
 
     if (renderedCount === 0) {
       if (activeDayFilter) {
-        listContainer.innerHTML = `<div class="mod-empty-msg">No tasks scheduled for this day.<br><span style="color:#38bdf8;cursor:pointer;font-size:11px;" id="clear-day-filter">Click to view all</span></div>`;
+        listContainer.innerHTML = `<div class="mod-empty-msg">No tasks scheduled for this day.<br><span style="color:var(--primary-accent);cursor:pointer;font-size:12px;font-weight:700;" id="clear-day-filter">Click to view all</span></div>`;
         const clearBtn = document.getElementById('clear-day-filter');
         if (clearBtn) {
           clearBtn.addEventListener('click', () => {

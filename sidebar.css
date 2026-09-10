@@ -75,13 +75,13 @@ box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0
 box-sizing: border-box !important;
 border: 1px solid var(--border-subtle) !important;
 position: relative !important;
+overflow: hidden !important;
 }
 
 #module-tasks-widget * {
 box-sizing: border-box !important;
 }
 
-/* Ambient top line glow */
 #module-tasks-widget::before {
 content: "" !important;
 position: absolute !important;
@@ -95,7 +95,6 @@ opacity: 0.95 !important;
 z-index: 2 !important;
 }
 
-/* Cursor Dynamic Spotlight */
 #module-tasks-widget::after {
 content: "" !important;
 position: absolute !important;
@@ -108,15 +107,14 @@ opacity: 0.25 !important;
 mix-blend-mode: screen !important;
 }
 
-/* Confetti Viewport Layer */
-#canvas-tasks-confetti {
-position: fixed !important;
-top: 0 !important;
-left: 0 !important;
-width: 100vw !important;
-height: 100vh !important;
-pointer-events: none !important;
-z-index: 999999 !important;
+/* Bulletproof DOM Confetti Particle Styles */
+.canvas-confetti-particle {
+  position: fixed !important;
+  pointer-events: none !important;
+  z-index: 2147483647 !important;
+  border-radius: 2px !important;
+  will-change: transform, opacity !important;
+  transition: transform 0.85s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.85s ease-out !important;
 }
 
 /* ==========================================================================
@@ -168,7 +166,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #94a3b8 !important;
   border-radius: 8px !important;
-  padding: 5px 10px !important;
+  padding: 5px 9px !important;
   cursor: pointer !important;
   font-size: 11px !important;
   font-weight: 700 !important;
@@ -226,7 +224,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
  *  HIDDEN COURSES POPOVER
  *  ========================================================================== */
 .hidden-courses-popover {
-  display: none;
+  display: none !important;
   flex-direction: column !important;
   gap: 10px !important;
   background: rgba(18, 22, 31, 0.98) !important;
@@ -238,16 +236,10 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 16px var(--accent-glow) !important;
   position: relative !important;
   z-index: 4 !important;
-  animation: popoverFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .hidden-courses-popover.is-visible {
   display: flex !important;
-}
-
-@keyframes popoverFadeIn {
-  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .hidden-popover-header {
@@ -692,7 +684,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   z-index: 3 !important;
 }
 
-/* Default Hover Glow */
 .mod-task-card:hover {
   background: rgba(28, 34, 46, 0.95) !important;
   transform: translateX(4px) translateY(-1px) !important;
@@ -714,7 +705,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 18px rgba(248, 113, 113, 0.55) !important;
 }
 
-/* Specific background highlights for urgent cards */
 .mod-task-card.due-today {
   background: linear-gradient(90deg, rgba(248, 113, 113, 0.08) 0%, var(--card-bg) 40%) !important;
 }
@@ -725,16 +715,17 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: linear-gradient(90deg, rgba(239, 68, 68, 0.15) 0%, var(--card-bg) 50%) !important;
 }
 
-/* 2. Undated Tasks Glow Muted Slate */
+/* 2. Undated Tasks Glow Amber Warning */
 .mod-task-card.undated {
-  border-left-color: #64748b !important;
+  border-left-color: #f59e0b !important;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 45%) !important;
 }
 .mod-task-card.undated:hover {
-  border-color: #94a3b8 !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 14px rgba(148, 163, 184, 0.4) !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.45) !important;
 }
 
-/* 3. Gradescope Items Glow Emerald Green (Unless Urgent) */
+/* 3. Gradescope Items Glow Emerald Green */
 .mod-task-card.gradescope-item {
   border-left-color: #10b981 !important;
 }
@@ -743,7 +734,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.45) !important;
 }
 
-/* Gradescope + Urgent items still prioritize Red */
 .mod-task-card.gradescope-item.due-tomorrow,
 .mod-task-card.gradescope-item.due-today,
 .mod-task-card.gradescope-item.due-overdue {
@@ -756,7 +746,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 18px rgba(248, 113, 113, 0.55) !important;
 }
 
-/* Sub-2h Critical Pulse */
 .mod-task-card.critical-pulse {
   animation: criticalNeonBreathing 2.2s infinite ease-in-out !important;
 }
@@ -789,7 +778,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   color: #64748b !important;
 }
 
-/* Custom Interactive Checkbox */
 .task-checkbox {
   appearance: none !important;
   -webkit-appearance: none !important;
@@ -944,6 +932,16 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(148, 163, 184, 0.15) !important;
   color: #94a3b8 !important;
   border: 1px solid rgba(148, 163, 184, 0.25) !important;
+}
+
+.badge-tag.undated-chip {
+  background: rgba(245, 158, 11, 0.18) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.3px !important;
 }
 
 .badge-tag.countdown-urgent {
