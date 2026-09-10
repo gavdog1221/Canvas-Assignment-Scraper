@@ -2,12 +2,25 @@
  *  CANVAS CONTAINER OVERRIDES & EXPANDED WIDTH
  *  ========================================================================== */
 #right-side-wrapper {
-display: block !important;
+position: fixed !important;
+top: 24px !important;
+right: 24px !important;
+left: auto !important;
+float: none !important;
+margin: 0 !important;
 min-width: 400px !important;
 max-width: 440px !important;
 width: 26vw !important;
+max-height: calc(100vh - 48px) !important;
+overflow-y: auto !important;
+z-index: 500 !important;
 box-sizing: border-box !important;
 transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.ic-Layout-columns {
+  display: flex !important;
+  flex-wrap: nowrap !important;
 }
 
 #right-side {
