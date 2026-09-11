@@ -1,7 +1,6 @@
 /* ==========================================================================
  *  CANVAS NATIVE SIDEBAR SUPPRESSION (To Do & Recent Feedback)
  *  ========================================================================== */
-/* Hide default Canvas To Do, Coming Up, and Recent Feedback containers */
 #right-side .todo-list-needed,
 #right-side .to-do-list,
 #right-side .events_list,
@@ -135,7 +134,7 @@ opacity: 0.25 !important;
 mix-blend-mode: screen !important;
 }
 
-/* Bulletproof DOM Confetti Particle Styles */
+/* Confetti Particle */
 .canvas-confetti-particle {
   position: fixed !important;
   pointer-events: none !important;
@@ -246,6 +245,75 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: var(--primary-accent) !important;
   box-shadow: 0 0 8px var(--primary-accent) !important;
   pointer-events: none !important;
+}
+
+/* ==========================================================================
+ *  RELOAD PROGRESS BANNER OVERLAY
+ *  ========================================================================== */
+.reload-progress-overlay {
+  background: rgba(14, 18, 25, 0.95) !important;
+  border: 1px solid var(--primary-accent) !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  margin: 10px 0 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 16px var(--accent-glow) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  position: relative !important;
+  z-index: 5 !important;
+  animation: fadeInDown 0.22s ease-out !important;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.reload-meta-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.reload-label {
+  color: var(--primary-accent) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.reload-spinner {
+  display: inline-block !important;
+  animation: spin 0.8s infinite linear !important;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.reload-percent-text {
+  color: #f1f5f9 !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+}
+
+.reload-bar-bg {
+  height: 6px !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  border-radius: 99px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.reload-bar-fill {
+  height: 100% !important;
+  width: 0% !important;
+  background: linear-gradient(90deg, var(--secondary-accent), var(--primary-accent)) !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+  transition: width 0.25s ease !important;
 }
 
 /* ==========================================================================
@@ -465,7 +533,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   overflow: hidden !important;
 }
 
-/* Tier-based explicit styling */
 .progress-bar-fill.tier-low {
   background: linear-gradient(90deg, #f59e0b 0%, #fb923c 100%) !important;
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.55) !important;
@@ -486,7 +553,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 0 18px rgba(0, 242, 254, 0.8), 0 0 8px rgba(236, 72, 153, 0.6) !important;
 }
 
-/* Shimmer gloss effect across the bar */
 .progress-bar-fill::after {
   content: "" !important;
   position: absolute !important;
@@ -503,7 +569,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   100% { transform: translateX(200%); }
 }
 
-/* 100% Milestone Pulse */
 .progress-container.is-all-done .progress-bar-bg {
   border-color: rgba(255, 255, 255, 0.3) !important;
   box-shadow: 0 0 15px rgba(0, 242, 254, 0.45) !important;
@@ -756,7 +821,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
- *  TASK CARDS (DYNAMIC COLOR HOVER GLOWS)
+ *  TASK CARDS
  *  ========================================================================== */
 .mod-task-card {
   background: var(--card-bg) !important;
@@ -780,7 +845,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px var(--accent-glow) !important;
 }
 
-/* 1. Urgent Red Tasks Glow Hot Red On Hover */
 .mod-task-card.due-today,
 .mod-task-card.due-tomorrow,
 .mod-task-card.due-overdue {
@@ -804,7 +868,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: linear-gradient(90deg, rgba(239, 68, 68, 0.15) 0%, var(--card-bg) 50%) !important;
 }
 
-/* 2. Undated Tasks Glow Amber Warning */
 .mod-task-card.undated {
   border-left-color: #f59e0b !important;
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.08) 0%, var(--card-bg) 45%) !important;
@@ -814,7 +877,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.45) !important;
 }
 
-/* 3. Gradescope Items Glow Emerald Green */
 .mod-task-card.gradescope-item {
   border-left-color: #10b981 !important;
 }
@@ -926,9 +988,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   text-shadow: 0 0 8px var(--accent-glow) !important;
 }
 
-/* ==========================================================================
- *  ENHANCED BIGGER/BOLD DATES & LABELS
- *  ========================================================================== */
 .task-meta-row {
   display: flex !important;
   align-items: center !important;
@@ -948,9 +1007,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   letter-spacing: 0.1px !important;
 }
 
-/* ==========================================================================
- *  CUSTOM DUE-DATE EDITOR (pencil icon overlaid on the badge + date picker)
- *  ========================================================================== */
 .date-badge-wrap {
   position: relative !important;
   display: inline-flex !important;
@@ -1142,7 +1198,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(245, 158, 11, 0.18) !important;
   color: #fbbf24 !important;
   border: 1px solid rgba(245, 158, 11, 0.45) !important;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
   font-size: 10px !important;
   font-weight: 800 !important;
   letter-spacing: 0.3px !important;
@@ -1152,7 +1208,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(248, 113, 113, 0.22) !important;
   color: #fca5a5 !important;
   border: 1px solid rgba(248, 113, 113, 0.5) !important;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
   font-size: 10.5px !important;
   font-weight: 900 !important;
   letter-spacing: 0.4px !important;
@@ -1193,14 +1249,104 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   border: 1px dashed rgba(255, 255, 255, 0.12) !important;
 }
 
-/* Grades Tab */
+/* ==========================================================================
+ *  GRADES TAB: GPA BANNER & COURSE CARDS
+ *  ========================================================================== */
+.gpa-card {
+  background: linear-gradient(135deg, rgba(30, 38, 54, 0.95) 0%, rgba(14, 18, 25, 0.98) 100%) !important;
+  border: 1px solid var(--primary-accent) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--accent-glow) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  margin-bottom: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.gpa-info-left {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.gpa-title {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.6px !important;
+  color: #94a3b8 !important;
+}
+
+.gpa-subtitle {
+  font-size: 12px !important;
+  color: #cbd5e1 !important;
+  font-weight: 600 !important;
+}
+
+.gpa-badge {
+  font-size: 26px !important;
+  font-weight: 900 !important;
+  color: #ffffff !important;
+  text-shadow: 0 0 16px var(--primary-accent) !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--primary-accent) !important;
+  border-radius: 10px !important;
+  padding: 4px 14px !important;
+}
+
+.course-grades-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 8px !important;
+  margin-bottom: 14px !important;
+}
+
+.course-grade-summary-card {
+  background: rgba(18, 22, 31, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.cg-name {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #f1f5f9 !important;
+}
+
+.cg-score-wrap {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+}
+
+.cg-percent {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: var(--primary-accent) !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+}
+
+.cg-letter {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: #94a3b8 !important;
+}
+
 .grades-heading {
   font-size: 11px !important;
   font-weight: 800 !important;
   letter-spacing: 0.6px !important;
   text-transform: uppercase !important;
   color: #94a3b8 !important;
-  margin: 4px 2px 10px !important;
+  margin: 10px 2px 8px !important;
 }
 
 .grade-card {
