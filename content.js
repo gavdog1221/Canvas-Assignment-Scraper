@@ -330,7 +330,6 @@
     }
   }, 400);
 
-  // Keep suppressing Canvas dynamic redraws
   setInterval(purgeDefaultCanvasElements, 2500);
 
   function injectWidget(container) {
@@ -393,7 +392,6 @@
 
     container.prepend(widget);
 
-    // Track Cursor for Dynamic Edge Glow
     widget.addEventListener('mousemove', (e) => {
       const rect = widget.getBoundingClientRect();
       const x = Math.round(e.clientX - rect.left);
@@ -407,7 +405,6 @@
       widget.style.setProperty('--mouse-y', `-1000px`);
     });
 
-    // Theme Switcher Button
     document.getElementById('toggle-theme-btn').addEventListener('click', () => {
       const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
       currentTheme = THEMES[nextIdx];
@@ -558,7 +555,7 @@
 
     Object.entries(cachedCourseMap).forEach(([courseKey, course]) => {
       if (hiddenCourses.includes(courseKey)) return;
-      course.tasks.forEach(t => {
+      (course.tasks || []).forEach(t => {
         const ed = effectiveDueDate(t);
         if (!ed || completedMap[t.id]) return;
         const taskKey = localDateKey(ed);
@@ -591,9 +588,11 @@
     });
   }
 
+  // Active-Only Progress Bar: Overdue tasks that remain uncompleted are excluded from the total
   function updateProgressBar() {
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
+    const now = new Date();
     const countedIds = new Set();
     let total = 0;
     let completed = 0;
@@ -601,12 +600,21 @@
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
       (c.tasks || []).forEach(t => {
-        if (t.id && !countedIds.has(t.id)) {
-          countedIds.add(t.id);
-          total++;
-          if (completedMap[t.id]) {
-            completed++;
-          }
+        if (!t.id || countedIds.has(t.id)) return;
+        countedIds.add(t.id);
+
+        const isDone = !!completedMap[t.id];
+        const ed = effectiveDueDate(t);
+        const isOverdue = ed && ed < now;
+
+        // Skip overdue items that have not been completed
+        if (isOverdue && !isDone) {
+          return;
+        }
+
+        total++;
+        if (isDone) {
+          completed++;
         }
       });
     });
@@ -624,7 +632,7 @@
 
     if (percent === 100 && total > 0) {
       fillEl.classList.add('tier-complete');
-      labelEl.innerText = '✨ 100% Completed!';
+      labelEl.innerText = '✨ 100% Active Done!';
       if (container) container.classList.add('is-all-done');
     } else if (percent >= 70) {
       fillEl.classList.add('tier-high');
@@ -640,7 +648,7 @@
       if (container) container.classList.remove('is-all-done');
     }
 
-    countEl.innerText = `${completed}/${total}`;
+    countEl.innerText = `${completed}/${total} active`;
   }
 
   function updateToggleAllButtonState() {
@@ -907,7 +915,7 @@
   async function loadTasks(showLoadingUI = true) {
     const listContainer = document.getElementById('module-tasks-list');
     if (showLoadingUI && (!cachedCourseMap || Object.keys(cachedCourseMap).length === 0)) {
-      listContainer.innerHTML = '<div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>';
+      listContainer.innerHTML = '<div class="mod-empty-msg">Scanning Canvas Modules, Assignments & Gradescope...</div>';
     }
 
     const csrfToken = getCsrfToken();
@@ -950,7 +958,7 @@
           unifiedCourseMap[courseKey] = { name: rawCourseName, tasks: [] };
         }
 
-        // Modules Scan
+        // 1. Modules Scan
         try {
           const modRes = await fetch(`${origin}/api/v1/courses/${course.id}/modules?include[]=items&per_page=50`, {
             credentials: 'include',
@@ -979,6 +987,7 @@
                   if (dueDate || isHwFolder) {
                     unifiedCourseMap[courseKey].tasks.push({
                       id: generateTaskId(courseKey, item.title),
+                                                           canvasAssignmentId: item.content_details?.assignment_id || null,
                                                            title: parsed.title,
                                                            url: item.html_url || `${origin}/courses/${course.id}/modules/items/${item.id}`,
                                                            dueDate: dueDate,
@@ -1000,9 +1009,9 @@
           console.warn(`Modules scan error for ${rawCourseName}`, e);
         }
 
-        // Assignments Scan
+        // 2. Full Assignments Tab Scan (All upcoming, undated, and active assignments)
         try {
-          const assignRes = await fetch(`${origin}/api/v1/courses/${course.id}/assignments?bucket=upcoming&per_page=20`, {
+          const assignRes = await fetch(`${origin}/api/v1/courses/${course.id}/assignments?per_page=100&order_by=due_at`, {
             credentials: 'include',
             headers: headers
           });
@@ -1011,15 +1020,20 @@
             const assignments = await assignRes.json();
             if (Array.isArray(assignments)) {
               for (const a of assignments) {
-                if (a.due_at) {
+                const parsed = parseAndCleanTitle(a.name);
+                const dueDate = a.due_at ? new Date(a.due_at) : parsed.dueDate;
+                const isHwLike = homeworkFolderPattern.test(a.name) || (a.submission_types && !a.submission_types.includes('none'));
+
+                if (dueDate || isHwLike) {
                   unifiedCourseMap[courseKey].tasks.push({
                     id: generateTaskId(courseKey, a.name),
-                                                         title: a.name,
+                                                         canvasAssignmentId: a.id || null,
+                                                         title: parsed.title,
                                                          url: a.html_url,
-                                                         dueDate: new Date(a.due_at),
+                                                         dueDate: dueDate,
                                                          points: a.points_possible ?? null,
-                                                         isUndatedHw: false,
-                                                         gradescope: /grade\w*scope/i.test(a.description || ''),
+                                                         isUndatedHw: !dueDate,
+                                                         gradescope: /grade\w*scope/i.test(a.description || '') || /grade\w*scope/i.test(a.name),
                                                          isGradescope: false,
                                                          courseKey: courseKey,
                                                          courseName: rawCourseName,
@@ -1034,6 +1048,7 @@
         }
       }
 
+      // 3. Gradescope Scan
       const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;
       Object.keys(gsCourseMap).forEach(gsKey => {
         if (!unifiedCourseMap[gsKey]) {
@@ -1042,6 +1057,7 @@
         unifiedCourseMap[gsKey].tasks.push(...gsCourseMap[gsKey].tasks);
       });
 
+      // 4. Grades Consolidation
       const canvasGrades = await fetchCanvasGrades(headers, courseNameById);
       const gsGradesFlat = [];
       Object.values(gsGradesByCourse).forEach(entry => gsGradesFlat.push(...entry.grades));
@@ -1056,38 +1072,53 @@
       cachedGrades = allGrades;
       saveLocalGradesCache(allGrades);
 
-      // Deduplication & Attribute Inheritance
+      // 5. Robust Multi-Source Deduplication & Attribute Merging
       Object.keys(unifiedCourseMap).forEach(key => {
         const course = unifiedCourseMap[key];
         const uniqueTasks = [];
-        const gsTasks = course.tasks.filter(t => t.isGradescope);
-        const canvasTasks = course.tasks.filter(t => !t.isGradescope);
 
-        uniqueTasks.push(...gsTasks);
+        course.tasks.forEach(candidate => {
+          const candToken = extractCoreAssignmentToken(candidate.title);
+          const candDateKey = candidate.dueDate ? localDateKey(candidate.dueDate) : null;
 
-        canvasTasks.forEach(cTask => {
-          const cToken = extractCoreAssignmentToken(cTask.title);
-          const cDateKey = cTask.dueDate ? localDateKey(cTask.dueDate) : null;
+          const existingIdx = uniqueTasks.findIndex(existing => {
+            // Match by unique Canvas assignment ID
+            if (candidate.canvasAssignmentId && existing.canvasAssignmentId && candidate.canvasAssignmentId === existing.canvasAssignmentId) {
+              return true;
+            }
+            // Match by canonical task ID
+            if (candidate.id === existing.id) return true;
 
-          const duplicateGsTask = gsTasks.find(gTask => {
-            const gToken = extractCoreAssignmentToken(gTask.title);
-            const gDateKey = gTask.dueDate ? localDateKey(gTask.dueDate) : null;
+            // Match by assignment token and due date key
+            const existToken = extractCoreAssignmentToken(existing.title);
+            const existDateKey = existing.dueDate ? localDateKey(existing.dueDate) : null;
 
-            if (cToken && gToken && (cToken === gToken || cToken.includes(gToken) || gToken.includes(cToken))) return true;
-            if (cTask.gradescope && cDateKey && gDateKey && cDateKey === gDateKey) return true;
-            if (cDateKey && gDateKey && cDateKey === gDateKey) return true;
+            if (candToken && existToken) {
+              const tokensMatch = candToken === existToken || candToken.includes(existToken) || existToken.includes(candToken);
+              if (tokensMatch) {
+                if (candDateKey && existDateKey) return candDateKey === existDateKey;
+                return true; // Match by identical assignment token even if one is undated
+              }
+            }
+
+            // Same due date and gradescope integration mention
+            if (candidate.gradescope && candDateKey && existDateKey && candDateKey === existDateKey) {
+              return true;
+            }
+
             return false;
           });
 
-          if (duplicateGsTask) {
-            if (duplicateGsTask.points === null && cTask.points !== null) {
-              duplicateGsTask.points = cTask.points;
-            }
-            if (!duplicateGsTask.downloadUrl && cTask.downloadUrl) {
-              duplicateGsTask.downloadUrl = cTask.downloadUrl;
-            }
+          if (existingIdx === -1) {
+            uniqueTasks.push(candidate);
           } else {
-            uniqueTasks.push(cTask);
+            const target = uniqueTasks[existingIdx];
+            // Merge supplementary metadata onto the retained task
+            if (target.points === null && candidate.points !== null) target.points = candidate.points;
+            if (!target.downloadUrl && candidate.downloadUrl) target.downloadUrl = candidate.downloadUrl;
+            if (!target.dueDate && candidate.dueDate) target.dueDate = candidate.dueDate;
+            if (!target.moduleName && candidate.moduleName) target.moduleName = candidate.moduleName;
+            if (candidate.isGradescope) target.isGradescope = true;
           }
         });
 
@@ -1276,21 +1307,29 @@
           const boxRect = checkbox.getBoundingClientRect();
           launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
 
-          // Check if all visible items are now 100% completed
+          // Active-only 100% check for celebration
           const completedNow = getCompletedTasks();
           const hidden = getHiddenCourses();
-          let totalCount = 0;
-          let doneCount = 0;
+          const checkNow = new Date();
+          let totalActive = 0;
+          let doneActive = 0;
+
           Object.entries(cachedCourseMap).forEach(([k, c]) => {
             if (!hidden.includes(k)) {
               (c.tasks || []).forEach(item => {
-                totalCount++;
-                if (completedNow[item.id]) doneCount++;
+                const isItemDone = !!completedNow[item.id];
+                const ed = effectiveDueDate(item);
+                const isOverdue = ed && ed < checkNow;
+
+                if (isOverdue && !isItemDone) return;
+
+                totalActive++;
+                if (isItemDone) doneActive++;
               });
             }
           });
 
-          if (totalCount > 0 && doneCount >= totalCount) {
+          if (totalActive > 0 && doneActive >= totalActive) {
             setTimeout(() => {
               launchConfetti(window.innerWidth * 0.3, window.innerHeight * 0.4);
               launchConfetti(window.innerWidth * 0.7, window.innerHeight * 0.4);
@@ -1462,7 +1501,7 @@
 
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
-      c.tasks.forEach(t => {
+      (c.tasks || []).forEach(t => {
         const ed = effectiveDueDate(t);
         if (ed && ed < now && !completedMap[t.id]) totalOverdueCount++;
       });
