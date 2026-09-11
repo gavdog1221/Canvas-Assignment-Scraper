@@ -7,17 +7,20 @@
   const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v1';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
   const STORAGE_KEY_THEME = 'canvas_mod_tasks_theme_v1';
+  const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v1';
+  const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v1';
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
 
-  let currentTab = 'upcoming'; // 'upcoming' | 'overdue' | 'completed'
+  let currentTab = 'upcoming'; // 'upcoming' | 'overdue' | 'completed' | 'grades'
   let activeCourseFilter = 'ALL';
   let activeDayFilter = null; // null or YYYY-MM-DD
   let searchQuery = '';
   let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
   let isHiddenMenuOpen = false;
   let cachedCourseMap = {};
+  let cachedGrades = [];
 
   // --- AUDIO HAPTIC CLICK (Native browser AudioContext synthesizer) ---
   function playHapticClick() {
@@ -270,6 +273,30 @@
     }
   }
 
+  function loadLocalGradesCache() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_GRADES_CACHE);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data)) return null;
+      data.forEach(g => {
+        if (g.gradedAt) g.gradedAt = new Date(g.gradedAt);
+      });
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveLocalGradesCache(grades) {
+    try {
+      localStorage.setItem(STORAGE_KEY_GRADES_CACHE, JSON.stringify(grades));
+      localStorage.setItem(STORAGE_KEY_GRADES_CACHE_TIME, Date.now().toString());
+    } catch (e) {
+      console.warn('Grades cache write failed:', e);
+    }
+  }
+
   const checkInterval = setInterval(() => {
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
@@ -327,6 +354,7 @@
     <button class="tab-btn active" data-tab="upcoming">Upcoming</button>
     <button class="tab-btn overdue" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></button>
     <button class="tab-btn" data-tab="completed">Completed</button>
+    <button class="tab-btn" data-tab="grades">Grades</button>
     </div>
 
     <div class="course-pills" id="course-pills-container"></div>
@@ -409,6 +437,11 @@
         renderCurrentView();
       }
     }, 30000);
+
+    const cachedGradesLocal = loadLocalGradesCache();
+    if (cachedGradesLocal) {
+      cachedGrades = cachedGradesLocal;
+    }
 
     const cached = loadLocalCache();
     const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
@@ -634,8 +667,9 @@
     return `${courseKey}_${extractCoreAssignmentToken(title) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
   }
 
-  async function fetchGradescopeTasks() {
+  async function fetchGradescopeData() {
     const gsTasksByCourse = {};
+    const gsGradesByCourse = {};
 
     try {
       let dashRes = await fetch('https://www.gradescope.com/', { credentials: 'include' });
@@ -676,6 +710,8 @@
           const cDoc = parser.parseFromString(cHtml, 'text/html');
           const rows = Array.from(cDoc.querySelectorAll('tbody tr'));
           const tasks = [];
+          const grades = [];
+          const courseKey = normalizeCourseCode(course.name);
 
           rows.forEach(row => {
             const btnEl = row.querySelector('button.js-submitAssignment, [data-assignment-title]');
@@ -692,18 +728,38 @@
             title = title.split('\n')[0].trim();
             if (!title || title.toLowerCase() === 'name') return;
 
-            const statusEl = row.querySelector('.submissionStatus--text, .submissionStatus');
-            const statusText = statusEl ? statusEl.innerText.trim() : '';
-            if (/submitted/i.test(statusText) && !/no submission/i.test(statusText)) {
-              return;
-            }
-
             let url = course.url;
             if (btnEl && btnEl.getAttribute('data-post-url')) {
               const postUrl = btnEl.getAttribute('data-post-url');
               url = `https://www.gradescope.com${postUrl.replace(/\/submissions.*$/, '')}`;
             } else if (linkEl && linkEl.getAttribute('href')) {
               url = `https://www.gradescope.com${linkEl.getAttribute('href')}`;
+            }
+
+            // Gradescope shows a graded score directly in the status cell as "X.X / Y.Y"
+            // once grading is done, instead of a "Submitted"/"No Submission" label.
+            const statusEl = row.querySelector('.submissionStatus--text, .submissionStatus');
+            const statusText = statusEl ? statusEl.innerText.trim() : '';
+            const rowText = row.innerText || '';
+            const scoreMatch = (statusText || rowText).match(/(-?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+
+            if (scoreMatch) {
+              grades.push({
+                id: generateTaskId(courseKey, title) + '_grade',
+                title: title,
+                score: parseFloat(scoreMatch[1]),
+                pointsPossible: parseFloat(scoreMatch[2]),
+                url: url,
+                gradedAt: null, // Gradescope's course table doesn't expose a graded timestamp
+                isGradescope: true,
+                courseKey: courseKey,
+                courseName: course.name
+              });
+              return; // graded rows aren't upcoming/overdue tasks
+            }
+
+            if (/submitted/i.test(statusText) && !/no submission/i.test(statusText)) {
+              return;
             }
 
             let dueDate = null;
@@ -716,8 +772,6 @@
                 dueDate = new Date(anyDueTag.getAttribute('datetime'));
               }
             }
-
-            const courseKey = normalizeCourseCode(course.name);
 
             tasks.push({
               id: generateTaskId(courseKey, title),
@@ -734,10 +788,16 @@
           });
 
           if (tasks.length > 0) {
-            const courseKey = normalizeCourseCode(course.name);
             gsTasksByCourse[courseKey] = {
               name: course.name,
               tasks: tasks
+            };
+          }
+
+          if (grades.length > 0) {
+            gsGradesByCourse[courseKey] = {
+              name: course.name,
+              grades: grades
             };
           }
         } catch (err) {
@@ -748,7 +808,47 @@
       console.warn('[Gradescope] Error:', e);
     }
 
-    return gsTasksByCourse;
+    return { tasksByCourse: gsTasksByCourse, gradesByCourse: gsGradesByCourse };
+  }
+
+  async function fetchCanvasGrades(headers, courseNameById) {
+    const grades = [];
+    try {
+      const res = await fetch(`${origin}/api/v1/users/self/graded_submissions?include[]=assignment&per_page=30`, {
+        credentials: 'include',
+        headers: headers
+      });
+      if (!res.ok) return grades;
+
+      const submissions = await res.json();
+      if (!Array.isArray(submissions)) return grades;
+
+      submissions.forEach(sub => {
+        if (sub.score === null || sub.score === undefined || sub.excused) return;
+        const assignment = sub.assignment;
+        if (!assignment) return;
+
+        const rawCourseName = courseNameById[assignment.course_id];
+        if (!rawCourseName) return; // not a current-semester course we tracked
+
+        const courseKey = normalizeCourseCode(rawCourseName);
+
+        grades.push({
+          id: `canvas_${sub.id}`,
+          title: assignment.name,
+          score: sub.score,
+          pointsPossible: assignment.points_possible ?? null,
+          url: assignment.html_url || sub.html_url || null,
+          gradedAt: sub.graded_at ? new Date(sub.graded_at) : null,
+          isGradescope: false,
+          courseKey: courseKey,
+          courseName: rawCourseName
+        });
+      });
+    } catch (e) {
+      console.warn('[Grades] Canvas error:', e);
+    }
+    return grades;
   }
 
   async function loadTasks(showLoadingUI = true) {
@@ -765,7 +865,7 @@
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
     try {
-      const gradescopePromise = fetchGradescopeTasks();
+      const gradescopePromise = fetchGradescopeData();
 
       let courses = [];
       const favRes = await fetch(`${origin}/api/v1/users/self/favorites/courses`, {
@@ -783,6 +883,7 @@
       }
 
       const unifiedCourseMap = {};
+      const courseNameById = {};
       const homeworkFolderPattern = /homework|assignment|hw\b|lab\b|problem\s*set/i;
 
       for (const course of courses) {
@@ -790,6 +891,7 @@
         const rawCourseName = course.course_code || course.name;
         if (!isCurrentSemesterCourse(rawCourseName)) continue;
 
+        courseNameById[course.id] = rawCourseName;
         const courseKey = normalizeCourseCode(rawCourseName);
         if (!unifiedCourseMap[courseKey]) {
           unifiedCourseMap[courseKey] = { name: rawCourseName, tasks: [] };
@@ -879,13 +981,28 @@
         }
       }
 
-      const gsCourseMap = await gradescopePromise;
+      const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;
       Object.keys(gsCourseMap).forEach(gsKey => {
         if (!unifiedCourseMap[gsKey]) {
           unifiedCourseMap[gsKey] = { name: gsCourseMap[gsKey].name, tasks: [] };
         }
         unifiedCourseMap[gsKey].tasks.push(...gsCourseMap[gsKey].tasks);
       });
+
+      // Grades: combine Canvas graded submissions with Gradescope-scraped scores
+      const canvasGrades = await fetchCanvasGrades(headers, courseNameById);
+      const gsGradesFlat = [];
+      Object.values(gsGradesByCourse).forEach(entry => gsGradesFlat.push(...entry.grades));
+
+      const allGrades = [...canvasGrades, ...gsGradesFlat].sort((a, b) => {
+        if (a.gradedAt && b.gradedAt) return b.gradedAt - a.gradedAt;
+        if (a.gradedAt) return -1; // known dates first
+        if (b.gradedAt) return 1;
+        return a.title.localeCompare(b.title);
+      });
+
+      cachedGrades = allGrades;
+      saveLocalGradesCache(allGrades);
 
       // Deduplication & Attribute Inheritance
       Object.keys(unifiedCourseMap).forEach(key => {
@@ -1168,6 +1285,98 @@
       return card;
   }
 
+  function formatScoreNum(n) {
+    if (n === null || n === undefined || isNaN(n)) return '—';
+    return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+  }
+
+  function renderGradesView(listContainer, hiddenCourses) {
+    let grades = (cachedGrades || []).filter(g => !hiddenCourses.includes(g.courseKey));
+
+    if (activeCourseFilter !== 'ALL') {
+      grades = grades.filter(g => g.courseKey === activeCourseFilter);
+    }
+    if (searchQuery) {
+      grades = grades.filter(g => g.title.toLowerCase().includes(searchQuery));
+    }
+
+    if (grades.length === 0) {
+      listContainer.innerHTML = '<div class="mod-empty-msg">No recent grades yet.</div>';
+      return;
+    }
+
+    const heading = document.createElement('div');
+    heading.className = 'grades-heading';
+    heading.innerText = 'Recent Feedback';
+    listContainer.appendChild(heading);
+
+    grades.forEach(g => listContainer.appendChild(createGradeCard(g)));
+  }
+
+  function createGradeCard(grade) {
+    const card = document.createElement('div');
+    card.className = 'grade-card';
+
+    const hasPoints = grade.pointsPossible !== null && grade.pointsPossible !== undefined && !isNaN(grade.pointsPossible);
+    const scoreLabel = hasPoints
+      ? `${formatScoreNum(grade.score)} out of ${formatScoreNum(grade.pointsPossible)}`
+      : `${formatScoreNum(grade.score)} pts`;
+
+    const gradedLabel = grade.gradedAt
+      ? grade.gradedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : '';
+
+    const titleEl = document.createElement(grade.url ? 'a' : 'div');
+    titleEl.className = 'grade-title';
+    titleEl.innerText = grade.title;
+    if (grade.url) {
+      titleEl.href = grade.url;
+      titleEl.target = '_blank';
+      titleEl.rel = 'noopener noreferrer';
+    }
+
+    const courseSpan = document.createElement('span');
+    courseSpan.className = 'grade-course';
+    courseSpan.innerText = grade.courseName;
+
+    const meta = document.createElement('div');
+    meta.className = 'grade-meta';
+    meta.appendChild(courseSpan);
+
+    if (grade.isGradescope) {
+      const gsTag = document.createElement('span');
+      gsTag.className = 'badge-tag gs-source';
+      gsTag.innerText = 'Gradescope';
+      meta.appendChild(gsTag);
+    }
+
+    if (gradedLabel) {
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'grade-date';
+      dateSpan.innerText = gradedLabel;
+      meta.appendChild(dateSpan);
+    }
+
+    const scoreDiv = document.createElement('div');
+    scoreDiv.className = 'grade-score';
+    scoreDiv.innerText = scoreLabel;
+
+    const check = document.createElement('span');
+    check.className = 'grade-check';
+    check.innerText = '✓';
+
+    const body = document.createElement('div');
+    body.className = 'grade-body';
+    body.appendChild(titleEl);
+    body.appendChild(meta);
+    body.appendChild(scoreDiv);
+
+    card.appendChild(check);
+    card.appendChild(body);
+
+    return card;
+  }
+
   function renderCurrentView() {
     const listContainer = document.getElementById('module-tasks-list');
     listContainer.innerHTML = '';
@@ -1191,6 +1400,11 @@
     const overdueBadge = document.getElementById('overdue-total-badge');
     if (overdueBadge) {
       overdueBadge.innerText = totalOverdueCount > 0 ? `(${totalOverdueCount})` : '';
+    }
+
+    if (currentTab === 'grades') {
+      renderGradesView(listContainer, hiddenCourses);
+      return;
     }
 
     let allFilteredTasks = [];
