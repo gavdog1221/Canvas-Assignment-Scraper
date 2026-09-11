@@ -1,22 +1,23 @@
 (async function initUnifiedDashboard() {
   const origin = window.location.origin;
-  const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v2';
-  const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v2';
+  // Bump cache keys to v4 to instantly clear out stale duplicate cache entries
+  const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v4';
+  const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v4';
   const STORAGE_KEY_FLAT = 'canvas_mod_tasks_flat_view_v1';
-  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v1';
-  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v1';
+  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v4';
+  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v4';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
   const STORAGE_KEY_THEME = 'canvas_mod_tasks_theme_v1';
-  const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v1';
-  const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v1';
+  const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v4';
+  const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v4';
   const STORAGE_KEY_COURSE_PERCENTAGES = 'canvas_mod_tasks_course_pcts_v1';
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
 
-  let currentTab = 'upcoming'; // 'upcoming' | 'overdue' | 'completed' | 'grades'
+  let currentTab = 'upcoming';
   let activeCourseFilter = 'ALL';
-  let activeDayFilter = null; // null or YYYY-MM-DD
+  let activeDayFilter = null;
   let searchQuery = '';
   let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
   let isHiddenMenuOpen = false;
@@ -124,7 +125,6 @@
     }
   }
 
-  // Purge Canvas native sidebar clutter
   function purgeDefaultCanvasElements() {
     const selectors = [
       '#right-side .todo-list-needed',
@@ -168,15 +168,44 @@
     return name.replace(/\[gradescope\]/i, '').split('(')[0].trim().toUpperCase();
   }
 
-  function extractCoreAssignmentToken(title) {
+  // Robust Core Assignment Tokenizer
+  function extractCoreAssignmentToken(title, courseKey = '') {
     if (!title) return '';
-    let t = title.toLowerCase();
-    const tokenMatch = t.match(/\b([a-z]{1,3}\s*\d{1,2})\b/);
-    if (tokenMatch) return tokenMatch[1].replace(/\s+/g, '');
-    return t.replace(/\.pdf|\.docx?|\.zip/g, '')
-    .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, '')
-    .replace(/assignment|homework|hw|problem\s*set|revised/gi, '')
-    .replace(/[^a-z0-9]/g, '');
+
+    // Replace all underscores, dashes, dots, and slashes with spaces so \b word boundaries work properly
+    let t = title.toLowerCase().replace(/[_.\-\/]+/g, ' ');
+
+    // Strip course identifiers (e.g. "ece 541", "ece541")
+    if (courseKey) {
+      const flatKey = courseKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+      t = t.replace(new RegExp('\\b' + flatKey + '\\b', 'g'), ' ');
+      const spacedKey = courseKey.toLowerCase().split(/\s+/).join('\\s*');
+      t = t.replace(new RegExp('\\b' + spacedKey + '\\b', 'g'), ' ');
+    }
+    t = t.replace(/\b[a-z]{2,5}\s*\d{3}\b/g, ' ');
+
+    // Strip file extensions, dates, and semester tags
+    t = t.replace(/\b(pdf|docx?|zip|pptx?|xlsx?)\b/gi, ' ')
+    .replace(/\b(fall|fa|spring|sp|summer|winter)\s*\d{2,4}\b/gi, ' ')
+    .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, ' ');
+
+    // Match assignment prefix and number
+    const match = t.match(/\b(hw|homework|assignment|prob(?:lem)?\s*set|pset|lab|quiz|project|exam|a)\s*(\d{1,2})\b/i);
+    if (match) {
+      let prefix = match[1].toLowerCase().replace(/\s+/g, '');
+      if (['hw', 'homework', 'assignment', 'problemset', 'pset', 'probset'].includes(prefix)) {
+        prefix = 'hw';
+      }
+      return `${prefix}${parseInt(match[2], 10)}`;
+    }
+
+    // Fallback if string has a single isolated number
+    const numOnly = t.match(/\b(\d{1,2})\b/);
+    if (numOnly) {
+      return `hw${parseInt(numOnly[1], 10)}`;
+    }
+
+    return t.replace(/[^a-z0-9]/g, '');
   }
 
   function getCompletedTasks() {
@@ -336,7 +365,6 @@
     } catch (e) {}
   }
 
-  // --- GPA & LETTER GRADE CONVERSIONS ---
   function percentageToGpa(pct) {
     if (pct >= 93) return { gpa: 4.0, letter: 'A' };
     if (pct >= 90) return { gpa: 3.7, letter: 'A-' };
@@ -351,7 +379,6 @@
     return { gpa: 0.0, letter: 'F' };
   }
 
-  // --- LIVE RELOAD PROGRESS BAR CONTROLLER ---
   function showReloadProgress(message, percent) {
     let overlay = document.getElementById('reload-progress-overlay');
     if (!overlay) {
@@ -392,6 +419,82 @@
     if (overlay) overlay.remove();
   }
 
+  // Universal Course Deduplication Engine
+  function deduplicateCourseMap(courseMap, allGrades = []) {
+    const gradedTokensByCourse = {};
+    const gradedCanvasIds = new Set();
+
+    allGrades.forEach(g => {
+      if (g.canvasAssignmentId) gradedCanvasIds.add(g.canvasAssignmentId);
+      if (!gradedTokensByCourse[g.courseKey]) gradedTokensByCourse[g.courseKey] = new Set();
+      const tok = extractCoreAssignmentToken(g.title, g.courseKey);
+      if (tok) gradedTokensByCourse[g.courseKey].add(tok);
+    });
+
+      Object.keys(courseMap).forEach(key => {
+        const course = courseMap[key];
+        const uniqueTasks = [];
+        const courseGradedTokens = gradedTokensByCourse[key] || new Set();
+
+        (course.tasks || []).forEach(candidate => {
+          if (candidate.canvasAssignmentId && gradedCanvasIds.has(candidate.canvasAssignmentId)) {
+            return;
+          }
+
+          const candToken = extractCoreAssignmentToken(candidate.title, key);
+          if (candToken && courseGradedTokens.has(candToken)) {
+            return;
+          }
+
+          const candDateKey = candidate.dueDate ? localDateKey(candidate.dueDate) : null;
+
+          const existingIdx = uniqueTasks.findIndex(existing => {
+            if (candidate.canvasAssignmentId && existing.canvasAssignmentId && candidate.canvasAssignmentId === existing.canvasAssignmentId) {
+              return true;
+            }
+            if (candidate.id === existing.id) return true;
+
+            const existToken = extractCoreAssignmentToken(existing.title, key);
+            const existDateKey = existing.dueDate ? localDateKey(existing.dueDate) : null;
+
+            if (candToken && existToken && candToken === existToken) {
+              return true;
+            }
+
+            if (candidate.gradescope && candDateKey && existDateKey && candDateKey === existDateKey) {
+              return true;
+            }
+
+            return false;
+          });
+
+          if (existingIdx === -1) {
+            uniqueTasks.push(candidate);
+          } else {
+            const target = uniqueTasks[existingIdx];
+            if (target.points === null && candidate.points !== null) target.points = candidate.points;
+            if (!target.downloadUrl && candidate.downloadUrl) target.downloadUrl = candidate.downloadUrl;
+            if (!target.dueDate && candidate.dueDate) {
+              target.dueDate = candidate.dueDate;
+              target.isUndatedHw = false;
+            }
+            if (!target.moduleName && candidate.moduleName) target.moduleName = candidate.moduleName;
+            if (candidate.isGradescope) target.isGradescope = true;
+
+            // Always prefer the cleaner non-PDF name
+            if (/\.(pdf|docx?|zip)/i.test(target.title) && !/\.(pdf|docx?|zip)/i.test(candidate.title)) {
+              target.title = candidate.title;
+              target.url = candidate.url;
+            }
+          }
+        });
+
+        course.tasks = uniqueTasks;
+      });
+
+      return courseMap;
+  }
+
   const checkInterval = setInterval(() => {
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
@@ -422,7 +525,6 @@
     </div>
     </div>
 
-    <!-- Hidden Courses Popover -->
     <div class="hidden-courses-popover" id="hidden-courses-popover">
     <div class="hidden-popover-header">
     <span class="hidden-popover-title">Hidden Classes</span>
@@ -431,7 +533,6 @@
     <div class="hidden-pills-list" id="hidden-pills-container"></div>
     </div>
 
-    <!-- 7-Day Workload Density Strip -->
     <div class="workload-strip" id="workload-strip-container"></div>
 
     <div class="progress-container">
@@ -545,7 +646,7 @@
     const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
 
     if (cached && Object.keys(cached).length > 0) {
-      cachedCourseMap = cached;
+      cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
       applyCustomDueDates();
       renderFilterPills();
       updateHiddenMenuButton();
@@ -661,7 +762,6 @@
     });
   }
 
-  // Active-Only Progress Bar
   function updateProgressBar() {
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
@@ -680,7 +780,6 @@
         const ed = effectiveDueDate(t);
         const isOverdue = ed && ed < now;
 
-        // Skip overdue items that have not been finished
         if (isOverdue && !isDone) {
           return;
         }
@@ -800,7 +899,8 @@
   }
 
   function generateTaskId(courseKey, title) {
-    return `${courseKey}_${extractCoreAssignmentToken(title) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+    const token = extractCoreAssignmentToken(title, courseKey) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    return `${courseKey}_${token}`;
   }
 
   async function fetchGradescopeData() {
@@ -1036,7 +1136,6 @@
       const officialCoursePercentages = {};
       const homeworkFolderPattern = /homework|assignment|hw\b|lab\b|problem\s*set/i;
 
-      // Capture direct course percentages from enrollment objects if available
       activeCourses.forEach(c => {
         const rawCourseName = c.course_code || c.name;
         courseNameById[c.id] = rawCourseName;
@@ -1192,7 +1291,6 @@
       cachedGrades = allGrades;
       saveLocalGradesCache(allGrades);
 
-      // Derive and save course grade percentages
       const derivedPcts = { ...officialCoursePercentages };
       const gradeTotalsByCourse = {};
       allGrades.forEach(g => {
@@ -1214,88 +1312,24 @@
       cachedCoursePercentages = derivedPcts;
       saveCoursePercentagesCache(derivedPcts);
 
-      // 5. Deduplication across Tasks and Graded Items
-      const gradedTokensByCourse = {};
-      const gradedCanvasIds = new Set();
+      // 5. Intelligent Deduplication
+      deduplicateCourseMap(unifiedCourseMap, allGrades);
 
-      allGrades.forEach(g => {
-        if (g.canvasAssignmentId) gradedCanvasIds.add(g.canvasAssignmentId);
-        if (!gradedTokensByCourse[g.courseKey]) gradedTokensByCourse[g.courseKey] = new Set();
-        const tok = extractCoreAssignmentToken(g.title);
-        if (tok) gradedTokensByCourse[g.courseKey].add(tok);
-      });
+      if (showLoadingUI) {
+        showReloadProgress('Ready!', 100);
+      }
 
-        Object.keys(unifiedCourseMap).forEach(key => {
-          const course = unifiedCourseMap[key];
-          const uniqueTasks = [];
-          const courseGradedTokens = gradedTokensByCourse[key] || new Set();
+      cachedCourseMap = unifiedCourseMap;
+      applyCustomDueDates();
+      saveLocalCache(unifiedCourseMap);
+      renderFilterPills();
+      updateHiddenMenuButton();
+      updateProgressBar();
+      renderWorkloadStrip();
+      renderCurrentView();
+      purgeDefaultCanvasElements();
 
-          course.tasks.forEach(candidate => {
-            // If task is already scored in the Grades tab, omit it from the active to-do list
-            if (candidate.canvasAssignmentId && gradedCanvasIds.has(candidate.canvasAssignmentId)) {
-              return;
-            }
-            const candToken = extractCoreAssignmentToken(candidate.title);
-            if (candToken && courseGradedTokens.has(candToken)) {
-              return;
-            }
-
-            const candDateKey = candidate.dueDate ? localDateKey(candidate.dueDate) : null;
-
-            const existingIdx = uniqueTasks.findIndex(existing => {
-              if (candidate.canvasAssignmentId && existing.canvasAssignmentId && candidate.canvasAssignmentId === existing.canvasAssignmentId) {
-                return true;
-              }
-              if (candidate.id === existing.id) return true;
-
-              const existToken = extractCoreAssignmentToken(existing.title);
-              const existDateKey = existing.dueDate ? localDateKey(existing.dueDate) : null;
-
-              if (candToken && existToken) {
-                const tokensMatch = candToken === existToken || candToken.includes(existToken) || existToken.includes(candToken);
-                if (tokensMatch) {
-                  if (candDateKey && existDateKey) return candDateKey === existDateKey;
-                  return true;
-                }
-              }
-
-              if (candidate.gradescope && candDateKey && existDateKey && candDateKey === existDateKey) {
-                return true;
-              }
-
-              return false;
-            });
-
-            if (existingIdx === -1) {
-              uniqueTasks.push(candidate);
-            } else {
-              const target = uniqueTasks[existingIdx];
-              if (target.points === null && candidate.points !== null) target.points = candidate.points;
-              if (!target.downloadUrl && candidate.downloadUrl) target.downloadUrl = candidate.downloadUrl;
-              if (!target.dueDate && candidate.dueDate) target.dueDate = candidate.dueDate;
-              if (!target.moduleName && candidate.moduleName) target.moduleName = candidate.moduleName;
-              if (candidate.isGradescope) target.isGradescope = true;
-            }
-          });
-
-          course.tasks = uniqueTasks;
-        });
-
-        if (showLoadingUI) {
-          showReloadProgress('Ready!', 100);
-        }
-
-        cachedCourseMap = unifiedCourseMap;
-        applyCustomDueDates();
-        saveLocalCache(unifiedCourseMap);
-        renderFilterPills();
-        updateHiddenMenuButton();
-        updateProgressBar();
-        renderWorkloadStrip();
-        renderCurrentView();
-        purgeDefaultCanvasElements();
-
-        setTimeout(hideReloadProgress, 400);
+      setTimeout(hideReloadProgress, 400);
     } catch (fatalErr) {
       console.error('Task Scanner Error:', fatalErr);
       hideReloadProgress();
@@ -1560,7 +1594,6 @@
     return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
   }
 
-  // Render GPA Header and Course Percentages
   function renderGradesView(listContainer, hiddenCourses) {
     let grades = (cachedGrades || []).filter(g => !hiddenCourses.includes(g.courseKey));
 
@@ -1571,7 +1604,6 @@
       grades = grades.filter(g => g.title.toLowerCase().includes(searchQuery));
     }
 
-    // Compute Overall GPA across all visible courses
     const activeKeys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k));
     const gpaPoints = [];
     const courseCardsData = [];
@@ -1589,7 +1621,6 @@
     ? (gpaPoints.reduce((a, b) => a + b, 0) / gpaPoints.length).toFixed(2)
     : '—';
 
-    // Top GPA Card
     const gpaCard = document.createElement('div');
     gpaCard.className = 'gpa-card';
     gpaCard.innerHTML = `
@@ -1601,7 +1632,6 @@
     `;
     listContainer.appendChild(gpaCard);
 
-    // Course Grade Chips
     if (courseCardsData.length > 0) {
       const grid = document.createElement('div');
       grid.className = 'course-grades-grid';
