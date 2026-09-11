@@ -1,16 +1,16 @@
 (async function initUnifiedDashboard() {
   const origin = window.location.origin;
-  // Bump cache keys to v4 to instantly clear out stale duplicate cache entries
-  const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v4';
-  const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v4';
+  const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v5';
+  const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v5';
   const STORAGE_KEY_FLAT = 'canvas_mod_tasks_flat_view_v1';
-  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v4';
-  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v4';
+  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v5';
+  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v5';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
   const STORAGE_KEY_THEME = 'canvas_mod_tasks_theme_v1';
-  const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v4';
-  const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v4';
+  const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v5';
+  const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v5';
   const STORAGE_KEY_COURSE_PERCENTAGES = 'canvas_mod_tasks_course_pcts_v1';
+  const STORAGE_KEY_WHATIF = 'canvas_mod_tasks_whatif_scores_v1';
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
@@ -24,6 +24,17 @@
   let cachedCourseMap = {};
   let cachedGrades = [];
   let cachedCoursePercentages = {};
+  let whatIfScores = {};
+
+  try {
+    whatIfScores = JSON.parse(localStorage.getItem(STORAGE_KEY_WHATIF) || '{}');
+  } catch {
+    whatIfScores = {};
+  }
+
+  function saveWhatIfScores() {
+    localStorage.setItem(STORAGE_KEY_WHATIF, JSON.stringify(whatIfScores));
+  }
 
   // --- AUDIO HAPTIC CLICK ---
   function playHapticClick() {
@@ -168,14 +179,11 @@
     return name.replace(/\[gradescope\]/i, '').split('(')[0].trim().toUpperCase();
   }
 
-  // Robust Core Assignment Tokenizer
   function extractCoreAssignmentToken(title, courseKey = '') {
     if (!title) return '';
 
-    // Replace all underscores, dashes, dots, and slashes with spaces so \b word boundaries work properly
     let t = title.toLowerCase().replace(/[_.\-\/]+/g, ' ');
 
-    // Strip course identifiers (e.g. "ece 541", "ece541")
     if (courseKey) {
       const flatKey = courseKey.toLowerCase().replace(/[^a-z0-9]/g, '');
       t = t.replace(new RegExp('\\b' + flatKey + '\\b', 'g'), ' ');
@@ -184,12 +192,10 @@
     }
     t = t.replace(/\b[a-z]{2,5}\s*\d{3}\b/g, ' ');
 
-    // Strip file extensions, dates, and semester tags
     t = t.replace(/\b(pdf|docx?|zip|pptx?|xlsx?)\b/gi, ' ')
     .replace(/\b(fall|fa|spring|sp|summer|winter)\s*\d{2,4}\b/gi, ' ')
     .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, ' ');
 
-    // Match assignment prefix and number
     const match = t.match(/\b(hw|homework|assignment|prob(?:lem)?\s*set|pset|lab|quiz|project|exam|a)\s*(\d{1,2})\b/i);
     if (match) {
       let prefix = match[1].toLowerCase().replace(/\s+/g, '');
@@ -199,7 +205,6 @@
       return `${prefix}${parseInt(match[2], 10)}`;
     }
 
-    // Fallback if string has a single isolated number
     const numOnly = t.match(/\b(\d{1,2})\b/);
     if (numOnly) {
       return `hw${parseInt(numOnly[1], 10)}`;
@@ -419,7 +424,6 @@
     if (overlay) overlay.remove();
   }
 
-  // Universal Course Deduplication Engine
   function deduplicateCourseMap(courseMap, allGrades = []) {
     const gradedTokensByCourse = {};
     const gradedCanvasIds = new Set();
@@ -481,7 +485,6 @@
             if (!target.moduleName && candidate.moduleName) target.moduleName = candidate.moduleName;
             if (candidate.isGradescope) target.isGradescope = true;
 
-            // Always prefer the cleaner non-PDF name
             if (/\.(pdf|docx?|zip)/i.test(target.title) && !/\.(pdf|docx?|zip)/i.test(candidate.title)) {
               target.title = candidate.title;
               target.url = candidate.url;
@@ -1451,7 +1454,7 @@
       }
     } else {
       urgencyClass = 'undated';
-      badgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag undated-chip">⚠ NO DUE DATE</span></span>`;
+      badgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag custom-date-chip">⚠ NO DUE DATE</span></span>`;
     }
 
     if (task.points !== null) {
@@ -1594,7 +1597,49 @@
     return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
   }
 
+  // --- COMPUTE ACTIVE COURSE PERCENTAGES (INCLUDING WHAT-IF SIMULATIONS) ---
+  function computeCoursePercentagesWithWhatIf(hiddenCourses) {
+    const courseTotals = {};
+
+    (cachedGrades || []).forEach(g => {
+      if (hiddenCourses.includes(g.courseKey)) return;
+      if (g.score !== null && g.pointsPossible && g.pointsPossible > 0) {
+        if (!courseTotals[g.courseKey]) courseTotals[g.courseKey] = { earned: 0, possible: 0 };
+        courseTotals[g.courseKey].earned += g.score;
+        courseTotals[g.courseKey].possible += g.pointsPossible;
+      }
+    });
+
+    Object.entries(whatIfScores).forEach(([taskId, sim]) => {
+      if (hiddenCourses.includes(sim.courseKey)) return;
+      if (sim.score !== null && sim.pointsPossible > 0) {
+        if (!courseTotals[sim.courseKey]) courseTotals[sim.courseKey] = { earned: 0, possible: 0 };
+        courseTotals[sim.courseKey].earned += sim.score;
+        courseTotals[sim.courseKey].possible += sim.pointsPossible;
+      }
+    });
+
+    const activeKeys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k));
+    const result = {};
+
+    activeKeys.forEach(cKey => {
+      const totals = courseTotals[cKey];
+      if (totals && totals.possible > 0) {
+        result[cKey] = Math.round((totals.earned / totals.possible) * 1000) / 10;
+      } else if (cachedCoursePercentages[cKey] !== undefined && cachedCoursePercentages[cKey] !== null) {
+        result[cKey] = cachedCoursePercentages[cKey];
+      } else {
+        result[cKey] = null;
+      }
+    });
+
+    return result;
+  }
+
+  // --- RENDER GRADES VIEW WITH WHAT-IF EXPERIMENTATION MATRIX ---
   function renderGradesView(listContainer, hiddenCourses) {
+    listContainer.innerHTML = '';
+
     let grades = (cachedGrades || []).filter(g => !hiddenCourses.includes(g.courseKey));
 
     if (activeCourseFilter !== 'ALL') {
@@ -1604,16 +1649,17 @@
       grades = grades.filter(g => g.title.toLowerCase().includes(searchQuery));
     }
 
-    const activeKeys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k));
+    const coursePcts = computeCoursePercentagesWithWhatIf(hiddenCourses);
     const gpaPoints = [];
     const courseCardsData = [];
 
-    activeKeys.forEach(cKey => {
-      const pct = cachedCoursePercentages[cKey];
-      if (pct !== undefined && pct !== null) {
+    Object.entries(coursePcts).forEach(([cKey, pct]) => {
+      if (pct !== null && !isNaN(pct)) {
         const info = percentageToGpa(pct);
         gpaPoints.push(info.gpa);
-        courseCardsData.push({ courseKey: cKey, pct: pct, letter: info.letter });
+        courseCardsData.push({ courseKey: cKey, pct: pct, letter: info.letter, hasGrade: true });
+      } else {
+        courseCardsData.push({ courseKey: cKey, pct: null, letter: '—', hasGrade: false });
       }
     });
 
@@ -1621,35 +1667,151 @@
     ? (gpaPoints.reduce((a, b) => a + b, 0) / gpaPoints.length).toFixed(2)
     : '—';
 
+    // 1. Top Overall GPA Banner
     const gpaCard = document.createElement('div');
     gpaCard.className = 'gpa-card';
+    const hasWhatIfActive = Object.keys(whatIfScores).length > 0;
     gpaCard.innerHTML = `
     <div class="gpa-info-left">
-    <span class="gpa-title">Current Semester Standing</span>
-    <span class="gpa-subtitle">Based on ${gpaPoints.length} active graded course${gpaPoints.length === 1 ? '' : 's'}</span>
+    <span class="gpa-title">Current Semester Standing ${hasWhatIfActive ? '<span style="color:var(--primary-accent);">(What-If Active)</span>' : ''}</span>
+    <span class="gpa-subtitle">Based on ${gpaPoints.length} graded course${gpaPoints.length === 1 ? '' : 's'}</span>
     </div>
     <div class="gpa-badge">${averageGpa}</div>
     `;
     listContainer.appendChild(gpaCard);
 
+    // 2. Course Grades Grid
     if (courseCardsData.length > 0) {
       const grid = document.createElement('div');
       grid.className = 'course-grades-grid';
       courseCardsData.forEach(item => {
         const cCard = document.createElement('div');
         cCard.className = 'course-grade-summary-card';
-        cCard.innerHTML = `
-        <span class="cg-name">${escapeHTML(item.courseKey)}</span>
-        <div class="cg-score-wrap">
-        <span class="cg-percent">${item.pct.toFixed(1)}%</span>
-        <span class="cg-letter">(${item.letter})</span>
-        </div>
-        `;
+        if (item.hasGrade) {
+          cCard.innerHTML = `
+          <span class="cg-name">${escapeHTML(item.courseKey)}</span>
+          <div class="cg-score-wrap">
+          <span class="cg-percent">${item.pct.toFixed(1)}%</span>
+          <span class="cg-letter">(${item.letter})</span>
+          </div>
+          `;
+        } else {
+          cCard.innerHTML = `
+          <span class="cg-name">${escapeHTML(item.courseKey)}</span>
+          <div class="cg-score-wrap">
+          <span class="cg-percent no-grade">No grades yet</span>
+          </div>
+          `;
+        }
         grid.appendChild(cCard);
       });
       listContainer.appendChild(grid);
     }
 
+    // 3. Interactive What-If Matrix
+    const tasksByCourse = {};
+    Object.entries(cachedCourseMap).forEach(([cKey, c]) => {
+      if (hiddenCourses.includes(cKey)) return;
+      if (activeCourseFilter !== 'ALL' && activeCourseFilter !== cKey) return;
+
+      const validTasks = (c.tasks || []).filter(t => t.points && t.points > 0);
+      if (validTasks.length > 0) {
+        tasksByCourse[cKey] = validTasks;
+      }
+    });
+
+    if (Object.keys(tasksByCourse).length > 0) {
+      const matrixCard = document.createElement('div');
+      matrixCard.className = 'whatif-matrix-card';
+
+      const topBar = document.createElement('div');
+      topBar.className = 'whatif-top-bar';
+      topBar.innerHTML = `
+      <span class="whatif-heading">⚡ What-If Grade Simulator</span>
+      ${hasWhatIfActive ? '<button type="button" class="whatif-clear-all-btn" id="whatif-clear-all-btn">Clear Simulations</button>' : ''}
+      `;
+      matrixCard.appendChild(topBar);
+
+      Object.entries(tasksByCourse).forEach(([cKey, taskList]) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'whatif-course-group';
+
+        const curPct = coursePcts[cKey];
+        const pctLabel = curPct !== null ? `${curPct.toFixed(1)}% (${percentageToGpa(curPct).letter})` : 'No grades yet';
+
+        const cHeader = document.createElement('div');
+        cHeader.className = 'whatif-course-header';
+        cHeader.innerHTML = `
+        <span class="whatif-course-tag">${escapeHTML(cKey)}</span>
+        <span class="whatif-projected-badge">Projected: ${pctLabel}</span>
+        `;
+        groupEl.appendChild(cHeader);
+
+        const listEl = document.createElement('div');
+        listEl.className = 'whatif-items-list';
+
+        taskList.forEach(task => {
+          const sim = whatIfScores[task.id];
+          const hasSim = !!sim;
+
+          const row = document.createElement('div');
+          row.className = `whatif-row-card ${hasSim ? 'has-sim' : ''}`;
+          row.innerHTML = `
+          <div class="whatif-item-left">
+          <span class="whatif-item-title" title="${escapeHTML(task.title)}">${escapeHTML(task.title)}</span>
+          <span class="whatif-item-pts">${task.points} pts possible</span>
+          </div>
+          <div class="whatif-item-right">
+          <input type="number" step="0.5" class="whatif-matrix-input" data-task-id="${escapeHTML(task.id)}" placeholder="—" value="${hasSim ? sim.score : ''}" />
+          ${hasSim ? `<button type="button" class="whatif-row-reset" data-reset-id="${escapeHTML(task.id)}" title="Remove simulation">×</button>` : ''}
+          </div>
+          `;
+
+          const inputEl = row.querySelector('.whatif-matrix-input');
+          inputEl.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) {
+              whatIfScores[task.id] = {
+                score: val,
+                pointsPossible: task.points,
+                courseKey: cKey
+              };
+            } else {
+              delete whatIfScores[task.id];
+            }
+            saveWhatIfScores();
+            renderGradesView(listContainer, hiddenCourses);
+          });
+
+          const rowResetBtn = row.querySelector('.whatif-row-reset');
+          if (rowResetBtn) {
+            rowResetBtn.addEventListener('click', () => {
+              delete whatIfScores[task.id];
+              saveWhatIfScores();
+              renderGradesView(listContainer, hiddenCourses);
+            });
+          }
+
+          listEl.appendChild(row);
+        });
+
+        groupEl.appendChild(listEl);
+        matrixCard.appendChild(groupEl);
+      });
+
+      const clearAllBtn = matrixCard.querySelector('#whatif-clear-all-btn');
+      if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => {
+          whatIfScores = {};
+          saveWhatIfScores();
+          renderGradesView(listContainer, hiddenCourses);
+        });
+      }
+
+      listContainer.appendChild(matrixCard);
+    }
+
+    // 4. Recent Feedback Section
     if (grades.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'mod-empty-msg';
