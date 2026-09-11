@@ -122,6 +122,31 @@
     }
   }
 
+  // Purge Canvas native sidebar clutter (To Do, Coming Up, Recent Feedback)
+  function purgeDefaultCanvasElements() {
+    const selectors = [
+      '#right-side .todo-list-needed',
+      '#right-side .to-do-list',
+      '#right-side .events_list',
+      '#right-side .recent_feedback',
+      '.Sidebar__TodoListContainer',
+      '.ic-sidebar-right__event-list'
+    ];
+    document.querySelectorAll(selectors.join(',')).forEach(el => el.remove());
+
+    const rightSide = document.getElementById('right-side');
+    if (rightSide) {
+      Array.from(rightSide.children).forEach(child => {
+        if (child.id !== 'module-tasks-widget' && child.id !== 'hidden-courses-popover') {
+          const text = child.innerText || '';
+          if (/to-?\s*do|recent feedback|coming up/i.test(text)) {
+            child.remove();
+          }
+        }
+      });
+    }
+  }
+
   function isCurrentSemesterCourse(name) {
     if (!name) return false;
     const str = name.toLowerCase();
@@ -180,8 +205,6 @@
     localStorage.setItem(STORAGE_KEY_CUSTOM_DUE, JSON.stringify(data));
   }
 
-  // Attaches a `.customDueDate` (Date|null) to every task that has no real
-  // Canvas/Gradescope due date but has a user-supplied one saved locally.
   function applyCustomDueDates() {
     const customDates = getCustomDueDates();
     Object.values(cachedCourseMap).forEach(course => {
@@ -282,7 +305,7 @@
       data.forEach(g => {
         if (g.gradedAt) g.gradedAt = new Date(g.gradedAt);
       });
-      return data;
+        return data;
     } catch {
       return null;
     }
@@ -303,8 +326,12 @@
       clearInterval(checkInterval);
       document.body.classList.add('with-right-side');
       injectWidget(rightSide);
+      purgeDefaultCanvasElements();
     }
-  }, 500);
+  }, 400);
+
+  // Keep suppressing Canvas dynamic redraws
+  setInterval(purgeDefaultCanvasElements, 2500);
 
   function injectWidget(container) {
     const widget = document.createElement('div');
@@ -342,7 +369,7 @@
     <span id="progress-count">0/0</span>
     </div>
     <div class="progress-bar-bg">
-    <div class="progress-bar-fill" id="progress-bar-fill"></div>
+    <div class="progress-bar-fill tier-low" id="progress-bar-fill"></div>
     </div>
     </div>
 
@@ -567,14 +594,20 @@
   function updateProgressBar() {
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
+    const countedIds = new Set();
     let total = 0;
     let completed = 0;
 
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
-      c.tasks.forEach(t => {
-        total++;
-        if (completedMap[t.id]) completed++;
+      (c.tasks || []).forEach(t => {
+        if (t.id && !countedIds.has(t.id)) {
+          countedIds.add(t.id);
+          total++;
+          if (completedMap[t.id]) {
+            completed++;
+          }
+        }
       });
     });
 
@@ -582,10 +615,32 @@
     const fillEl = document.getElementById('progress-bar-fill');
     const labelEl = document.getElementById('progress-label');
     const countEl = document.getElementById('progress-count');
+    const container = document.querySelector('.progress-container');
 
-    if (fillEl) fillEl.style.width = `${percent}%`;
-    if (labelEl) labelEl.innerText = `${percent}% completed`;
-    if (countEl) countEl.innerText = `${completed}/${total}`;
+    if (!fillEl || !labelEl || !countEl) return;
+
+    fillEl.style.setProperty('width', `${percent}%`, 'important');
+    fillEl.classList.remove('tier-low', 'tier-mid', 'tier-high', 'tier-complete');
+
+    if (percent === 100 && total > 0) {
+      fillEl.classList.add('tier-complete');
+      labelEl.innerText = '✨ 100% Completed!';
+      if (container) container.classList.add('is-all-done');
+    } else if (percent >= 70) {
+      fillEl.classList.add('tier-high');
+      labelEl.innerText = `${percent}% completed`;
+      if (container) container.classList.remove('is-all-done');
+    } else if (percent >= 30) {
+      fillEl.classList.add('tier-mid');
+      labelEl.innerText = `${percent}% completed`;
+      if (container) container.classList.remove('is-all-done');
+    } else {
+      fillEl.classList.add('tier-low');
+      labelEl.innerText = `${percent}% completed`;
+      if (container) container.classList.remove('is-all-done');
+    }
+
+    countEl.innerText = `${completed}/${total}`;
   }
 
   function updateToggleAllButtonState() {
@@ -736,8 +791,6 @@
               url = `https://www.gradescope.com${linkEl.getAttribute('href')}`;
             }
 
-            // Gradescope shows a graded score directly in the status cell as "X.X / Y.Y"
-            // once grading is done, instead of a "Submitted"/"No Submission" label.
             const statusEl = row.querySelector('.submissionStatus--text, .submissionStatus');
             const statusText = statusEl ? statusEl.innerText.trim() : '';
             const rowText = row.innerText || '';
@@ -746,16 +799,16 @@
             if (scoreMatch) {
               grades.push({
                 id: generateTaskId(courseKey, title) + '_grade',
-                title: title,
-                score: parseFloat(scoreMatch[1]),
-                pointsPossible: parseFloat(scoreMatch[2]),
-                url: url,
-                gradedAt: null, // Gradescope's course table doesn't expose a graded timestamp
-                isGradescope: true,
-                courseKey: courseKey,
-                courseName: course.name
+                          title: title,
+                          score: parseFloat(scoreMatch[1]),
+                          pointsPossible: parseFloat(scoreMatch[2]),
+                          url: url,
+                          gradedAt: null,
+                          isGradescope: true,
+                          courseKey: courseKey,
+                          courseName: course.name
               });
-              return; // graded rows aren't upcoming/overdue tasks
+              return;
             }
 
             if (/submitted/i.test(statusText) && !/no submission/i.test(statusText)) {
@@ -829,7 +882,7 @@
         if (!assignment) return;
 
         const rawCourseName = courseNameById[assignment.course_id];
-        if (!rawCourseName) return; // not a current-semester course we tracked
+        if (!rawCourseName) return;
 
         const courseKey = normalizeCourseCode(rawCourseName);
 
@@ -840,9 +893,9 @@
           pointsPossible: assignment.points_possible ?? null,
           url: assignment.html_url || sub.html_url || null,
           gradedAt: sub.graded_at ? new Date(sub.graded_at) : null,
-          isGradescope: false,
-          courseKey: courseKey,
-          courseName: rawCourseName
+                    isGradescope: false,
+                    courseKey: courseKey,
+                    courseName: rawCourseName
         });
       });
     } catch (e) {
@@ -989,14 +1042,13 @@
         unifiedCourseMap[gsKey].tasks.push(...gsCourseMap[gsKey].tasks);
       });
 
-      // Grades: combine Canvas graded submissions with Gradescope-scraped scores
       const canvasGrades = await fetchCanvasGrades(headers, courseNameById);
       const gsGradesFlat = [];
       Object.values(gsGradesByCourse).forEach(entry => gsGradesFlat.push(...entry.grades));
 
       const allGrades = [...canvasGrades, ...gsGradesFlat].sort((a, b) => {
         if (a.gradedAt && b.gradedAt) return b.gradedAt - a.gradedAt;
-        if (a.gradedAt) return -1; // known dates first
+        if (a.gradedAt) return -1;
         if (b.gradedAt) return 1;
         return a.title.localeCompare(b.title);
       });
@@ -1050,6 +1102,7 @@
       updateProgressBar();
       renderWorkloadStrip();
       renderCurrentView();
+      purgeDefaultCanvasElements();
     } catch (fatalErr) {
       console.error('Task Scanner Error:', fatalErr);
       if (!cachedCourseMap || Object.keys(cachedCourseMap).length === 0) {
@@ -1117,8 +1170,6 @@
     let badgeHtml = '';
     let isCritical = false;
 
-    // The pencil control to set/edit a personal custom due date only ever
-    // appears layered on top of the badge for tasks with no real due date.
     const editBtnHtml = !hasRealDueDate
     ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit your custom due date' : 'Set a due date'}">✏️</button>`
     : '';
@@ -1218,15 +1269,37 @@
         const willBeDone = e.target.checked;
         playHapticClick();
 
+        setTaskCompleted(task.id, willBeDone);
+        updateProgressBar();
+
         if (willBeDone) {
           const boxRect = checkbox.getBoundingClientRect();
           launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
 
+          // Check if all visible items are now 100% completed
+          const completedNow = getCompletedTasks();
+          const hidden = getHiddenCourses();
+          let totalCount = 0;
+          let doneCount = 0;
+          Object.entries(cachedCourseMap).forEach(([k, c]) => {
+            if (!hidden.includes(k)) {
+              (c.tasks || []).forEach(item => {
+                totalCount++;
+                if (completedNow[item.id]) doneCount++;
+              });
+            }
+          });
+
+          if (totalCount > 0 && doneCount >= totalCount) {
+            setTimeout(() => {
+              launchConfetti(window.innerWidth * 0.3, window.innerHeight * 0.4);
+              launchConfetti(window.innerWidth * 0.7, window.innerHeight * 0.4);
+            }, 250);
+          }
+
           if (currentTab !== 'completed') {
             card.classList.add('dismissing');
             setTimeout(() => {
-              setTaskCompleted(task.id, true);
-              updateProgressBar();
               renderWorkloadStrip();
               renderCurrentView();
             }, 240);
@@ -1234,8 +1307,6 @@
           }
         }
 
-        setTaskCompleted(task.id, willBeDone);
-        updateProgressBar();
         renderWorkloadStrip();
         renderCurrentView();
       });
@@ -1319,12 +1390,12 @@
 
     const hasPoints = grade.pointsPossible !== null && grade.pointsPossible !== undefined && !isNaN(grade.pointsPossible);
     const scoreLabel = hasPoints
-      ? `${formatScoreNum(grade.score)} out of ${formatScoreNum(grade.pointsPossible)}`
-      : `${formatScoreNum(grade.score)} pts`;
+    ? `${formatScoreNum(grade.score)} out of ${formatScoreNum(grade.pointsPossible)}`
+    : `${formatScoreNum(grade.score)} pts`;
 
     const gradedLabel = grade.gradedAt
-      ? grade.gradedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-      : '';
+    ? grade.gradedAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : '';
 
     const titleEl = document.createElement(grade.url ? 'a' : 'div');
     titleEl.className = 'grade-title';
