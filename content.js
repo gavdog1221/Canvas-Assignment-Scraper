@@ -1673,8 +1673,7 @@
     const hasWhatIfActive = Object.keys(whatIfScores).length > 0;
     gpaCard.innerHTML = `
     <div class="gpa-info-left">
-    <span class="gpa-title">Current Semester Standing ${hasWhatIfActive ? '<span style="color:var(--primary-accent);">(What-If Active)</span>' : ''}</span>
-    <span class="gpa-subtitle">Based on ${gpaPoints.length} graded course${gpaPoints.length === 1 ? '' : 's'}</span>
+    <span class="gpa-title">GPA ${hasWhatIfActive ? '<span style="color:var(--primary-accent);">(What-If Active)</span>' : ''}</span>
     </div>
     <div class="gpa-badge">${averageGpa}</div>
     `;
