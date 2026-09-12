@@ -997,6 +997,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* Meta Row: Class + Date + Actions */
+/* Meta Row: Class + Date + Actions */
 .task-meta-row {
   display: flex !important;
   align-items: center !important;
@@ -1015,7 +1016,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   gap: 7px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important; /* Prevents the pencil icon from clipping */
 }
 
 .task-meta-right {
@@ -1068,37 +1069,37 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   position: relative !important;
   display: inline-flex !important;
   align-items: center !important;
-  margin: 0 !important;
+  margin: 0 5px 0 0 !important; /* Adds clearance on the right so the pencil won't overlap next elements */
   flex-shrink: 0 !important;
 }
 
 .edit-date-btn {
   position: absolute !important;
-  top: -6px !important;
-  right: -6px !important;
+  top: -5px !important;
+  right: -7px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: rgba(15, 17, 22, 0.95) !important;
-  border: 1px solid var(--primary-accent) !important;
-  color: var(--primary-accent) !important;
+  background: #0f131a !important;
+  border: 1.2px solid #eab308 !important; /* Gold/yellow border */
+  color: #eab308 !important;              /* Gold/yellow pencil */
   border-radius: 50% !important;
   width: 15px !important;
   height: 15px !important;
   padding: 0 !important;
-  font-size: 8.5px !important;
+  font-size: 8px !important;
   line-height: 1 !important;
   cursor: pointer !important;
   flex-shrink: 0 !important;
-  z-index: 5 !important;
-  box-shadow: 0 0 0 1px var(--card-bg) !important;
-  transition: all 0.15s ease !important;
+  z-index: 10 !important;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 6px rgba(234, 179, 8, 0.4) !important;
+  transition: transform 0.15s ease !important;
 }
 
 .edit-date-btn:hover {
   color: #000000 !important;
-  background: var(--primary-accent) !important;
-  transform: scale(1.15) !important;
+  background: #eab308 !important;
+  transform: scale(1.18) !important;
 }
 
 .date-edit-row {
@@ -1126,12 +1127,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   flex: 1 !important;
   min-width: 0 !important;
 }
-
-.date-edit-input:focus {
-  border-color: var(--primary-accent) !important;
-  box-shadow: 0 0 0 2px var(--accent-soft) !important;
-}
-
 .date-edit-save,
 .date-edit-clear {
   border: none !important;
@@ -1292,12 +1287,21 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) !important;
 }
 
-.badge-tag.undated-chip,
+/* Bright Cyber Yellow / Gold for NO DUE DATE */
+.badge-tag.undated-chip {
+  background: rgba(234, 179, 8, 0.16) !important;
+  color: #fef08a !important;
+  border: 1.2px solid #eab308 !important;
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.35) !important;
+  text-shadow: 0 0 6px rgba(234, 179, 8, 0.5) !important;
+  letter-spacing: 0.3px !important;
+}
+
 .badge-tag.custom-date-chip {
-  background: rgba(88, 28, 135, 0.4) !important;
+  background: rgba(147, 51, 234, 0.22) !important;
   color: #e9d5ff !important;
-  border: 1px solid rgba(192, 132, 252, 0.5) !important;
-  box-shadow: 0 0 10px rgba(192, 132, 252, 0.25) !important;
+  border: 1.2px solid rgba(192, 132, 252, 0.6) !important;
+  box-shadow: 0 0 8px rgba(192, 132, 252, 0.3) !important;
 }
 
 .badge-tag.countdown-urgent {
