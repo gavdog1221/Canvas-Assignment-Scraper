@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
-  "name": "Canvas & Gradescope Unified Tasks",
-  "version": "1.4",
-  "description": "Displays module-embedded Canvas assignments and Gradescope tasks directly on the UNH Canvas Dashboard.",
+  "name": "YACE: Yet Another Canvas Extension",
+  "version": "2.0",
+  "description": "YACE — Yet Another Canvas Extension. Unifies Canvas assignments, PDFs, and Gradescope tasks into a cyber-deck HUD.",
   "permissions": [
     "https://mycourses.unh.edu/*",
     "https://www.gradescope.com/*",
@@ -23,7 +23,8 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "canvas-module-sidebar@local.firefox"
+      "id": "yace@local.firefox"
     }
   }
 }
+

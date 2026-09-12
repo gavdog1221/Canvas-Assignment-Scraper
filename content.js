@@ -692,7 +692,7 @@
     widget.innerHTML = `
     <div class="header">
     <div class="title-row">
-    <span class="title">Tasks Hub</span>
+    <span class="title">YACE</span>
     </div>
     <div class="widget-controls">
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
