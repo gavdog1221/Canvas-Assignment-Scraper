@@ -60,6 +60,29 @@
     } catch (e) {}
   }
 
+  // --- DYNAMIC COURSE PALETTES ---
+  const COURSE_PALETTES = [
+    { accent: '#00f2fe', glow: 'rgba(0, 242, 254, 0.45)', soft: 'rgba(0, 242, 254, 0.14)' }, // Cyan
+ { accent: '#a855f7', glow: 'rgba(168, 85, 247, 0.45)', soft: 'rgba(168, 85, 247, 0.14)' }, // Purple / Violet
+ { accent: '#10b981', glow: 'rgba(16, 185, 129, 0.45)', soft: 'rgba(16, 185, 129, 0.14)' }, // Emerald
+ { accent: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)', soft: 'rgba(245, 158, 11, 0.14)' }, // Amber / Gold
+ { accent: '#ec4899', glow: 'rgba(236, 72, 153, 0.45)', soft: 'rgba(236, 72, 153, 0.14)' }, // Pink
+ { accent: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)', soft: 'rgba(59, 130, 246, 0.14)' }, // Royal Blue
+ { accent: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)', soft: 'rgba(20, 184, 166, 0.14)' }, // Teal
+ { accent: '#f97316', glow: 'rgba(249, 115, 22, 0.45)', soft: 'rgba(249, 115, 22, 0.14)' }  // Orange
+  ];
+
+  function getCourseColors(courseKey) {
+    if (!courseKey) return COURSE_PALETTES[0];
+    let hash = 0;
+    for (let i = 0; i < courseKey.length; i++) {
+      hash = (hash << 5) - hash + courseKey.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % COURSE_PALETTES.length;
+    return COURSE_PALETTES[idx];
+  }
+
   // --- FULL VIEWPORT CONFETTI ENGINE ---
   let activeParticles = [];
   let isConfettiLoopRunning = false;
@@ -540,8 +563,8 @@
 
     <div class="progress-container">
     <div class="progress-meta">
-    <span id="progress-label">0% completed</span>
-    <span id="progress-count">0/0 active</span>
+    <span id="progress-label">0% this week</span>
+    <span id="progress-count">0/0 this week</span>
     </div>
     <div class="progress-bar-bg">
     <div class="progress-bar-fill tier-low" id="progress-bar-fill"></div>
@@ -765,11 +788,25 @@
     });
   }
 
+  function getWeekBounds(referenceDate = new Date()) {
+    const d = new Date(referenceDate);
+    const day = d.getDay(); // 0 = Sun, 1 = Mon, ...
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+
+    const startOfWeek = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday, 0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    return { startOfWeek, endOfWeek };
+  }
+
   function updateProgressBar() {
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
-    const now = new Date();
     const countedIds = new Set();
+    const { startOfWeek, endOfWeek } = getWeekBounds();
+
     let total = 0;
     let completed = 0;
 
@@ -777,15 +814,14 @@
       if (hiddenCourses.includes(courseKey)) return;
       (c.tasks || []).forEach(t => {
         if (!t.id || countedIds.has(t.id)) return;
-        countedIds.add(t.id);
 
-        const isDone = !!completedMap[t.id];
         const ed = effectiveDueDate(t);
-        const isOverdue = ed && ed < now;
-
-        if (isOverdue && !isDone) {
+        if (!ed || ed < startOfWeek || ed > endOfWeek) {
           return;
         }
+
+        countedIds.add(t.id);
+        const isDone = !!completedMap[t.id];
 
         total++;
         if (isDone) {
@@ -805,25 +841,28 @@
     fillEl.style.setProperty('width', `${percent}%`, 'important');
     fillEl.classList.remove('tier-low', 'tier-mid', 'tier-high', 'tier-complete');
 
-    if (percent === 100 && total > 0) {
+    if (total === 0) {
+      labelEl.innerText = 'No tasks due this week';
+      if (container) container.classList.remove('is-all-done');
+    } else if (percent === 100) {
       fillEl.classList.add('tier-complete');
-      labelEl.innerText = '✨ 100% Active Done!';
+      labelEl.innerText = '✨ 100% Week Done!';
       if (container) container.classList.add('is-all-done');
     } else if (percent >= 70) {
       fillEl.classList.add('tier-high');
-      labelEl.innerText = `${percent}% completed`;
+      labelEl.innerText = `${percent}% this week`;
       if (container) container.classList.remove('is-all-done');
     } else if (percent >= 30) {
       fillEl.classList.add('tier-mid');
-      labelEl.innerText = `${percent}% completed`;
+      labelEl.innerText = `${percent}% this week`;
       if (container) container.classList.remove('is-all-done');
     } else {
       fillEl.classList.add('tier-low');
-      labelEl.innerText = `${percent}% completed`;
+      labelEl.innerText = `${percent}% this week`;
       if (container) container.classList.remove('is-all-done');
     }
 
-    countEl.innerText = `${completed}/${total} active`;
+    countEl.innerText = `${completed}/${total} this week`;
   }
 
   function updateToggleAllButtonState() {
@@ -1396,11 +1435,11 @@
 
     let urgencyClass = '';
     let dueLabel = '';
-    let badgeHtml = '';
+    let statusBadgeHtml = '';
     let isCritical = false;
 
     const editBtnHtml = !hasRealDueDate
-    ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit your custom due date' : 'Set a due date'}">✏️</button>`
+    ? `<button type="button" class="edit-date-btn" title="${isCustomDate ? 'Edit custom due date' : 'Set due date'}">✏️</button>`
     : '';
 
     if (dueDate) {
@@ -1426,61 +1465,75 @@
         urgencyClass = 'due-overdue';
         const hoursAgo = Math.abs(diffHours);
         const lateStr = hoursAgo < 24 ? `${hoursAgo}h late` : `${Math.floor(hoursAgo / 24)}d late`;
-        badgeHtml = `<span class="badge-tag overdue">${lateStr}</span>`;
-        dueLabel = `Was due ${dateStr}`;
+        statusBadgeHtml = `<span class="badge-tag overdue">${lateStr}</span>`;
+        dueLabel = `Due ${dateStr}`;
       } else if (diffMs <= 24 * 60 * 60 * 1000) {
         urgencyClass = 'due-today';
         if (diffHours < 2) isCritical = true;
 
         let countdownStr = '';
         if (diffHours >= 1) {
-          countdownStr = `${diffHours}h ${diffMins}m left`;
+          countdownStr = `${diffHours}h left`;
         } else {
-          const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
-          countdownStr = `${diffMins}m ${diffSecs}s left`;
+          countdownStr = `${diffMins}m left`;
         }
-        badgeHtml = `<span class="badge-tag countdown-urgent"><span class="pulsing-dot"></span>${countdownStr}</span>`;
-        dueLabel = isToday ? `Due Today (${dateStr})` : `Due Tomorrow (${dateStr})`;
+        statusBadgeHtml = `<span class="badge-tag countdown-urgent"><span class="pulsing-dot"></span>${countdownStr}</span>`;
+        dueLabel = isToday ? `Today (${dateStr})` : `Tomorrow (${dateStr})`;
       } else if (isTomorrow) {
         urgencyClass = 'due-tomorrow';
-        badgeHtml = `<span class="badge-tag tomorrow">Due Tomorrow</span>`;
+        statusBadgeHtml = `<span class="badge-tag tomorrow">Tomorrow</span>`;
         dueLabel = `Due ${dateStr}`;
       } else {
         dueLabel = `Due ${dateStr}`;
       }
 
       if (isCustomDate) {
-        badgeHtml += ` <span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag custom-date-chip" title="You set this due date manually">✏️ Custom</span></span>`;
+        statusBadgeHtml += ` <span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag custom-date-chip">✏️ Custom</span></span>`;
       }
     } else {
       urgencyClass = 'undated';
-      badgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag custom-date-chip">⚠ NO DUE DATE</span></span>`;
+      dueLabel = '';
+      statusBadgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag undated-chip">⚠ NO DUE DATE</span></span>`;
     }
 
+    // Top Right Points Chip
+    let pointsHtml = '';
     if (task.points !== null) {
-      badgeHtml += ` <span class="badge-tag points-chip">${task.points} pts</span>`;
+      pointsHtml = `<span class="badge-tag points-chip top-points-tag">${task.points} pts</span>`;
     }
 
+    // Bottom Right Metadata (Gradescope tag & PDF button)
+    let rightBottomMeta = '';
     if (task.isGradescope) {
-      badgeHtml += ` <span class="badge-tag gs-source">Gradescope</span>`;
+      rightBottomMeta += `<span class="badge-tag gs-source">GS</span>`;
+    }
+    if (task.downloadUrl) {
+      rightBottomMeta += `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">PDF ⤓</a>`;
     }
 
-    let downloadHtml = '';
-    if (task.downloadUrl) {
-      downloadHtml = `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">PDF ⤓</a>`;
-    }
+    // Assign Course-Specific Cyber Glow Palette
+    const coursePalette = getCourseColors(task.courseKey);
+    card.style.setProperty('--task-course-accent', coursePalette.accent);
+    card.style.setProperty('--task-course-glow', coursePalette.glow);
+    card.style.setProperty('--task-course-soft', coursePalette.soft);
 
     card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
 
     card.innerHTML = `
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
     <div class="task-body">
+    <div class="task-title-row">
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
+    ${pointsHtml}
+    </div>
     <div class="task-meta-row">
-    <span class="due-indicator">${isFlatView ? `<b>${escapeHTML(task.courseKey)}</b> ` : ''}${dueLabel}</span>
-    <div class="task-tags-group">
-    ${badgeHtml}
-    ${downloadHtml}
+    <div class="task-meta-left">
+    <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
+    ${dueLabel ? `<span class="due-indicator">${dueLabel}</span>` : ''}
+    ${statusBadgeHtml}
+    </div>
+    <div class="task-meta-right">
+    ${rightBottomMeta}
     </div>
     </div>
     ${!hasRealDueDate ? `
@@ -1507,26 +1560,23 @@
 
           const completedNow = getCompletedTasks();
           const hidden = getHiddenCourses();
-          const checkNow = new Date();
-          let totalActive = 0;
-          let doneActive = 0;
+          const { startOfWeek, endOfWeek } = getWeekBounds();
+          let totalActiveWeek = 0;
+          let doneActiveWeek = 0;
 
           Object.entries(cachedCourseMap).forEach(([k, c]) => {
             if (!hidden.includes(k)) {
               (c.tasks || []).forEach(item => {
-                const isItemDone = !!completedNow[item.id];
                 const ed = effectiveDueDate(item);
-                const isOverdue = ed && ed < checkNow;
+                if (!ed || ed < startOfWeek || ed > endOfWeek) return;
 
-                if (isOverdue && !isItemDone) return;
-
-                totalActive++;
-                if (isItemDone) doneActive++;
+                totalActiveWeek++;
+                if (completedNow[item.id]) doneActiveWeek++;
               });
             }
           });
 
-          if (totalActive > 0 && doneActive >= totalActive) {
+          if (totalActiveWeek > 0 && doneActiveWeek >= totalActiveWeek) {
             setTimeout(() => {
               launchConfetti(window.innerWidth * 0.3, window.innerHeight * 0.4);
               launchConfetti(window.innerWidth * 0.7, window.innerHeight * 0.4);
