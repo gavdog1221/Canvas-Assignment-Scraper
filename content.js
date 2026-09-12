@@ -12,6 +12,10 @@
   const STORAGE_KEY_COURSE_PERCENTAGES = 'canvas_mod_tasks_course_pcts_v1';
   const STORAGE_KEY_WHATIF = 'canvas_mod_tasks_whatif_scores_v1';
   const STORAGE_KEY_DOM_COLORS = 'canvas_mod_tasks_dom_colors_v2';
+  const STORAGE_KEY_STARRED = 'canvas_mod_tasks_starred_v1';
+  const STORAGE_KEY_MINIMIZED = 'canvas_mod_tasks_minimized_v1';
+  const STORAGE_KEY_ANNOUNCEMENTS_CACHE = 'canvas_mod_tasks_announcements_cache_v1';
+  const STORAGE_KEY_SEEN_ANNOUNCEMENTS = 'canvas_mod_tasks_seen_announcements_v1';
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
@@ -27,6 +31,9 @@
   let cachedCoursePercentages = {};
   let whatIfScores = {};
   let domCourseColors = {};
+  let cachedAnnouncements = [];
+  let cachedUnreadInboxCount = 0;
+  let isMinimized = localStorage.getItem(STORAGE_KEY_MINIMIZED) === 'true';
 
   let selectedTaskIndex = -1;
 
@@ -406,6 +413,40 @@
     localStorage.setItem(STORAGE_KEY_DONE, JSON.stringify(data));
   }
 
+  // --- STARRED / PINNED TASKS ---
+  // Starring an assignment forces it to the top of whatever list it would
+  // otherwise appear in (Upcoming, Overdue, Completed, grouped-by-course),
+  // regardless of due date, so the user can pin the one thing they don't
+  // want to lose track of.
+  function getStarredTasks() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_STARRED) || '{}');
+    } catch { return {}; }
+  }
+
+  function isTaskStarred(taskId) {
+    return !!getStarredTasks()[taskId];
+  }
+
+  function toggleStarredTask(taskId) {
+    const data = getStarredTasks();
+    if (data[taskId]) delete data[taskId];
+    else data[taskId] = Date.now();
+    localStorage.setItem(STORAGE_KEY_STARRED, JSON.stringify(data));
+  }
+
+  // Sort comparator wrapper: starred tasks always float to the top; ties
+  // between two starred (or two unstarred) tasks fall back to whatever
+  // ordering the caller would normally use.
+  function withStarredFirst(baseComparator, starredMap) {
+    return (a, b) => {
+      const aStar = !!starredMap[a.id];
+      const bStar = !!starredMap[b.id];
+      if (aStar !== bStar) return aStar ? -1 : 1;
+      return baseComparator(a, b);
+    };
+  }
+
   // Auto-checks off anything Canvas/Gradescope reports as already submitted
   // (task.isSubmitted, derived from the submission API / Gradescope status
   // column), so users don't have to manually tick the checkbox for work
@@ -570,6 +611,60 @@
     } catch (e) {}
   }
 
+  // --- ANNOUNCEMENTS CACHE ---
+  function loadLocalAnnouncementsCache() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS_CACHE);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data)) return null;
+      data.forEach(a => {
+        if (a.postedAt) a.postedAt = new Date(a.postedAt);
+      });
+        return data;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveLocalAnnouncementsCache(items) {
+    try {
+      localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS_CACHE, JSON.stringify(items));
+    } catch (e) {
+      console.warn('Announcements cache write failed:', e);
+    }
+  }
+
+  function getSeenAnnouncements() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_SEEN_ANNOUNCEMENTS) || '{}');
+    } catch { return {}; }
+  }
+
+  function markAnnouncementsSeen() {
+    const seen = getSeenAnnouncements();
+    (cachedAnnouncements || []).forEach(a => { seen[a.id] = true; });
+    localStorage.setItem(STORAGE_KEY_SEEN_ANNOUNCEMENTS, JSON.stringify(seen));
+  }
+
+  // Updates the neon alert pill on the Announcements tab with the combined
+  // count of not-yet-seen announcements and unread Canvas inbox messages.
+  function updateAnnouncementBadge() {
+    const badge = document.getElementById('announce-badge');
+    if (!badge) return;
+    const seen = getSeenAnnouncements();
+    const unseenCount = (cachedAnnouncements || []).filter(a => !seen[a.id]).length;
+    const total = unseenCount + (cachedUnreadInboxCount || 0);
+
+    if (total > 0) {
+      badge.style.display = 'inline-flex';
+      badge.innerText = total > 9 ? '9+' : String(total);
+      badge.title = `${unseenCount} new announcement${unseenCount === 1 ? '' : 's'}, ${cachedUnreadInboxCount} unread inbox message${cachedUnreadInboxCount === 1 ? '' : 's'}`;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
   function percentageToGpa(pct) {
     if (pct >= 93) return { gpa: 4.0, letter: 'A' };
     if (pct >= 90) return { gpa: 3.7, letter: 'A-' };
@@ -727,6 +822,39 @@
 
   setInterval(purgeDefaultCanvasElements, 2500);
 
+  // --- MINIMIZE / RESTORE (SLIDE-OUT TO SCREEN EDGE) ---
+  // Creates the floating left-pointing arrow tab that lives on the right
+  // edge of the screen while the widget is minimized. It's appended to
+  // <body> independently of Canvas's own layout so it keeps working even
+  // if #right-side-wrapper's own CSS changes.
+  function ensureRestoreTab() {
+    let tab = document.getElementById('yace-restore-tab');
+    if (!tab) {
+      tab = document.createElement('button');
+      tab.id = 'yace-restore-tab';
+      tab.type = 'button';
+      tab.className = 'yace-restore-tab';
+      tab.title = 'Restore YACE';
+      tab.innerHTML = '<span>◀</span>';
+      document.body.appendChild(tab);
+      tab.addEventListener('click', () => setWidgetMinimized(false));
+    }
+    return tab;
+  }
+
+  function setWidgetMinimized(minimized, skipStorage = false) {
+    isMinimized = minimized;
+    if (!skipStorage) {
+      localStorage.setItem(STORAGE_KEY_MINIMIZED, String(minimized));
+    }
+
+    const wrapper = document.getElementById('right-side-wrapper');
+    const restoreTab = ensureRestoreTab();
+
+    if (wrapper) wrapper.classList.toggle('yace-collapsed', minimized);
+    restoreTab.classList.toggle('is-visible', minimized);
+  }
+
   function injectWidget(container) {
     const widget = document.createElement('div');
     widget.id = 'module-tasks-widget';
@@ -734,6 +862,7 @@
     widget.innerHTML = `
     <div class="header">
     <div class="title-row">
+    <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <span class="title">YACE</span>
     </div>
     <div class="widget-controls">
@@ -775,6 +904,7 @@
     <button class="tab-btn overdue" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></button>
     <button class="tab-btn" data-tab="completed">Completed</button>
     <button class="tab-btn" data-tab="grades">Grades</button>
+    <button class="tab-btn" data-tab="announcements">Announce <span class="tab-alert-pill" id="announce-badge" style="display:none;"></span></button>
     </div>
 
     <div class="course-pills" id="course-pills-container"></div>
@@ -785,6 +915,17 @@
     `;
 
     container.prepend(widget);
+
+    ensureRestoreTab();
+    setWidgetMinimized(isMinimized, true);
+
+    const minimizeBtn = document.getElementById('minimize-widget-btn');
+    if (minimizeBtn) {
+      minimizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setWidgetMinimized(true);
+      });
+    }
 
     widget.addEventListener('mousemove', (e) => {
       const rect = widget.getBoundingClientRect();
@@ -851,6 +992,10 @@
         btn.classList.add('active');
         currentTab = btn.getAttribute('data-tab');
         activeDayFilter = null;
+        if (currentTab === 'announcements') {
+          markAnnouncementsSeen();
+          updateAnnouncementBadge();
+        }
         renderCurrentView();
       });
     });
@@ -867,6 +1012,12 @@
       cachedGrades = cachedGradesLocal;
     }
     cachedCoursePercentages = loadCoursePercentagesCache();
+
+    const cachedAnnouncementsLocal = loadLocalAnnouncementsCache();
+    if (cachedAnnouncementsLocal) {
+      cachedAnnouncements = cachedAnnouncementsLocal;
+    }
+    updateAnnouncementBadge();
 
     const cached = loadLocalCache();
     const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
@@ -1246,6 +1397,25 @@
       }
     }
 
+    // Module-embedded files often surface with their raw filename as the
+    // title (e.g. "RevisedA2.pdf" or "Lab_01_v2_FINAL.docx") instead of a
+    // proper assignment name. Detect that filename shape and clean it up:
+    // strip the extension, unpack snake_case/kebab-case into spaced words,
+    // and capitalize bare lowercase words (leaving anything that already
+    // has a capital letter, like "FINAL" or "v2", untouched).
+    const looksLikeFileName = /\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)$/i.test(cleanTitle) || /_/.test(cleanTitle);
+    if (looksLikeFileName) {
+      cleanTitle = cleanTitle
+      .replace(/\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)$/i, '')
+      .replace(/_+/g, ' ')
+      .replace(/([a-z0-9])-([a-z0-9])/gi, '$1 $2');
+
+      cleanTitle = cleanTitle
+      .split(' ')
+      .map(word => (word && !/[A-Z]/.test(word)) ? word.charAt(0).toUpperCase() + word.slice(1) : word)
+      .join(' ');
+    }
+
     cleanTitle = cleanTitle
     .replace(/\(\s*\)/g, '')
     .replace(/\[\s*\]/g, '')
@@ -1409,6 +1579,75 @@
     return { tasksByCourse: gsTasksByCourse, gradesByCourse: gsGradesByCourse };
   }
 
+  // --- CANVAS ANNOUNCEMENTS & UNREAD INBOX ---
+  // Pulls each active course's announcements via the batched /api/v1/announcements
+  // endpoint (one call, many context_codes) plus the unread Conversations
+  // inbox count, so a last-minute professor update can surface as a neon
+  // alert pill without the user having to go dig through Canvas itself.
+  async function fetchCanvasAnnouncements(headers, activeCourses, courseNameById) {
+    const announcements = [];
+
+    if (activeCourses && activeCourses.length > 0) {
+      try {
+        const contextParams = activeCourses.map(c => `context_codes[]=course_${c.id}`).join('&');
+        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const annRes = await fetch(
+          `${origin}/api/v1/announcements?${contextParams}&start_date=${encodeURIComponent(startDate)}&active_only=true&per_page=50`,
+                                   { credentials: 'include', headers: headers }
+        );
+
+        if (annRes.ok) {
+          const items = await annRes.json();
+          if (Array.isArray(items)) {
+            items.forEach(item => {
+              const courseMatch = (item.context_code || '').match(/course_(\d+)/);
+              const canvasCourseId = courseMatch ? parseInt(courseMatch[1], 10) : null;
+              const rawCourseName = canvasCourseId ? courseNameById[canvasCourseId] : null;
+              const courseKey = normalizeCourseCode(rawCourseName || item.context_code || '');
+              const postedAt = item.posted_at ? new Date(item.posted_at)
+              : (item.delayed_post_at ? new Date(item.delayed_post_at) : null);
+              const plainMessage = String(item.message || '')
+              .replace(/<[^>]*>/g, ' ')
+              .replace(/&nbsp;/gi, ' ')
+              .replace(/\s{2,}/g, ' ')
+              .trim();
+
+              announcements.push({
+                id: `ann_${item.id}`,
+                title: item.title || 'Announcement',
+                message: plainMessage,
+                url: item.html_url || null,
+                postedAt: (postedAt && !isNaN(postedAt.getTime())) ? postedAt : null,
+                                 courseKey: courseKey,
+                                 courseName: rawCourseName || courseKey,
+                                 canvasCourseId: canvasCourseId
+              });
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[Announcements] fetch error:', e);
+      }
+    }
+
+    try {
+      const unreadRes = await fetch(`${origin}/api/v1/conversations/unread_count`, {
+        credentials: 'include',
+        headers: headers
+      });
+      if (unreadRes.ok) {
+        const data = await unreadRes.json();
+        const count = parseInt(data && data.unread_count, 10);
+        cachedUnreadInboxCount = isNaN(count) ? 0 : count;
+      }
+    } catch (e) {
+      console.warn('[Inbox] unread_count fetch error:', e);
+    }
+
+    announcements.sort((a, b) => (b.postedAt ? b.postedAt.getTime() : 0) - (a.postedAt ? a.postedAt.getTime() : 0));
+    return announcements;
+  }
+
   async function fetchCanvasGrades(headers, courseNameById) {
     const grades = [];
     try {
@@ -1553,6 +1792,8 @@
         }
       });
 
+      const announcementsPromise = fetchCanvasAnnouncements(headers, activeCourses, courseNameById);
+
       const totalSteps = Math.max(activeCourses.length, 1);
       let stepIndex = 0;
 
@@ -1668,6 +1909,11 @@
       if (showLoadingUI) {
         showReloadProgress('Synchronizing Gradescope...', 80);
       }
+
+      const newAnnouncements = await announcementsPromise;
+      cachedAnnouncements = newAnnouncements;
+      saveLocalAnnouncementsCache(newAnnouncements);
+      updateAnnouncementBadge();
 
       const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;
       Object.keys(gsCourseMap).forEach(gsKey => {
@@ -1791,6 +2037,7 @@
 
   function createTaskCard(task, now, completedMap) {
     const isDone = !!completedMap[task.id];
+    const isStarred = isTaskStarred(task.id);
     const card = document.createElement('div');
 
     const hasRealDueDate = !!task.dueDate;
@@ -1894,12 +2141,13 @@
     card.style.setProperty('--task-course-glow', coursePalette.glow);
     card.style.setProperty('--task-course-soft', coursePalette.soft);
 
-    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
+    card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''} ${isStarred ? 'is-starred' : ''}`;
 
     card.innerHTML = `
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done (Press x)">
     <div class="task-body">
     <div class="task-title-row">
+    <button type="button" class="star-btn ${isStarred ? 'is-starred' : ''}" title="${isStarred ? 'Unpin from top' : 'Pin to top'}">★</button>
     <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
     ${pointsHtml}
@@ -1934,6 +2182,17 @@
                        viewBtn.getAttribute('data-course-id'),
                        viewBtn.getAttribute('data-file-id')
           );
+        });
+      }
+
+      // Hook Star / Pin-to-top toggle
+      const starBtn = card.querySelector('.star-btn');
+      if (starBtn) {
+        starBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleStarredTask(task.id);
+          renderCurrentView();
         });
       }
 
@@ -2425,6 +2684,7 @@
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
     const savedAccordionState = getSavedAccordions();
+    const starredMap = getStarredTasks();
     const now = new Date();
 
     const viewSignature = `${currentTab}|${activeCourseFilter}|${activeDayFilter}|${searchQuery}`;
@@ -2453,6 +2713,11 @@
 
     if (currentTab === 'grades') {
       renderGradesView(listContainer, hiddenCourses);
+      return;
+    }
+
+    if (currentTab === 'announcements') {
+      renderAnnouncementsView(listContainer, hiddenCourses);
       return;
     }
 
@@ -2493,18 +2758,18 @@
       // finished or missed items on its own.
       if (currentTab === 'completed') {
         // Most recently completed first.
-        allFilteredTasks.sort((a, b) => (completedMap[b.id] || 0) - (completedMap[a.id] || 0));
+        allFilteredTasks.sort(withStarredFirst((a, b) => (completedMap[b.id] || 0) - (completedMap[a.id] || 0), starredMap));
       } else {
         // Most recently overdue (closest to now) first, so the freshest,
         // most-likely-actionable misses surface above semester-old ones.
-        allFilteredTasks.sort((a, b) => {
+        allFilteredTasks.sort(withStarredFirst((a, b) => {
           const edA = effectiveDueDate(a);
           const edB = effectiveDueDate(b);
           if (edA && edB) return edB - edA;
           if (edA) return -1;
           if (edB) return 1;
           return 0;
-        });
+        }, starredMap));
       }
 
       const { startOfWeek, endOfWeek } = getWeekBounds();
@@ -2559,14 +2824,14 @@
         }
       }
     } else if (isFlatView) {
-      allFilteredTasks.sort((a, b) => {
+      allFilteredTasks.sort(withStarredFirst((a, b) => {
         const edA = effectiveDueDate(a);
         const edB = effectiveDueDate(b);
         if (edA && edB) return edA - edB;
         if (edA) return -1;
         if (edB) return 1;
         return 0;
-      });
+      }, starredMap));
 
       renderedCount = allFilteredTasks.length;
       allFilteredTasks.forEach(task => {
@@ -2599,14 +2864,14 @@
         if (visibleTasks.length === 0) return;
         renderedCount += visibleTasks.length;
 
-        visibleTasks.sort((a, b) => {
+        visibleTasks.sort(withStarredFirst((a, b) => {
           const edA = effectiveDueDate(a);
           const edB = effectiveDueDate(b);
           if (edA && edB) return edA - edB;
           if (edA) return -1;
           if (edB) return 1;
           return 0;
-        });
+        }, starredMap));
 
         const isOpen = savedAccordionState[courseKey] !== undefined ? savedAccordionState[courseKey] : true;
         const accordion = document.createElement('div');
@@ -2666,6 +2931,64 @@
         listContainer.innerHTML = '<div class="mod-empty-msg">🎉 All clear! No upcoming tasks due.</div>';
       }
     }
+  }
+
+  // --- ANNOUNCEMENTS TAB RENDERING ---
+  function renderAnnouncementsView(listContainer, hiddenCourses) {
+    listContainer.innerHTML = '';
+
+    let items = (cachedAnnouncements || []).filter(a => !hiddenCourses.includes(a.courseKey));
+
+    if (activeCourseFilter !== 'ALL') {
+      items = items.filter(a => a.courseKey === activeCourseFilter);
+    }
+    if (searchQuery) {
+      items = items.filter(a =>
+      a.title.toLowerCase().includes(searchQuery) ||
+      (a.message || '').toLowerCase().includes(searchQuery)
+      );
+    }
+
+    if (items.length === 0) {
+      listContainer.innerHTML = searchQuery
+      ? `<div class="mod-empty-msg">No announcements match "${escapeHTML(searchQuery)}"</div>`
+      : '<div class="mod-empty-msg">📭 No recent announcements.</div>';
+      return;
+    }
+
+    const seen = getSeenAnnouncements();
+    const now = Date.now();
+
+    items.forEach(item => {
+      const card = document.createElement('div');
+      const isUnseen = !seen[item.id];
+      const isFresh = !!item.postedAt && (now - item.postedAt.getTime()) < 48 * 60 * 60 * 1000;
+
+      const coursePalette = getCourseColors(item.courseKey, item.canvasCourseId);
+      card.style.setProperty('--task-course-accent', coursePalette.accent);
+      card.style.setProperty('--task-course-glow', coursePalette.glow);
+      card.style.setProperty('--task-course-soft', coursePalette.soft);
+
+      card.className = `announcement-card ${isFresh ? 'announcement-fresh' : ''} ${isUnseen ? 'announcement-unseen' : ''}`;
+
+      const dateStr = item.postedAt
+      ? item.postedAt.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      : '';
+      const rawMsg = item.message || '';
+      const snippet = rawMsg.length > 160 ? `${rawMsg.slice(0, 160)}…` : rawMsg;
+
+      card.innerHTML = `
+      <div class="announcement-top-row">
+      <span class="course-tag-chip">${escapeHTML(item.courseKey)}</span>
+      ${isFresh ? '<span class="badge-tag announce-new-pill"><span class="pulsing-dot"></span>NEW</span>' : ''}
+      <span class="announcement-date">${escapeHTML(dateStr)}</span>
+      </div>
+      <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${escapeHTML(item.title)}</a>
+      ${snippet ? `<div class="announcement-snippet">${escapeHTML(snippet)}</div>` : ''}
+      `;
+
+      listContainer.appendChild(card);
+    });
   }
 
   function escapeHTML(str) {

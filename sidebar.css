@@ -29,7 +29,52 @@ max-height: calc(100vh - 48px) !important;
 overflow-y: auto !important;
 z-index: 500 !important;
 box-sizing: border-box !important;
-transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease !important;
+}
+
+/* Minimized state: slide the whole panel off-screen to the right instead
+ * of unmounting it, so it can slide back in smoothly when restored. */
+#right-side-wrapper.yace-collapsed {
+transform: translateX(calc(100% + 48px)) !important;
+opacity: 0 !important;
+pointer-events: none !important;
+}
+
+/* Floating restore tab shown on the right edge of the screen while the
+ * widget is minimized. Lives outside #right-side-wrapper (appended to
+ * <body>) so it keeps working regardless of Canvas's own layout. */
+.yace-restore-tab {
+  position: fixed !important;
+  top: 50% !important;
+  right: 0 !important;
+  z-index: 501 !important;
+  transform: translateY(-50%) translateX(120%) !important;
+  background: linear-gradient(135deg, rgba(26, 32, 44, 0.96), rgba(10, 13, 18, 0.98)) !important;
+  color: #00f2fe !important;
+  border: 1px solid rgba(0, 242, 254, 0.5) !important;
+  border-right: none !important;
+  border-radius: 10px 0 0 10px !important;
+  padding: 16px 8px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  box-shadow: -4px 0 18px rgba(0, 0, 0, 0.5), 0 0 14px rgba(0, 242, 254, 0.35) !important;
+  backdrop-filter: blur(10px) !important;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, box-shadow 0.2s ease !important;
+}
+
+.yace-restore-tab.is-visible {
+  transform: translateY(-50%) translateX(0) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.yace-restore-tab:hover {
+  color: #ffffff !important;
+  border-color: #00f2fe !important;
+  box-shadow: -4px 0 22px rgba(0, 0, 0, 0.55), 0 0 20px rgba(0, 242, 254, 0.55) !important;
 }
 
 .ic-Layout-columns {
@@ -244,6 +289,22 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: var(--primary-accent) !important;
   box-shadow: 0 0 8px var(--primary-accent) !important;
   pointer-events: none !important;
+}
+
+/* ==========================================================================
+ *  MINIMIZE BUTTON (top-left of header)
+ *  ========================================================================== */
+.minimize-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10px !important;
+  padding: 5px 7px !important;
+  line-height: 1 !important;
+}
+
+.minimize-btn:hover {
+  color: var(--primary-accent) !important;
 }
 
 /* ==========================================================================
@@ -656,6 +717,33 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(248, 81, 73, 0.2) !important;
 }
 
+/* Neon alert pill shown on the Announcements tab when there's a fresh
+ * post or unread inbox message the user hasn't seen yet. */
+.tab-alert-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 15px !important;
+  height: 15px !important;
+  padding: 0 4px !important;
+  margin-left: 3px !important;
+  border-radius: 999px !important;
+  background: rgba(244, 63, 94, 0.25) !important;
+  color: #fda4af !important;
+  border: 1px solid rgba(244, 63, 94, 0.6) !important;
+  font-size: 9.5px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.5) !important;
+  animation: tabAlertPulse 1.8s infinite ease-in-out !important;
+  vertical-align: middle !important;
+}
+
+@keyframes tabAlertPulse {
+  0% { box-shadow: 0 0 4px rgba(244, 63, 94, 0.4); }
+  50% { box-shadow: 0 0 12px rgba(244, 63, 94, 0.85); }
+  100% { box-shadow: 0 0 4px rgba(244, 63, 94, 0.4); }
+}
+
 /* ==========================================================================
  *  COURSE FILTER PILLS & ACCORDIONS
  *  ========================================================================== */
@@ -1052,6 +1140,42 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   transform: scale(1.03) !important;
 }
 
+/* ==========================================================================
+ *  STAR / PIN-TO-TOP
+ *  ========================================================================== */
+.star-btn {
+  background: transparent !important;
+  border: none !important;
+  color: rgba(255, 255, 255, 0.28) !important;
+  font-size: 15px !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  transition: color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.star-btn:hover {
+  color: #fbbf24 !important;
+  transform: scale(1.2) !important;
+}
+
+.star-btn.is-starred {
+  color: #fbbf24 !important;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.7) !important;
+}
+
+.mod-task-card.is-starred {
+  border-left-color: #fbbf24 !important;
+  box-shadow: -3px 0 16px -2px rgba(251, 191, 36, 0.55) !important;
+}
+
+.mod-task-card.is-starred:hover {
+  border-color: #fbbf24 !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 18px rgba(251, 191, 36, 0.55) !important;
+}
+
 .due-indicator {
   display: inline-flex !important;
   align-items: center !important;
@@ -1338,6 +1462,91 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(10, 13, 18, 0.4) !important;
   border-radius: 10px !important;
   border: 1px dashed rgba(255, 255, 255, 0.16) !important;
+}
+
+/* ==========================================================================
+ *  ANNOUNCEMENTS TAB
+ *  ========================================================================== */
+.announcement-card {
+  --task-course-accent: var(--primary-accent);
+  --task-course-glow: var(--accent-glow);
+  --task-course-soft: var(--accent-soft);
+
+  background: linear-gradient(90deg, var(--task-course-soft) 0%, var(--card-bg) 40%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-left: 4px solid var(--task-course-accent) !important;
+  box-shadow: -3px 0 14px -2px var(--task-course-glow) !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  margin-bottom: 8px !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.announcement-card:hover {
+  background: rgba(28, 34, 46, 0.95) !important;
+  transform: translateX(3px) translateY(-1px) !important;
+  border-color: var(--task-course-accent) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px var(--task-course-glow) !important;
+}
+
+.announcement-card.announcement-unseen {
+  border-left-width: 5px !important;
+}
+
+.announcement-top-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  width: 100% !important;
+}
+
+.announcement-date {
+  margin-left: auto !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  flex-shrink: 0 !important;
+}
+
+.announcement-title {
+  display: block !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  text-decoration: none !important;
+  word-break: break-word !important;
+  line-height: 1.35 !important;
+  transition: color 0.15s ease !important;
+}
+
+.announcement-title:hover {
+  color: var(--task-course-accent) !important;
+  text-shadow: 0 0 8px var(--task-course-glow) !important;
+}
+
+.announcement-snippet {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: #cbd5e1 !important;
+  word-break: break-word !important;
+}
+
+.badge-tag.announce-new-pill {
+  background: rgba(244, 63, 94, 0.22) !important;
+  color: #fda4af !important;
+  border: 1px solid rgba(244, 63, 94, 0.55) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+}
+
+.badge-tag.announce-new-pill .pulsing-dot {
+  background-color: #fb7185 !important;
 }
 
 /* ==========================================================================
