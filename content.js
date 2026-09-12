@@ -1867,14 +1867,13 @@
     <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done (Press x)">
     <div class="task-body">
     <div class="task-title-row">
+    <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
     ${pointsHtml}
     </div>
     <div class="task-meta-row">
     <div class="task-meta-left">
-    <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
-    ${dueLabel ? `<span class="due-indicator">${dueLabel}</span>` : ''}
-    ${statusBadgeHtml}
+    ${dueLabel ? `<span class="due-indicator">🗓️ ${dueLabel}</span>` : ''}    ${statusBadgeHtml}
     </div>
     <div class="task-meta-right">
     ${rightBottomMeta}
