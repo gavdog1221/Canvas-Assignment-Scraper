@@ -1347,6 +1347,30 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
+ *  PAGINATION (Completed / Overdue "Show more")
+ *  ========================================================================== */
+.show-more-tasks-btn {
+  display: block !important;
+  width: 100% !important;
+  margin: 10px 0 4px 0 !important;
+  padding: 9px 12px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em !important;
+  color: var(--primary-accent, #06b6d4) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.18) !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  transition: background 0.2s ease, border-color 0.2s ease !important;
+}
+
+.show-more-tasks-btn:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* ==========================================================================
  *  DOCUMENT PREVIEW & SHORTCUTS MODAL OVERLAYS
  *  ========================================================================== */
 .doc-preview-modal {
@@ -1495,10 +1519,42 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 /* ==========================================================================
  *  GRADES TAB: GPA BANNER, WHAT-IF MATRIX & COURSE CARDS
  *  ========================================================================== */
+
+/* Shared performance-tier accent colors, reused across the GPA hero,
+ *  course summary cards, and individual feedback cards so the grades tab
+ *  communicates performance at a glance. */
+.gpa-card,
+.course-grade-summary-card,
+.grade-card {
+  --tier-color: #94a3b8;
+  --tier-glow: rgba(148, 163, 184, 0.25);
+}
+
+.gpa-card.tier-a, .course-grade-summary-card.tier-a, .grade-card.tier-a {
+  --tier-color: #34d399;
+  --tier-glow: rgba(52, 211, 153, 0.35);
+}
+.gpa-card.tier-b, .course-grade-summary-card.tier-b, .grade-card.tier-b {
+  --tier-color: #38bdf8;
+  --tier-glow: rgba(56, 189, 248, 0.35);
+}
+.gpa-card.tier-c, .course-grade-summary-card.tier-c, .grade-card.tier-c {
+  --tier-color: #fbbf24;
+  --tier-glow: rgba(251, 191, 36, 0.35);
+}
+.gpa-card.tier-d, .course-grade-summary-card.tier-d, .grade-card.tier-d {
+  --tier-color: #fb923c;
+  --tier-glow: rgba(251, 146, 60, 0.35);
+}
+.gpa-card.tier-f, .course-grade-summary-card.tier-f, .grade-card.tier-f {
+  --tier-color: #f87171;
+  --tier-glow: rgba(248, 113, 113, 0.35);
+}
+
 .gpa-card {
   background: linear-gradient(135deg, rgba(30, 38, 54, 0.95) 0%, rgba(14, 18, 25, 0.98) 100%) !important;
-  border: 1px solid var(--primary-accent) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--accent-glow) !important;
+  border: 1px solid var(--tier-color) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px var(--tier-glow) !important;
   border-radius: 12px !important;
   padding: 14px 16px !important;
   margin-bottom: 12px !important;
@@ -1507,32 +1563,54 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   justify-content: space-between !important;
   position: relative !important;
   z-index: 3 !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
 .gpa-info-left {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important;
+  gap: 3px !important;
 }
 
-.gpa-title {
-  font-size: 35px !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.8px !important;
-  color: #ffffff !important;
-  text-shadow: 0 0 10px var(--accent-glow) !important;
+.gpa-label {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.6px !important;
+  text-transform: uppercase !important;
+  color: #cbd5e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
-.gpa-badge {
-  font-size: 26px !important;
+.gpa-whatif-flag {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.4px !important;
+  color: #0b0f14 !important;
+  background: var(--primary-accent) !important;
+  border-radius: 5px !important;
+  padding: 2px 6px !important;
+  text-transform: uppercase !important;
+}
+
+.gpa-sub {
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  color: #94a3b8 !important;
+}
+
+.gpa-value {
+  font-size: 32px !important;
   font-weight: 900 !important;
-  color: #ffffff !important;
-  text-shadow: 0 0 16px var(--primary-accent) !important;
+  line-height: 1 !important;
+  color: var(--tier-color) !important;
+  text-shadow: 0 0 18px var(--tier-glow) !important;
   font-family: ui-monospace, SFMono-Regular, monospace !important;
-  background: var(--accent-soft) !important;
-  border: 1px solid var(--primary-accent) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--tier-color) !important;
   border-radius: 10px !important;
-  padding: 4px 14px !important;
+  padding: 6px 16px !important;
 }
 
 /* What-If Matrix Card */
@@ -1712,29 +1790,56 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 .course-grade-summary-card {
   background: rgba(18, 22, 31, 0.8) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-left: 4px solid var(--course-accent, var(--tier-color)) !important;
   border-radius: 8px !important;
-  padding: 8px 10px !important;
+  padding: 9px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 7px !important;
+  cursor: pointer !important;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease !important;
+}
+
+.course-grade-summary-card:hover {
+  border-color: var(--course-accent, var(--tier-color)) !important;
+  box-shadow: 0 4px 16px var(--course-glow, var(--tier-glow)) !important;
+  background: rgba(24, 30, 42, 0.9) !important;
+  transform: translateY(-1px) !important;
+}
+
+.course-grade-summary-card.is-filtering {
+  border-color: var(--course-accent, var(--tier-color)) !important;
+  background: rgba(24, 30, 42, 0.95) !important;
+  box-shadow: 0 0 0 1px var(--course-accent, var(--tier-color)), 0 0 14px var(--course-glow, var(--tier-glow)) !important;
+}
+.cg-top-row {
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
+  gap: 6px !important;
 }
 
 .cg-name {
   font-size: 11px !important;
   font-weight: 700 !important;
   color: #f8fafc !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0 !important;
 }
 
 .cg-score-wrap {
   display: flex !important;
   align-items: baseline !important;
   gap: 4px !important;
+  flex-shrink: 0 !important;
 }
 
 .cg-percent {
   font-size: 12px !important;
   font-weight: 800 !important;
-  color: var(--primary-accent) !important;
+  color: var(--tier-color) !important;
   font-family: ui-monospace, SFMono-Regular, monospace !important;
 }
 
@@ -1750,19 +1855,75 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   color: #cbd5e1 !important;
 }
 
+.cg-bar-bg {
+  width: 100% !important;
+  height: 5px !important;
+  background: rgba(6, 8, 12, 0.9) !important;
+  border-radius: 99px !important;
+  overflow: hidden !important;
+}
+
+.cg-bar-fill {
+  height: 100% !important;
+  background: var(--course-accent, var(--tier-color)) !important;
+  box-shadow: 0 0 8px var(--course-glow, var(--tier-glow)) !important;
+  border-radius: 99px !important;
+  transition: width 0.4s ease !important;
+}
+.grades-heading-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  margin: 12px 2px 8px !important;
+  flex-wrap: wrap !important;
+}
+
 .grades-heading {
   font-size: 11px !important;
   font-weight: 800 !important;
   letter-spacing: 0.6px !important;
   text-transform: uppercase !important;
   color: #cbd5e1 !important;
-  margin: 12px 2px 8px !important;
+}
+
+.grades-sort-toggle {
+  display: flex !important;
+  gap: 3px !important;
+  background: rgba(10, 13, 18, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 2px !important;
+}
+
+.grades-sort-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.3px !important;
+  text-transform: uppercase !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.grades-sort-btn:hover {
+  color: #e2e8f0 !important;
+}
+
+.grades-sort-btn.active {
+  background: var(--primary-accent) !important;
+  color: #0b0f14 !important;
 }
 
 .grade-card {
   background: var(--card-bg) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-left: 4px solid #34d399 !important;
+  border-left: 4px solid var(--course-accent, var(--tier-color)) !important;
+  box-shadow: -3px 0 14px -2px var(--course-glow, var(--tier-glow)) !important;
   border-radius: 10px !important;
   padding: 11px 14px !important;
   display: flex !important;
@@ -1775,18 +1936,17 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 .grade-card:hover {
   background: rgba(28, 34, 46, 0.95) !important;
   transform: translateX(4px) translateY(-1px) !important;
-  border-color: #34d399 !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.4) !important;
+  border-color: var(--course-accent, var(--tier-color)) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px var(--course-glow, var(--tier-glow)) !important;
 }
-
 .grade-check {
   flex-shrink: 0 !important;
   width: 20px !important;
   height: 20px !important;
   border-radius: 50% !important;
-  background: rgba(16, 185, 129, 0.2) !important;
-  color: #34d399 !important;
-  border: 1px solid rgba(16, 185, 129, 0.45) !important;
+  background: color-mix(in srgb, var(--tier-color) 20%, transparent) !important;
+  color: var(--tier-color) !important;
+  border: 1px solid var(--tier-color) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1824,10 +1984,9 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 
 .grade-course {
   font-size: 11.5px !important;
-  font-weight: 600 !important;
-  color: #cbd5e1 !important;
+  font-weight: 700 !important;
+  color: var(--course-accent, #cbd5e1) !important;
 }
-
 .grade-date {
   font-size: 10.5px !important;
   font-weight: 600 !important;
@@ -1839,4 +1998,18 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   font-weight: 800 !important;
   color: #f1f5f9 !important;
   margin-top: 1px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.grade-score-pct {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  color: var(--tier-color) !important;
+  background: color-mix(in srgb, var(--tier-color) 16%, transparent) !important;
+  border: 1px solid var(--tier-color) !important;
+  border-radius: 5px !important;
+  padding: 1px 6px !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
 }

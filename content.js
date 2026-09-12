@@ -30,6 +30,16 @@
 
   let selectedTaskIndex = -1;
 
+  // Completed/Overdue tabs default to showing only the current week's
+  // assignments (Mon–Sun) so they don't grow into a huge list as the
+  // semester goes on. A "Show all" button reveals everything else, and can
+  // be collapsed back down. State resets (see renderCurrentView) whenever
+  // the tab, course filter, day filter, or search changes.
+  let showAllCompleted = false;
+  let showAllOverdue = false;
+  let lastViewSignature = '';
+  let gradesSortMode = 'recent'; // 'recent' | 'highest' | 'lowest'
+
   try {
     whatIfScores = JSON.parse(localStorage.getItem(STORAGE_KEY_WHATIF) || '{}');
   } catch {
@@ -396,6 +406,26 @@
     localStorage.setItem(STORAGE_KEY_DONE, JSON.stringify(data));
   }
 
+  // Auto-checks off anything Canvas/Gradescope reports as already submitted
+  // (task.isSubmitted, derived from the submission API / Gradescope status
+  // column), so users don't have to manually tick the checkbox for work
+  // they've already turned in. Only flips submitted -> completed; it never
+  // un-checks anything, so a manual uncheck (e.g. "I need to resubmit this")
+  // sticks until the task is submitted again.
+  function autoCompleteSubmittedTasks(courseMap) {
+    const completedMap = getCompletedTasks();
+    let changed = false;
+    Object.values(courseMap).forEach(course => {
+      (course.tasks || []).forEach(t => {
+        if (t.id && t.isSubmitted && !completedMap[t.id]) {
+          setTaskCompleted(t.id, true);
+          changed = true;
+        }
+      });
+    });
+    return changed;
+  }
+
   const STORAGE_KEY_CUSTOM_DUE = 'canvas_mod_tasks_custom_due_v1';
 
   function getCustomDueDates() {
@@ -552,6 +582,18 @@
     if (pct >= 67) return { gpa: 1.3, letter: 'D+' };
     if (pct >= 60) return { gpa: 1.0, letter: 'D' };
     return { gpa: 0.0, letter: 'F' };
+  }
+
+  // Shared color tier for a percentage score, used to color-code course
+  // cards, the GPA hero number, and individual feedback cards so the grades
+  // tab communicates performance at a glance instead of one flat green.
+  function gradeTierClass(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return 'tier-none';
+    if (pct >= 90) return 'tier-a';
+    if (pct >= 80) return 'tier-b';
+    if (pct >= 70) return 'tier-c';
+    if (pct >= 60) return 'tier-d';
+    return 'tier-f';
   }
 
   function showReloadProgress(message, percent) {
@@ -815,6 +857,7 @@
 
     setInterval(() => {
       if (document.getElementById('module-tasks-widget')) {
+        updateProgressBar();
         renderCurrentView();
       }
     }, 30000);
@@ -832,6 +875,7 @@
     if (cached && Object.keys(cached).length > 0) {
       cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
       applyCustomDueDates();
+      autoCompleteSubmittedTasks(cachedCourseMap);
       renderFilterPills();
       updateHiddenMenuButton();
       updateProgressBar();
@@ -1062,23 +1106,38 @@
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
     const countedIds = new Set();
-    const { startOfWeek, endOfWeek } = getWeekBounds();
+    const { endOfWeek } = getWeekBounds();
 
     let total = 0;
     let completed = 0;
 
+    // NOTE: This intentionally counts anything due by the end of this week,
+    // including tasks that are already overdue from prior weeks (as long as
+    // they aren't done). A previous version only counted tasks whose due
+    // date fell strictly between Monday and Sunday of the current week,
+    // which meant checking off an overdue task (or a task completed ahead
+    // of a future-week due date) never changed `completed`/`total` and the
+    // bar appeared "stuck". Rolling overdue work into the current week's
+    // bucket keeps the bar responsive to the actions people actually take.
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
       (c.tasks || []).forEach(t => {
         if (!t.id || countedIds.has(t.id)) return;
 
         const ed = effectiveDueDate(t);
-        if (!ed || ed < startOfWeek || ed > endOfWeek) {
+        const isDone = !!completedMap[t.id];
+        if (!ed || ed > endOfWeek) {
+          return;
+        }
+        // Skip stale overdue clutter that was never marked done and is long
+        // past due (more than 4 weeks) so ancient, abandoned items don't
+        // permanently drag the bar down; still count anything done recently
+        // or due within this week.
+        if (!isDone && (endOfWeek.getTime() - ed.getTime()) > 28 * 24 * 60 * 60 * 1000) {
           return;
         }
 
         countedIds.add(t.id);
-        const isDone = !!completedMap[t.id];
 
         total++;
         if (isDone) {
@@ -1634,6 +1693,7 @@
 
       cachedCourseMap = unifiedCourseMap;
       applyCustomDueDates();
+      autoCompleteSubmittedTasks(cachedCourseMap);
       saveLocalCache(unifiedCourseMap);
       renderFilterPills();
       updateHiddenMenuButton();
@@ -1858,18 +1918,23 @@
 
           const completedNow = getCompletedTasks();
           const hidden = getHiddenCourses();
-          const { startOfWeek, endOfWeek } = getWeekBounds();
+          const { endOfWeek } = getWeekBounds();
           let totalActiveWeek = 0;
           let doneActiveWeek = 0;
 
+          // Mirrors the widened window in updateProgressBar() so the "all
+          // done this week" confetti fires using the same set of tasks the
+          // bar itself is counting.
           Object.entries(cachedCourseMap).forEach(([k, c]) => {
             if (!hidden.includes(k)) {
               (c.tasks || []).forEach(item => {
                 const ed = effectiveDueDate(item);
-                if (!ed || ed < startOfWeek || ed > endOfWeek) return;
+                const isDone = !!completedNow[item.id];
+                if (!ed || ed > endOfWeek) return;
+                if (!isDone && (endOfWeek.getTime() - ed.getTime()) > 28 * 24 * 60 * 60 * 1000) return;
 
                 totalActiveWeek++;
-                if (completedNow[item.id]) doneActiveWeek++;
+                if (isDone) doneActiveWeek++;
               });
             }
           });
@@ -2009,45 +2074,83 @@
       }
     });
 
+    // Best-first ordering: graded courses ranked by score, ungraded ones
+    // (nothing posted yet) pushed to the end instead of sitting wherever
+    // Object.entries happened to iterate.
+    courseCardsData.sort((a, b) => {
+      if (a.hasGrade && b.hasGrade) return b.pct - a.pct;
+      if (a.hasGrade) return -1;
+      if (b.hasGrade) return 1;
+      return a.courseKey.localeCompare(b.courseKey);
+    });
+
     const averageGpa = gpaPoints.length > 0
     ? (gpaPoints.reduce((a, b) => a + b, 0) / gpaPoints.length).toFixed(2)
     : '—';
+    const avgGpaTier = gpaPoints.length > 0 ? gradeTierClass((parseFloat(averageGpa) / 4) * 100) : 'tier-none';
 
     // GPA Header
     const gpaCard = document.createElement('div');
-    gpaCard.className = 'gpa-card';
+    gpaCard.className = `gpa-card ${avgGpaTier}`;
     const hasWhatIfActive = Object.keys(whatIfScores).length > 0;
+    const courseCountLabel = gpaPoints.length > 0
+    ? `Based on ${gpaPoints.length} graded course${gpaPoints.length === 1 ? '' : 's'}`
+    : 'No grades posted yet';
     gpaCard.innerHTML = `
     <div class="gpa-info-left">
-    <span class="gpa-title">GPA ${hasWhatIfActive ? '<span style="color:var(--primary-accent);">(What-If Active)</span>' : ''}</span>
+    <span class="gpa-label">Current GPA${hasWhatIfActive ? ' <span class="gpa-whatif-flag">What-If</span>' : ''}</span>
+    <span class="gpa-sub">${courseCountLabel}</span>
     </div>
-    <div class="gpa-badge">${averageGpa}</div>
+    <div class="gpa-value">${averageGpa}</div>
     `;
     listContainer.appendChild(gpaCard);
 
-    // Course Summary Cards
+    // Course Summary Cards — clickable to filter the feedback list & the
+    // what-if matrix down to just that course (mirrors the course pills).
     if (courseCardsData.length > 0) {
       const grid = document.createElement('div');
       grid.className = 'course-grades-grid';
       courseCardsData.forEach(item => {
+        const tier = gradeTierClass(item.pct);
+        const isActiveFilter = activeCourseFilter === item.courseKey;
         const cCard = document.createElement('div');
-        cCard.className = 'course-grade-summary-card';
+        cCard.className = `course-grade-summary-card ${tier} ${isActiveFilter ? 'is-filtering' : ''}`;
+        cCard.title = isActiveFilter ? 'Click to clear filter' : `Click to filter by ${item.courseKey}`;
+
+        const coursePalette = getCourseColors(item.courseKey);
+        cCard.style.setProperty('--course-accent', coursePalette.accent);
+        cCard.style.setProperty('--course-glow', coursePalette.glow);
+        cCard.style.setProperty('--course-soft', coursePalette.soft);
         if (item.hasGrade) {
+          const barPct = Math.max(0, Math.min(100, item.pct));
           cCard.innerHTML = `
+          <div class="cg-top-row">
           <span class="cg-name">${escapeHTML(item.courseKey)}</span>
           <div class="cg-score-wrap">
           <span class="cg-percent">${item.pct.toFixed(1)}%</span>
-          <span class="cg-letter">(${item.letter})</span>
+          <span class="cg-letter">${item.letter}</span>
           </div>
+          </div>
+          <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:${barPct}%"></div></div>
           `;
         } else {
           cCard.innerHTML = `
+          <div class="cg-top-row">
           <span class="cg-name">${escapeHTML(item.courseKey)}</span>
           <div class="cg-score-wrap">
           <span class="cg-percent no-grade">No grades yet</span>
           </div>
+          </div>
+          <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:0%"></div></div>
           `;
         }
+
+        cCard.addEventListener('click', () => {
+          activeCourseFilter = isActiveFilter ? 'ALL' : item.courseKey;
+          renderFilterPills();
+          renderGradesView(listContainer, hiddenCourses);
+        });
+
         grid.appendChild(cCard);
       });
       listContainer.appendChild(grid);
@@ -2157,6 +2260,25 @@
     }
 
     // Feedback List
+    const heading = document.createElement('div');
+    heading.className = 'grades-heading-row';
+    heading.innerHTML = `
+    <span class="grades-heading">Recent Feedback${grades.length ? ` (${grades.length})` : ''}</span>
+    <div class="grades-sort-toggle" role="group">
+    <button type="button" class="grades-sort-btn ${gradesSortMode === 'recent' ? 'active' : ''}" data-sort="recent">Recent</button>
+    <button type="button" class="grades-sort-btn ${gradesSortMode === 'highest' ? 'active' : ''}" data-sort="highest">Highest</button>
+    <button type="button" class="grades-sort-btn ${gradesSortMode === 'lowest' ? 'active' : ''}" data-sort="lowest">Lowest</button>
+    </div>
+    `;
+    listContainer.appendChild(heading);
+
+    heading.querySelectorAll('.grades-sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        gradesSortMode = btn.getAttribute('data-sort');
+        renderGradesView(listContainer, hiddenCourses);
+      });
+    });
+
     if (grades.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'mod-empty-msg';
@@ -2165,19 +2287,39 @@
       return;
     }
 
-    const heading = document.createElement('div');
-    heading.className = 'grades-heading';
-    heading.innerText = 'Recent Feedback';
-    listContainer.appendChild(heading);
+    const scoredPct = (g) => {
+      if (g.score === null || g.score === undefined || !g.pointsPossible) return null;
+      return (g.score / g.pointsPossible) * 100;
+    };
 
-    grades.forEach(g => listContainer.appendChild(createGradeCard(g)));
+    const sortedGrades = [...grades];
+    if (gradesSortMode === 'highest' || gradesSortMode === 'lowest') {
+      sortedGrades.sort((a, b) => {
+        const pctA = scoredPct(a);
+        const pctB = scoredPct(b);
+        if (pctA === null && pctB === null) return 0;
+        if (pctA === null) return 1;
+        if (pctB === null) return -1;
+        return gradesSortMode === 'highest' ? pctB - pctA : pctA - pctB;
+      });
+    }
+    // 'recent' keeps the incoming order, which is already newest-graded-first.
+
+    sortedGrades.forEach(g => listContainer.appendChild(createGradeCard(g)));
   }
 
   function createGradeCard(grade) {
     const card = document.createElement('div');
-    card.className = 'grade-card';
 
     const hasPoints = grade.pointsPossible !== null && grade.pointsPossible !== undefined && !isNaN(grade.pointsPossible);
+    const pct = hasPoints && grade.pointsPossible > 0 ? (grade.score / grade.pointsPossible) * 100 : null;
+    const tier = gradeTierClass(pct);
+    card.className = `grade-card ${tier}`;
+
+    const coursePalette = getCourseColors(grade.courseKey);
+    card.style.setProperty('--course-accent', coursePalette.accent);
+    card.style.setProperty('--course-glow', coursePalette.glow);
+    card.style.setProperty('--course-soft', coursePalette.soft);
     const scoreLabel = hasPoints
     ? `${formatScoreNum(grade.score)} out of ${formatScoreNum(grade.pointsPossible)}`
     : `${formatScoreNum(grade.score)} pts`;
@@ -2220,6 +2362,12 @@
     const scoreDiv = document.createElement('div');
     scoreDiv.className = 'grade-score';
     scoreDiv.innerText = scoreLabel;
+    if (pct !== null) {
+      const pctChip = document.createElement('span');
+      pctChip.className = 'grade-score-pct';
+      pctChip.innerText = `${pct.toFixed(1)}%`;
+      scoreDiv.appendChild(pctChip);
+    }
 
     const check = document.createElement('span');
     check.className = 'grade-check';
@@ -2247,8 +2395,16 @@
     const savedAccordionState = getSavedAccordions();
     const now = new Date();
 
+    const viewSignature = `${currentTab}|${activeCourseFilter}|${activeDayFilter}|${searchQuery}`;
+    if (viewSignature !== lastViewSignature) {
+      showAllCompleted = false;
+      showAllOverdue = false;
+      lastViewSignature = viewSignature;
+    }
+
     let totalOverdueCount = 0;
     let renderedCount = 0;
+    let showBigEmptyState = true;
 
     Object.entries(cachedCourseMap).forEach(([courseKey, c]) => {
       if (hiddenCourses.includes(courseKey)) return;
@@ -2297,7 +2453,80 @@
       allFilteredTasks.push(...tasks);
     });
 
-    if (isFlatView) {
+    if (currentTab === 'completed' || currentTab === 'overdue') {
+      // Always render Completed/Overdue as a single sorted list (regardless
+      // of the Group/Timeline view toggle) scoped to the current week by
+      // default — grouping by course, or showing every task ever, doesn't
+      // fix the bloat problem since a single course can rack up dozens of
+      // finished or missed items on its own.
+      if (currentTab === 'completed') {
+        // Most recently completed first.
+        allFilteredTasks.sort((a, b) => (completedMap[b.id] || 0) - (completedMap[a.id] || 0));
+      } else {
+        // Most recently overdue (closest to now) first, so the freshest,
+        // most-likely-actionable misses surface above semester-old ones.
+        allFilteredTasks.sort((a, b) => {
+          const edA = effectiveDueDate(a);
+          const edB = effectiveDueDate(b);
+          if (edA && edB) return edB - edA;
+          if (edA) return -1;
+          if (edB) return 1;
+          return 0;
+        });
+      }
+
+      const { startOfWeek, endOfWeek } = getWeekBounds();
+      const thisWeekTasks = allFilteredTasks.filter(t => {
+        const ed = effectiveDueDate(t);
+        return ed && ed >= startOfWeek && ed <= endOfWeek;
+      });
+
+      const showAll = currentTab === 'completed' ? showAllCompleted : showAllOverdue;
+      const visibleTasks = showAll ? allFilteredTasks : thisWeekTasks;
+      renderedCount = visibleTasks.length;
+
+      if (allFilteredTasks.length > 0) {
+        showBigEmptyState = false;
+
+        if (visibleTasks.length === 0) {
+          const scopedEmpty = document.createElement('div');
+          scopedEmpty.className = 'mod-empty-msg';
+          scopedEmpty.innerText = currentTab === 'completed'
+          ? '✨ Nothing completed this week yet.'
+          : '🎉 No assignments overdue this week.';
+          listContainer.appendChild(scopedEmpty);
+        } else {
+          visibleTasks.forEach(task => {
+            listContainer.appendChild(createTaskCard(task, now, completedMap));
+          });
+        }
+
+        const hiddenCount = allFilteredTasks.length - thisWeekTasks.length;
+        if (!showAll && hiddenCount > 0) {
+          const showMoreBtn = document.createElement('button');
+          showMoreBtn.type = 'button';
+          showMoreBtn.className = 'show-more-tasks-btn';
+          showMoreBtn.innerText = `Show all (${hiddenCount} more from earlier)`;
+          showMoreBtn.addEventListener('click', () => {
+            if (currentTab === 'completed') showAllCompleted = true;
+            else showAllOverdue = true;
+            renderCurrentView();
+          });
+          listContainer.appendChild(showMoreBtn);
+        } else if (showAll && hiddenCount > 0) {
+          const collapseBtn = document.createElement('button');
+          collapseBtn.type = 'button';
+          collapseBtn.className = 'show-more-tasks-btn';
+          collapseBtn.innerText = 'Show only this week';
+          collapseBtn.addEventListener('click', () => {
+            if (currentTab === 'completed') showAllCompleted = false;
+            else showAllOverdue = false;
+            renderCurrentView();
+          });
+          listContainer.appendChild(collapseBtn);
+        }
+      }
+    } else if (isFlatView) {
       allFilteredTasks.sort((a, b) => {
         const edA = effectiveDueDate(a);
         const edB = effectiveDueDate(b);
@@ -2384,7 +2613,7 @@
       });
     }
 
-    if (renderedCount === 0) {
+    if (renderedCount === 0 && showBigEmptyState) {
       if (activeDayFilter) {
         listContainer.innerHTML = `<div class="mod-empty-msg">No tasks scheduled for this day.<br><span style="color:var(--primary-accent);cursor:pointer;font-size:12px;font-weight:700;" id="clear-day-filter">Click to view all</span></div>`;
         const clearBtn = document.getElementById('clear-day-filter');
