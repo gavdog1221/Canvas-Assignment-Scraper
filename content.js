@@ -1449,7 +1449,40 @@
     }
     return grades;
   }
+  function mergeGradeSources(canvasGrades, gsGrades) {
+    const canvasByKey = new Map();
+    canvasGrades.forEach(g => {
+      const token = extractCoreAssignmentToken(g.title, g.courseKey);
+      if (token) canvasByKey.set(`${g.courseKey}::${token}`, g);
+    });
 
+    const merged = [...canvasGrades];
+    const usedCanvasTargets = new Set();
+
+    gsGrades.forEach(gs => {
+      const token = extractCoreAssignmentToken(gs.title, gs.courseKey);
+      let match = token ? canvasByKey.get(`${gs.courseKey}::${token}`) : null;
+
+      if (!match) {
+        match = canvasGrades.find(cg =>
+        cg.courseKey === gs.courseKey &&
+        cg.pointsPossible === gs.pointsPossible &&
+        cg.score === gs.score &&
+        !usedCanvasTargets.has(cg.id)
+        );
+      }
+
+      if (match) {
+        match.isGradescope = true;
+        if (!match.url) match.url = gs.url;
+        usedCanvasTargets.add(match.id);
+      } else {
+        merged.push(gs);
+      }
+    });
+
+    return merged;
+  }
   async function loadTasks(showLoadingUI = true) {
     const listContainer = document.getElementById('module-tasks-list');
     if (showLoadingUI && (!cachedCourseMap || Object.keys(cachedCourseMap).length === 0)) {
@@ -1653,7 +1686,7 @@
       const gsGradesFlat = [];
       Object.values(gsGradesByCourse).forEach(entry => gsGradesFlat.push(...entry.grades));
 
-      const allGrades = [...canvasGrades, ...gsGradesFlat].sort((a, b) => {
+      const allGrades = mergeGradeSources(canvasGrades, gsGradesFlat).sort((a, b) => {
         if (a.gradedAt && b.gradedAt) return b.gradedAt - a.gradedAt;
         if (a.gradedAt) return -1;
         if (b.gradedAt) return 1;
