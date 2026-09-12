@@ -3,8 +3,8 @@
   const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v5';
   const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v5';
   const STORAGE_KEY_FLAT = 'canvas_mod_tasks_flat_view_v1';
-  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v5';
-  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v5';
+  const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v7';
+  const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v7';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
   const STORAGE_KEY_THEME = 'canvas_mod_tasks_theme_v1';
   const STORAGE_KEY_GRADES_CACHE = 'canvas_mod_tasks_grades_cache_v5';
@@ -380,9 +380,8 @@
     t = t.replace(/\b[a-z]{2,5}\s*\d{3}\b/g, ' ');
 
     t = t.replace(/\b(pdf|docx?|zip|pptx?|xlsx?)\b/gi, ' ')
-    .replace(/\b(fall|fa|spring|sp|summer|winter)\s*\d{2,4}\b/gi, ' ')
+    .replace(/(?:fall|fa|spring|sp|summer|winter)[\s_.-]*'?(?:20)?\d{2,4}\b/gi, ' ')
     .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, ' ');
-
     const match = t.match(/\b(hw|homework|assignment|prob(?:lem)?\s*set|pset|lab|quiz|project|exam|a)\s*(\d{1,2})\b/i);
     if (match) {
       let prefix = match[1].toLowerCase().replace(/\s+/g, '');
@@ -797,7 +796,8 @@
             if (candidate.isGradescope) target.isGradescope = true;
 
             if (/\.(pdf|docx?|zip)/i.test(target.title) && !/\.(pdf|docx?|zip)/i.test(candidate.title)) {
-              target.title = candidate.title;
+              // Ensure the replacement title is also stripped and cleaned
+              target.title = parseAndCleanTitle(candidate.title, key).title;
               target.url = candidate.url;
             }
           }
@@ -1365,10 +1365,16 @@
     return `${y}-${m}-${d}`;
   }
 
-  function parseAndCleanTitle(rawTitle) {
+  function parseAndCleanTitle(rawTitle, courseKey = '') {
     const currentYear = new Date().getFullYear();
     let dueDate = null;
-    let cleanTitle = rawTitle;
+
+    // 1. Normalize all forms of whitespace (newlines, carriage returns, tabs, non-breaking spaces) to standard spaces
+    let cleanTitle = (rawTitle || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
     const monthPattern = /(?:\(|\[|-|\s)*(?:approx\s*)?(?:due\s*(?:date)?[:\s-]*)(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s*)?([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(?:at|@)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?(?:\)|\])?/i;
     const mMatch = cleanTitle.match(monthPattern);
@@ -1397,35 +1403,39 @@
       }
     }
 
-    // Module-embedded files often surface with their raw filename as the
-    // title (e.g. "RevisedA2.pdf" or "Lab_01_v2_FINAL.docx") instead of a
-    // proper assignment name. Detect that filename shape and clean it up:
-    // strip the extension, unpack snake_case/kebab-case into spaced words,
-    // and capitalize bare lowercase words (leaving anything that already
-    // has a capital letter, like "FINAL" or "v2", untouched).
-    const looksLikeFileName = /\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)$/i.test(cleanTitle) || /_/.test(cleanTitle);
-    if (looksLikeFileName) {
-      cleanTitle = cleanTitle
-      .replace(/\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)$/i, '')
-      .replace(/_+/g, ' ')
-      .replace(/([a-z0-9])-([a-z0-9])/gi, '$1 $2');
+    // 2. Strip file extensions unconditionally
+    cleanTitle = cleanTitle.replace(/\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)\b/gi, ' ');
 
-      cleanTitle = cleanTitle
-      .split(' ')
-      .map(word => (word && !/[A-Z]/.test(word)) ? word.charAt(0).toUpperCase() + word.slice(1) : word)
-      .join(' ');
+    // 3. Strip semester/term noise (e.g., Fall2026, Fall 2026, FA26, Fa 2026, etc.)
+    // Removed strict word-boundary dependencies so it catches glued tokens
+    cleanTitle = cleanTitle.replace(/(?:fall|fa|spring|sp|summer|su|winter|wi)[\s_.-]*'?(?:20)?\d{2}\b/gi, ' ');
+
+    // 4. Strip course code: Handles specific courseKey (ECE 541, ECE541, etc.)
+    if (courseKey) {
+      const alphaPart = courseKey.replace(/[^a-zA-Z]/g, '');
+      const numPart = courseKey.replace(/[^0-9]/g, '');
+      if (alphaPart && numPart) {
+        const keyPattern = new RegExp(`${alphaPart}[\\s_.-]*${numPart}`, 'gi');
+        cleanTitle = cleanTitle.replace(keyPattern, ' ');
+      }
+      const rawEscaped = courseKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      cleanTitle = cleanTitle.replace(new RegExp(`${rawEscaped}`, 'gi'), ' ');
     }
 
+    // 5. Aggressive generic fallback: any 2-5 letter subject code immediately followed by 3-4 digits (e.g. ECE541, MATH527, CS412)
+    cleanTitle = cleanTitle.replace(/[a-zA-Z]{2,5}[\s_.-]*\d{3,4}/gi, ' ');
+    // 6. Clean up stray symbols, punctuation, and extra whitespace
     cleanTitle = cleanTitle
+    .replace(/_+/g, ' ')
+    .replace(/([a-z0-9])-([a-z0-9])/gi, '$1 $2')
     .replace(/\(\s*\)/g, '')
     .replace(/\[\s*\]/g, '')
-    .replace(/^[-\s:|]+|[-\s:|]+$/g, '')
+    .replace(/^[\s\-:|]+|[\s\-:|]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 
     return { title: cleanTitle || rawTitle, dueDate };
   }
-
   function generateTaskId(courseKey, title) {
     const token = extractCoreAssignmentToken(title, courseKey) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     return `${courseKey}_${token}`;
@@ -1537,9 +1547,10 @@
               }
             }
 
+            const cleanedGs = parseAndCleanTitle(title, courseKey);
             tasks.push({
               id: generateTaskId(courseKey, title),
-                       title: title,
+                       title: cleanedGs.title,
                        url: url,
                        gradescopeUploadUrl: uploadUrl,
                        dueDate: dueDate,
@@ -1822,7 +1833,7 @@
                 const isHwFolder = homeworkFolderPattern.test(mod.name || '');
 
                 for (const item of mod.items) {
-                  const parsed = parseAndCleanTitle(item.title);
+                  const parsed = parseAndCleanTitle(item.title, courseKey);
                   let dueDate = item.content_details?.due_at ? new Date(item.content_details.due_at) : parsed.dueDate;
                   const mentionsGradescope = /grade\w*scope/i.test(item.title) || /grade\w*scope/i.test(mod.name || '');
 
@@ -1874,7 +1885,7 @@
             const assignments = await assignRes.json();
             if (Array.isArray(assignments)) {
               for (const a of assignments) {
-                const parsed = parseAndCleanTitle(a.name);
+                const parsed = parseAndCleanTitle(a.name, courseKey);
                 const dueDate = a.due_at ? new Date(a.due_at) : parsed.dueDate;
                 const isHwLike = homeworkFolderPattern.test(a.name) || (a.submission_types && !a.submission_types.includes('none'));
                 const isSubmitted = !!(a.submission && (a.submission.submitted_at || a.submission.workflow_state === 'submitted'));
