@@ -11,6 +11,7 @@
   const STORAGE_KEY_GRADES_CACHE_TIME = 'canvas_mod_tasks_grades_cache_time_v5';
   const STORAGE_KEY_COURSE_PERCENTAGES = 'canvas_mod_tasks_course_pcts_v1';
   const STORAGE_KEY_WHATIF = 'canvas_mod_tasks_whatif_scores_v1';
+  const STORAGE_KEY_DOM_COLORS = 'canvas_mod_tasks_dom_colors_v2';
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
@@ -25,6 +26,7 @@
   let cachedGrades = [];
   let cachedCoursePercentages = {};
   let whatIfScores = {};
+  let domCourseColors = {};
 
   try {
     whatIfScores = JSON.parse(localStorage.getItem(STORAGE_KEY_WHATIF) || '{}');
@@ -32,55 +34,163 @@
     whatIfScores = {};
   }
 
+  try {
+    domCourseColors = JSON.parse(localStorage.getItem(STORAGE_KEY_DOM_COLORS) || '{}');
+  } catch {
+    domCourseColors = {};
+  }
+
   function saveWhatIfScores() {
     localStorage.setItem(STORAGE_KEY_WHATIF, JSON.stringify(whatIfScores));
   }
 
-  // --- AUDIO HAPTIC CLICK ---
-  function playHapticClick() {
+  // --- SCRAPE NATIVE CANVAS DASHBOARD CARD COLORS FROM DOM ---
+  function scrapeCanvasDashboardColors() {
+    const cards = document.querySelectorAll('.ic-DashboardCard, [data-course-id]');
+    cards.forEach(card => {
+      let courseId = card.getAttribute('data-course-id');
+      if (!courseId) {
+        const link = card.querySelector('a[href*="/courses/"]');
+        if (link) {
+          const m = link.getAttribute('href').match(/\/courses\/(\d+)/);
+          if (m) courseId = m[1];
+        }
+      }
+      if (!courseId) return;
+
+      const headerHero = card.querySelector('.ic-DashboardCard__header_hero, .ic-DashboardCard__headerImage');
+      const targetEl = headerHero || card;
+      const bg = window.getComputedStyle(targetEl).backgroundColor;
+
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+        domCourseColors[String(courseId)] = bg;
+      }
+    });
+
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.04);
-
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.04);
-    } catch (e) {}
+      localStorage.setItem(STORAGE_KEY_DOM_COLORS, JSON.stringify(domCourseColors));
+    } catch {}
   }
 
-  // --- DYNAMIC COURSE PALETTES ---
-  const COURSE_PALETTES = [
-    { accent: '#00f2fe', glow: 'rgba(0, 242, 254, 0.45)', soft: 'rgba(0, 242, 254, 0.14)' }, // Cyan
- { accent: '#a855f7', glow: 'rgba(168, 85, 247, 0.45)', soft: 'rgba(168, 85, 247, 0.14)' }, // Purple / Violet
- { accent: '#10b981', glow: 'rgba(16, 185, 129, 0.45)', soft: 'rgba(16, 185, 129, 0.14)' }, // Emerald
- { accent: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)', soft: 'rgba(245, 158, 11, 0.14)' }, // Amber / Gold
- { accent: '#ec4899', glow: 'rgba(236, 72, 153, 0.45)', soft: 'rgba(236, 72, 153, 0.14)' }, // Pink
- { accent: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)', soft: 'rgba(59, 130, 246, 0.14)' }, // Royal Blue
- { accent: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)', soft: 'rgba(20, 184, 166, 0.14)' }, // Teal
- { accent: '#f97316', glow: 'rgba(249, 115, 22, 0.45)', soft: 'rgba(249, 115, 22, 0.14)' }  // Orange
+  // --- COLOR FORMATTING HELPERS ---
+  const FALLBACK_PALETTES = [
+    { accent: '#00f2fe', glow: 'rgba(0, 242, 254, 0.45)', soft: 'rgba(0, 242, 254, 0.14)' },
+ { accent: '#a855f7', glow: 'rgba(168, 85, 247, 0.45)', soft: 'rgba(168, 85, 247, 0.14)' },
+ { accent: '#10b981', glow: 'rgba(16, 185, 129, 0.45)', soft: 'rgba(16, 185, 129, 0.14)' },
+ { accent: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)', soft: 'rgba(245, 158, 11, 0.14)' },
+ { accent: '#ec4899', glow: 'rgba(236, 72, 153, 0.45)', soft: 'rgba(236, 72, 153, 0.14)' },
+ { accent: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)', soft: 'rgba(59, 130, 246, 0.14)' },
+ { accent: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)', soft: 'rgba(20, 184, 166, 0.14)' },
+ { accent: '#f97316', glow: 'rgba(249, 115, 22, 0.45)', soft: 'rgba(249, 115, 22, 0.14)' }
   ];
 
-  function getCourseColors(courseKey) {
-    if (!courseKey) return COURSE_PALETTES[0];
+  function parseColorToRgba(colorStr, alpha) {
+    if (!colorStr) return null;
+
+    // Handle rgb(r, g, b) or rgba(r, g, b, a)
+    const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (rgbMatch) {
+      return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+    }
+
+    // Handle #hex
+    let c = colorStr.replace('#', '').trim();
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    if (!isNaN(num) && c.length === 6) {
+      const r = (num >> 16) & 255;
+      const g = (num >> 8) & 255;
+      const b = num & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    return null;
+  }
+
+  function getCourseColors(courseKey, canvasCourseId = null) {
+    let rawColor = null;
+
+    if (canvasCourseId && domCourseColors[String(canvasCourseId)]) {
+      rawColor = domCourseColors[String(canvasCourseId)];
+    } else if (cachedCourseMap[courseKey]?.canvasCourseId) {
+      const altId = cachedCourseMap[courseKey].canvasCourseId;
+      rawColor = domCourseColors[String(altId)];
+    }
+
+    if (rawColor) {
+      const glow = parseColorToRgba(rawColor, 0.45) || 'rgba(0, 242, 254, 0.45)';
+      const soft = parseColorToRgba(rawColor, 0.14) || 'rgba(0, 242, 254, 0.14)';
+      return {
+        accent: rawColor,
+        glow: glow,
+        soft: soft
+      };
+    }
+
+    // Deterministic fallback by Course Code if unmapped
     let hash = 0;
-    for (let i = 0; i < courseKey.length; i++) {
-      hash = (hash << 5) - hash + courseKey.charCodeAt(i);
+    const str = courseKey || 'GENERAL';
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
       hash |= 0;
     }
-    const idx = Math.abs(hash) % COURSE_PALETTES.length;
-    return COURSE_PALETTES[idx];
+    const idx = Math.abs(hash) % FALLBACK_PALETTES.length;
+    return FALLBACK_PALETTES[idx];
+  }
+
+  // --- PDF PREVIEW MODAL ENGINE ---
+  function openPdfModal(rawUrl, title, courseId = null, fileId = null) {
+    let modal = document.getElementById('canvas-doc-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'canvas-doc-preview-modal';
+      modal.className = 'doc-preview-modal';
+      modal.innerHTML = `
+      <div class="doc-preview-backdrop"></div>
+      <div class="doc-preview-dialog">
+      <div class="doc-preview-header">
+      <span class="doc-preview-title" id="doc-preview-title">Document Preview</span>
+      <div class="doc-preview-actions">
+      <a class="doc-preview-btn-top" id="doc-preview-open-tab" target="_blank" rel="noopener noreferrer">↗ Open Tab</a>
+      <a class="doc-preview-btn-top" id="doc-preview-download-link" download>Download ⤓</a>
+      <button type="button" class="doc-preview-close" id="doc-preview-close-btn" title="Close Preview">✕</button>
+      </div>
+      </div>
+      <div class="doc-preview-body">
+      <iframe id="doc-preview-iframe" src="" frameborder="0"></iframe>
+      </div>
+      </div>
+      `;
+      document.body.appendChild(modal);
+
+      const close = () => {
+        modal.classList.remove('is-open');
+        const iframe = document.getElementById('doc-preview-iframe');
+        if (iframe) iframe.src = '';
+      };
+
+        modal.querySelector('.doc-preview-backdrop').addEventListener('click', close);
+        modal.querySelector('#doc-preview-close-btn').addEventListener('click', close);
+    }
+
+    const titleEl = document.getElementById('doc-preview-title');
+    const openTabBtn = document.getElementById('doc-preview-open-tab');
+    const downloadLink = document.getElementById('doc-preview-download-link');
+    const iframe = document.getElementById('doc-preview-iframe');
+
+    let previewUrl = rawUrl;
+    if (courseId && fileId) {
+      previewUrl = `${origin}/courses/${courseId}/files/${fileId}/file_preview`;
+    } else if (rawUrl && rawUrl.includes('/download?download_frd=1')) {
+      previewUrl = rawUrl.replace('/download?download_frd=1', '');
+    }
+
+    if (titleEl) titleEl.innerText = title || 'Document Preview';
+    if (openTabBtn) openTabBtn.href = previewUrl;
+    if (downloadLink) downloadLink.href = rawUrl;
+    if (iframe) iframe.src = previewUrl;
+
+    modal.classList.add('is-open');
   }
 
   // --- FULL VIEWPORT CONFETTI ENGINE ---
@@ -501,6 +611,9 @@
             const target = uniqueTasks[existingIdx];
             if (target.points === null && candidate.points !== null) target.points = candidate.points;
             if (!target.downloadUrl && candidate.downloadUrl) target.downloadUrl = candidate.downloadUrl;
+            if (!target.contentId && candidate.contentId) target.contentId = candidate.contentId;
+            if (!target.canvasCourseId && candidate.canvasCourseId) target.canvasCourseId = candidate.canvasCourseId;
+            if (!target.isSubmitted && candidate.isSubmitted) target.isSubmitted = true;
             if (!target.dueDate && candidate.dueDate) {
               target.dueDate = candidate.dueDate;
               target.isUndatedHw = false;
@@ -526,6 +639,7 @@
     if (rightSide && !document.getElementById('module-tasks-widget')) {
       clearInterval(checkInterval);
       document.body.classList.add('with-right-side');
+      scrapeCanvasDashboardColors();
       injectWidget(rightSide);
       purgeDefaultCanvasElements();
     }
@@ -611,7 +725,10 @@
       widget.setAttribute('data-theme', currentTheme);
     });
 
-    document.getElementById('refresh-mod-tasks').addEventListener('click', () => loadTasks(true));
+    document.getElementById('refresh-mod-tasks').addEventListener('click', () => {
+      scrapeCanvasDashboardColors();
+      loadTasks(true);
+    });
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
     updateToggleAllButtonState();
 
@@ -790,7 +907,7 @@
 
   function getWeekBounds(referenceDate = new Date()) {
     const d = new Date(referenceDate);
-    const day = d.getDay(); // 0 = Sun, 1 = Mon, ...
+    const day = d.getDay();
     const diffToMonday = day === 0 ? -6 : 1 - day;
 
     const startOfWeek = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday, 0, 0, 0, 0);
@@ -1034,9 +1151,7 @@
               return;
             }
 
-            if (/submitted/i.test(statusText) && !/no submission/i.test(statusText)) {
-              return;
-            }
+            const hasActiveSubmission = /submitted/i.test(statusText) && !/no submission/i.test(statusText);
 
             let dueDate = null;
             const dueTimeTag = row.querySelector('time.submissionTimeChart--dueDate:not([aria-label*="Late"])');
@@ -1057,9 +1172,12 @@
                        points: null,
                        isUndatedHw: !dueDate,
                        isGradescope: true,
+                       isSubmitted: hasActiveSubmission,
                        courseKey: courseKey,
                        courseName: course.name,
-                       downloadUrl: null
+                       downloadUrl: null,
+                       contentId: null,
+                       canvasCourseId: null
             });
           });
 
@@ -1183,7 +1301,7 @@
         courseNameById[c.id] = rawCourseName;
         const courseKey = normalizeCourseCode(rawCourseName);
         if (!unifiedCourseMap[courseKey]) {
-          unifiedCourseMap[courseKey] = { name: rawCourseName, tasks: [] };
+          unifiedCourseMap[courseKey] = { name: rawCourseName, canvasCourseId: c.id, tasks: [] };
         }
 
         if (Array.isArray(c.enrollments)) {
@@ -1231,7 +1349,9 @@
                   const mentionsGradescope = /grade\w*scope/i.test(item.title) || /grade\w*scope/i.test(mod.name || '');
 
                   let downloadUrl = null;
+                  let contentId = null;
                   if (item.type === 'File' && item.content_id) {
+                    contentId = item.content_id;
                     downloadUrl = `${origin}/courses/${course.id}/files/${item.content_id}/download?download_frd=1`;
                   } else if (/\.pdf$/i.test(item.title) && item.url) {
                     downloadUrl = item.url;
@@ -1241,6 +1361,8 @@
                     unifiedCourseMap[courseKey].tasks.push({
                       id: generateTaskId(courseKey, item.title),
                                                            canvasAssignmentId: item.content_details?.assignment_id || null,
+                                                           canvasCourseId: course.id,
+                                                           contentId: contentId,
                                                            title: parsed.title,
                                                            url: item.html_url || `${origin}/courses/${course.id}/modules/items/${item.id}`,
                                                            dueDate: dueDate,
@@ -1249,6 +1371,7 @@
                                                            isUndatedHw: !dueDate && isHwFolder,
                                                            gradescope: mentionsGradescope,
                                                            isGradescope: false,
+                                                           isSubmitted: false,
                                                            courseKey: courseKey,
                                                            courseName: rawCourseName,
                                                            downloadUrl: downloadUrl
@@ -1262,9 +1385,9 @@
           console.warn(`Modules scan error for ${rawCourseName}`, e);
         }
 
-        // 2. Full Assignments Tab Scan
+        // 2. Full Assignments Tab Scan with Submission Status
         try {
-          const assignRes = await fetch(`${origin}/api/v1/courses/${course.id}/assignments?per_page=100&order_by=due_at`, {
+          const assignRes = await fetch(`${origin}/api/v1/courses/${course.id}/assignments?include[]=submission&per_page=100&order_by=due_at`, {
             credentials: 'include',
             headers: headers
           });
@@ -1276,11 +1399,14 @@
                 const parsed = parseAndCleanTitle(a.name);
                 const dueDate = a.due_at ? new Date(a.due_at) : parsed.dueDate;
                 const isHwLike = homeworkFolderPattern.test(a.name) || (a.submission_types && !a.submission_types.includes('none'));
+                const isSubmitted = !!(a.submission && (a.submission.submitted_at || a.submission.workflow_state === 'submitted'));
 
                 if (dueDate || isHwLike) {
                   unifiedCourseMap[courseKey].tasks.push({
                     id: generateTaskId(courseKey, a.name),
                                                          canvasAssignmentId: a.id || null,
+                                                         canvasCourseId: course.id,
+                                                         contentId: null,
                                                          title: parsed.title,
                                                          url: a.html_url,
                                                          dueDate: dueDate,
@@ -1288,6 +1414,7 @@
                                                          isUndatedHw: !dueDate,
                                                          gradescope: /grade\w*scope/i.test(a.description || '') || /grade\w*scope/i.test(a.name),
                                                          isGradescope: false,
+                                                         isSubmitted: isSubmitted,
                                                          courseKey: courseKey,
                                                          courseName: rawCourseName,
                                                          downloadUrl: null
@@ -1305,11 +1432,10 @@
         showReloadProgress('Synchronizing Gradescope...', 80);
       }
 
-      // 3. Gradescope Scan
       const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;
       Object.keys(gsCourseMap).forEach(gsKey => {
         if (!unifiedCourseMap[gsKey]) {
-          unifiedCourseMap[gsKey] = { name: gsCourseMap[gsKey].name, tasks: [] };
+          unifiedCourseMap[gsKey] = { name: gsCourseMap[gsKey].name, canvasCourseId: null, tasks: [] };
         }
         unifiedCourseMap[gsKey].tasks.push(...gsCourseMap[gsKey].tasks);
       });
@@ -1496,23 +1622,32 @@
       statusBadgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag undated-chip">⚠ NO DUE DATE</span></span>`;
     }
 
+    if (task.isSubmitted) {
+      statusBadgeHtml += ` <span class="badge-tag submitted-badge" title="Draft or file already submitted, awaiting evaluation">✓ Submitted</span>`;
+    }
+
     // Top Right Points Chip
     let pointsHtml = '';
     if (task.points !== null) {
       pointsHtml = `<span class="badge-tag points-chip top-points-tag">${task.points} pts</span>`;
     }
 
-    // Bottom Right Metadata (Gradescope tag & PDF button)
+    // Bottom Right Metadata: GS Tag + Dual PDF Viewer / Downloader buttons
     let rightBottomMeta = '';
     if (task.isGradescope) {
       rightBottomMeta += `<span class="badge-tag gs-source">GS</span>`;
     }
     if (task.downloadUrl) {
-      rightBottomMeta += `<a href="${task.downloadUrl}" class="download-pill" target="_blank" download title="Download attached PDF/File">PDF ⤓</a>`;
+      rightBottomMeta += `
+      <div class="doc-actions-wrap">
+      <button type="button" class="doc-view-pill" data-doc-url="${escapeHTML(task.downloadUrl)}" data-doc-title="${escapeHTML(task.title)}" data-course-id="${task.canvasCourseId || ''}" data-file-id="${task.contentId || ''}" title="Preview Document">👁</button>
+      <a href="${task.downloadUrl}" class="download-pill" download target="_blank" title="Download Document">PDF ⤓</a>
+      </div>
+      `;
     }
 
-    // Assign Course-Specific Cyber Glow Palette
-    const coursePalette = getCourseColors(task.courseKey);
+    // Assign Canvas Native Color
+    const coursePalette = getCourseColors(task.courseKey, task.canvasCourseId);
     card.style.setProperty('--task-course-accent', coursePalette.accent);
     card.style.setProperty('--task-course-glow', coursePalette.glow);
     card.style.setProperty('--task-course-soft', coursePalette.soft);
@@ -1546,10 +1681,24 @@
       </div>
       `;
 
+      // Hook PDF Preview Modal Trigger
+      const viewBtn = card.querySelector('.doc-view-pill');
+      if (viewBtn) {
+        viewBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openPdfModal(
+            viewBtn.getAttribute('data-doc-url'),
+                       viewBtn.getAttribute('data-doc-title'),
+                       viewBtn.getAttribute('data-course-id'),
+                       viewBtn.getAttribute('data-file-id')
+          );
+        });
+      }
+
       const checkbox = card.querySelector('.task-checkbox');
       checkbox.addEventListener('change', (e) => {
         const willBeDone = e.target.checked;
-        playHapticClick();
 
         setTaskCompleted(task.id, willBeDone);
         updateProgressBar();
@@ -1647,7 +1796,6 @@
     return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
   }
 
-  // --- COMPUTE ACTIVE COURSE PERCENTAGES (INCLUDING WHAT-IF SIMULATIONS) ---
   function computeCoursePercentagesWithWhatIf(hiddenCourses) {
     const courseTotals = {};
 
@@ -1686,7 +1834,6 @@
     return result;
   }
 
-  // --- RENDER GRADES VIEW WITH WHAT-IF EXPERIMENTATION MATRIX ---
   function renderGradesView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 
@@ -1717,7 +1864,7 @@
     ? (gpaPoints.reduce((a, b) => a + b, 0) / gpaPoints.length).toFixed(2)
     : '—';
 
-    // 1. Top Overall GPA Banner
+    // GPA Header
     const gpaCard = document.createElement('div');
     gpaCard.className = 'gpa-card';
     const hasWhatIfActive = Object.keys(whatIfScores).length > 0;
@@ -1729,7 +1876,7 @@
     `;
     listContainer.appendChild(gpaCard);
 
-    // 2. Course Grades Grid
+    // Course Summary Cards
     if (courseCardsData.length > 0) {
       const grid = document.createElement('div');
       grid.className = 'course-grades-grid';
@@ -1757,7 +1904,7 @@
       listContainer.appendChild(grid);
     }
 
-    // 3. Interactive What-If Matrix
+    // What-If Matrix
     const tasksByCourse = {};
     Object.entries(cachedCourseMap).forEach(([cKey, c]) => {
       if (hiddenCourses.includes(cKey)) return;
@@ -1860,7 +2007,7 @@
       listContainer.appendChild(matrixCard);
     }
 
-    // 4. Recent Feedback Section
+    // Feedback List
     if (grades.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'mod-empty-msg';

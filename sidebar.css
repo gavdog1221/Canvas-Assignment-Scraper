@@ -814,18 +814,16 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
- *  TASK CARDS (DYNAMIC COURSE-COLOR AWARE)
+ *  TASK CARDS (CANVAS-MATCHED BORDER GLOW & CLEAN DUAL BUTTONS)
  *  ========================================================================== */
 .mod-task-card {
   --task-course-accent: var(--primary-accent);
   --task-course-glow: var(--accent-glow);
   --task-course-soft: var(--accent-soft);
 
-  /* Horizontal gradient gives the left side the colored glow bleed */
   background: linear-gradient(90deg, var(--task-course-soft) 0%, var(--card-bg) 40%) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   border-left: 4px solid var(--task-course-accent) !important;
-  /* Adds a neon glow along the left edge */
   box-shadow: -3px 0 14px -2px var(--task-course-glow) !important;
   border-radius: 10px !important;
   padding: 10px 12px !important;
@@ -845,7 +843,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px var(--task-course-glow) !important;
 }
 
-/* Force the dynamic course colors to turn warning red when < 24h or overdue */
+/* Urgent & Overdue Red Shifts */
 .mod-task-card.due-today,
 .mod-task-card.due-overdue {
   --task-course-accent: #f87171 !important;
@@ -882,18 +880,6 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 .mod-task-card.undated:hover {
   border-color: #f59e0b !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.45) !important;
-}
-
-.mod-task-card.gradescope-item.due-tomorrow,
-.mod-task-card.gradescope-item.due-today,
-.mod-task-card.gradescope-item.due-overdue {
-  border-left-color: #f87171 !important;
-}
-.mod-task-card.gradescope-item.due-tomorrow:hover,
-.mod-task-card.gradescope-item.due-today:hover,
-.mod-task-card.gradescope-item.due-overdue:hover {
-  border-color: #f87171 !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 18px rgba(248, 113, 113, 0.55) !important;
 }
 
 .mod-task-card.critical-pulse {
@@ -1004,9 +990,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   flex-shrink: 0 !important;
 }
 
-/* ==========================================================================
- *  TASK META ROW & DYNAMIC GLOW CLASS CHIP
- *  ========================================================================== */
+/* Meta Row: Class + Date + Actions */
 .task-meta-row {
   display: flex !important;
   align-items: center !important;
@@ -1036,7 +1020,7 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   margin-left: auto !important;
 }
 
-/* Glowing Cyber Class Chip - Colors based on individual course */
+/* Glowing Cyber Class Chip */
 .course-tag-chip {
   display: inline-flex !important;
   align-items: center !important;
@@ -1176,23 +1160,57 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(248, 81, 73, 0.15) !important;
 }
 
-/* Crisp Cyan Download Pill in the Bottom-Right */
-.download-pill {
+/* ==========================================================================
+ *  BOTTOM RIGHT DUAL BUTTONS: VIEW (👁) & DOWNLOAD (PDF ⤓)
+ *  ========================================================================== */
+.doc-actions-wrap {
   display: inline-flex !important;
   align-items: center !important;
   gap: 3px !important;
-  font-size: 10.5px !important;
-  padding: 3px 8px !important;
-  border-radius: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.doc-view-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  border-radius: 6px 2px 2px 6px !important;
   font-weight: 800 !important;
-  text-decoration: none !important;
+  cursor: pointer !important;
   background: var(--accent-soft) !important;
   color: var(--primary-accent) !important;
   border: 1.5px solid var(--primary-accent) !important;
   box-shadow: 0 0 8px var(--accent-glow) !important;
   transition: all 0.15s ease !important;
+  line-height: 1 !important;
+}
+
+.doc-view-pill:hover {
+  background: var(--primary-accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px var(--primary-accent) !important;
+  transform: translateY(-1px) !important;
+}
+
+.download-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  font-size: 10px !important;
+  padding: 3px 7px !important;
+  border-radius: 2px 6px 6px 2px !important;
+  font-weight: 800 !important;
+  text-decoration: none !important;
+  background: var(--accent-soft) !important;
+  color: var(--primary-accent) !important;
+  border: 1.5px solid var(--primary-accent) !important;
+  border-left: none !important;
+  box-shadow: 0 0 8px var(--accent-glow) !important;
+  transition: all 0.15s ease !important;
   white-space: nowrap !important;
-  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
 }
 
 .download-pill:hover {
@@ -1229,6 +1247,13 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(16, 185, 129, 0.2) !important;
   color: #6ee7b7 !important;
   border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.badge-tag.submitted-badge {
+  background: rgba(34, 197, 94, 0.2) !important;
+  color: #86efac !important;
+  border: 1px solid rgba(34, 197, 94, 0.5) !important;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.25) !important;
 }
 
 .badge-tag.points-chip {
@@ -1286,6 +1311,115 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   background: rgba(10, 13, 18, 0.4) !important;
   border-radius: 10px !important;
   border: 1px dashed rgba(255, 255, 255, 0.16) !important;
+}
+
+/* ==========================================================================
+ *  DOCUMENT PREVIEW MODAL OVERLAY
+ *  ========================================================================== */
+.doc-preview-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 999999 !important;
+}
+
+.doc-preview-modal.is-open {
+  display: flex !important;
+}
+
+.doc-preview-backdrop {
+  position: absolute !important;
+  inset: 0 !important;
+  background: rgba(5, 8, 14, 0.82) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.doc-preview-dialog {
+  position: relative !important;
+  z-index: 2 !important;
+  width: 82vw !important;
+  max-width: 1050px !important;
+  height: 85vh !important;
+  background: #0f131a !important;
+  border: 1px solid var(--primary-accent) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 25px var(--accent-glow) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.doc-preview-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 12px 18px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(18, 22, 31, 0.95) !important;
+}
+
+.doc-preview-title {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  letter-spacing: -0.2px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 60% !important;
+}
+
+.doc-preview-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.doc-preview-btn-top {
+  text-decoration: none !important;
+  font-size: 11px !important;
+  padding: 5px 10px !important;
+  border-radius: 6px !important;
+  font-weight: 700 !important;
+  background: rgba(30, 36, 49, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: #cbd5e1 !important;
+  transition: all 0.18s ease !important;
+}
+
+.doc-preview-btn-top:hover {
+  background: var(--primary-accent) !important;
+  color: #000000 !important;
+  border-color: var(--primary-accent) !important;
+}
+
+.doc-preview-close {
+  background: transparent !important;
+  border: none !important;
+  color: #cbd5e1 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+}
+
+.doc-preview-close:hover {
+  color: #f87171 !important;
+  background: rgba(248, 81, 73, 0.2) !important;
+}
+
+.doc-preview-body {
+  flex: 1 !important;
+  background: #0a0d12 !important;
+  position: relative !important;
+}
+
+.doc-preview-body iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
 }
 
 /* ==========================================================================
