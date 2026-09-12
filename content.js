@@ -860,9 +860,9 @@
     widget.id = 'module-tasks-widget';
     widget.setAttribute('data-theme', currentTheme);
     widget.innerHTML = `
+    <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <div class="header">
     <div class="title-row">
-    <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <span class="title">YACE</span>
     </div>
     <div class="widget-controls">
@@ -1369,7 +1369,7 @@
     const currentYear = new Date().getFullYear();
     let dueDate = null;
 
-    // 1. Normalize all forms of whitespace (newlines, carriage returns, tabs, non-breaking spaces) to standard spaces
+    // 1. Normalize whitespace & line breaks
     let cleanTitle = (rawTitle || '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/\u00a0/g, ' ')
@@ -1403,14 +1403,13 @@
       }
     }
 
-    // 2. Strip file extensions unconditionally
+    // 2. Strip file extensions unconditionally (.pdf, .docx, etc.)
     cleanTitle = cleanTitle.replace(/\.(pdf|docx?|zip|pptx?|xlsx?|csv|txt|rtf)\b/gi, ' ');
 
-    // 3. Strip semester/term noise (e.g., Fall2026, Fall 2026, FA26, Fa 2026, etc.)
-    // Removed strict word-boundary dependencies so it catches glued tokens
+    // 3. Strip semester/term noise (e.g. Fall2026, FA26, Spring 2026)
     cleanTitle = cleanTitle.replace(/(?:fall|fa|spring|sp|summer|su|winter|wi)[\s_.-]*'?(?:20)?\d{2}\b/gi, ' ');
 
-    // 4. Strip course code: Handles specific courseKey (ECE 541, ECE541, etc.)
+    // 4. Strip specific course key (e.g. ECE 541, ECE541)
     if (courseKey) {
       const alphaPart = courseKey.replace(/[^a-zA-Z]/g, '');
       const numPart = courseKey.replace(/[^0-9]/g, '');
@@ -1422,9 +1421,16 @@
       cleanTitle = cleanTitle.replace(new RegExp(`${rawEscaped}`, 'gi'), ' ');
     }
 
-    // 5. Aggressive generic fallback: any 2-5 letter subject code immediately followed by 3-4 digits (e.g. ECE541, MATH527, CS412)
+    // 5. Generic fallback for any Department + Number prefix (e.g. ECE541, CS412)
     cleanTitle = cleanTitle.replace(/[a-zA-Z]{2,5}[\s_.-]*\d{3,4}/gi, ' ');
-    // 6. Clean up stray symbols, punctuation, and extra whitespace
+
+    // 6. Turn all variations of homework into "HW"
+    // With number (e.g., "Homework 1", "Home-Work #2", "hw_3" -> "HW 1", "HW 2", "HW 3")
+    cleanTitle = cleanTitle.replace(/\b(?:home[\s_.-]*work|hw)[\s_.-]*(?:#|\bno\.?)?\s*(\d+)\b/gi, 'HW $1');
+    // Standalone without number ("Homework", "Home Work" -> "HW")
+    cleanTitle = cleanTitle.replace(/\bhome[\s_.-]*work\b/gi, 'HW');
+
+    // 7. Clean up stray symbols, punctuation, and extra whitespace
     cleanTitle = cleanTitle
     .replace(/_+/g, ' ')
     .replace(/([a-z0-9])-([a-z0-9])/gi, '$1 $2')
@@ -1435,8 +1441,7 @@
     .trim();
 
     return { title: cleanTitle || rawTitle, dueDate };
-  }
-  function generateTaskId(courseKey, title) {
+  }  function generateTaskId(courseKey, title) {
     const token = extractCoreAssignmentToken(title, courseKey) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     return `${courseKey}_${token}`;
   }
@@ -2945,6 +2950,7 @@
   }
 
   // --- ANNOUNCEMENTS TAB RENDERING ---
+  // --- ANNOUNCEMENTS TAB RENDERING ---
   function renderAnnouncementsView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 
@@ -2986,7 +2992,8 @@
       ? item.postedAt.toLocaleDateString([], { month: 'short', day: 'numeric' })
       : '';
       const rawMsg = item.message || '';
-      const snippet = rawMsg.length > 160 ? `${rawMsg.slice(0, 160)}…` : rawMsg;
+      const isLong = rawMsg.length > 140;
+      const snippet = isLong ? `${rawMsg.slice(0, 140)}…` : rawMsg;
 
       card.innerHTML = `
       <div class="announcement-top-row">
@@ -2996,12 +3003,26 @@
       </div>
       <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${escapeHTML(item.title)}</a>
       ${snippet ? `<div class="announcement-snippet">${escapeHTML(snippet)}</div>` : ''}
-      `;
+      ${isLong ? `
+        <div class="announcement-full-msg">${escapeHTML(rawMsg)}</div>
+        <button type="button" class="announcement-expand-btn" title="Read full announcement">▼</button>
+        ` : ''}
+        `;
 
-      listContainer.appendChild(card);
+        if (isLong) {
+          const expandBtn = card.querySelector('.announcement-expand-btn');
+          expandBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const isExpanded = card.classList.toggle('is-expanded');
+            expandBtn.innerText = isExpanded ? '▲' : '▼';
+            expandBtn.title = isExpanded ? 'Show less' : 'Read full announcement';
+          });
+        }
+
+        listContainer.appendChild(card);
     });
   }
-
   function escapeHTML(str) {
     return String(str).replace(/[&<>'"]/g,
                                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)

@@ -147,9 +147,8 @@ box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0
 box-sizing: border-box !important;
 border: 1px solid var(--border-subtle) !important;
 position: relative !important;
-overflow: hidden !important;
+overflow: visible !important;
 }
-
 #module-tasks-widget * {
 box-sizing: border-box !important;
 }
@@ -292,21 +291,35 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
- *  MINIMIZE BUTTON (top-left of header)
+ *  MINIMIZE BUTTON (Anchored on the top-left exterior edge)
  *  ========================================================================== */
 .minimize-btn {
+  position: absolute !important;
+  top: 18px !important;
+  left: -28px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 10px !important;
-  padding: 5px 7px !important;
-  line-height: 1 !important;
+  width: 28px !important;
+  height: 56px !important;
+  padding: 0 !important;
+  background: rgba(18, 22, 31, 0.95) !important;
+  border: 1px solid var(--primary-accent) !important;
+  border-right: none !important;
+  border-radius: 8px 0 0 8px !important;
+  color: var(--primary-accent) !important;
+  font-size: 11px !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.2s ease !important;
 }
 
 .minimize-btn:hover {
-  color: var(--primary-accent) !important;
+  background: var(--primary-accent) !important;
+  color: #000000 !important;
+  box-shadow: -4px 4px 16px var(--accent-glow) !important;
 }
-
 /* ==========================================================================
  *  RELOAD PROGRESS BANNER OVERLAY
  *  ========================================================================== */
@@ -1548,7 +1561,49 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 .badge-tag.announce-new-pill .pulsing-dot {
   background-color: #fb7185 !important;
 }
+.announcement-full-msg {
+  display: none !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  color: #e2e8f0 !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+}
 
+.announcement-card.is-expanded .announcement-snippet {
+  display: none !important;
+}
+
+.announcement-card.is-expanded .announcement-full-msg {
+  display: block !important;
+}
+
+.announcement-expand-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  margin: 6px auto 0 auto !important;
+  padding: 0 10px !important;
+  height: 16px !important;
+  min-height: 0 !important;
+  line-height: 1 !important;
+  background: rgba(30, 36, 49, 0.85) !important;
+  border: 1px solid var(--task-course-accent, var(--primary-accent)) !important;
+  border-radius: 4px !important;
+  color: var(--task-course-accent, var(--primary-accent)) !important;
+  font-size: 9px !important;
+  font-weight: 800 !important;  cursor: pointer !important;
+  box-shadow: 0 0 8px var(--task-course-glow, var(--accent-glow)) !important;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.announcement-expand-btn:hover {
+  background: var(--task-course-accent, var(--primary-accent)) !important;
+  color: #0b0f14 !important;
+  box-shadow: 0 0 14px var(--task-course-glow, var(--accent-glow)) !important;
+  transform: translateY(-1px) !important;
+}
 /* ==========================================================================
  *  PAGINATION (Completed / Overdue "Show more")
  *  ========================================================================== */
