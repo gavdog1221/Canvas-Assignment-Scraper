@@ -28,6 +28,8 @@
   let whatIfScores = {};
   let domCourseColors = {};
 
+  let selectedTaskIndex = -1;
+
   try {
     whatIfScores = JSON.parse(localStorage.getItem(STORAGE_KEY_WHATIF) || '{}');
   } catch {
@@ -86,14 +88,10 @@
 
   function parseColorToRgba(colorStr, alpha) {
     if (!colorStr) return null;
-
-    // Handle rgb(r, g, b) or rgba(r, g, b, a)
     const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
     if (rgbMatch) {
       return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
     }
-
-    // Handle #hex
     let c = colorStr.replace('#', '').trim();
     if (c.length === 3) c = c.split('').map(x => x + x).join('');
     const num = parseInt(c, 16);
@@ -103,7 +101,6 @@
       const b = num & 255;
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
-
     return null;
   }
 
@@ -120,14 +117,9 @@
     if (rawColor) {
       const glow = parseColorToRgba(rawColor, 0.45) || 'rgba(0, 242, 254, 0.45)';
       const soft = parseColorToRgba(rawColor, 0.14) || 'rgba(0, 242, 254, 0.14)';
-      return {
-        accent: rawColor,
-        glow: glow,
-        soft: soft
-      };
+      return { accent: rawColor, glow: glow, soft: soft };
     }
 
-    // Deterministic fallback by Course Code if unmapped
     let hash = 0;
     const str = courseKey || 'GENERAL';
     for (let i = 0; i < str.length; i++) {
@@ -190,6 +182,51 @@
     if (downloadLink) downloadLink.href = rawUrl;
     if (iframe) iframe.src = previewUrl;
 
+    modal.classList.add('is-open');
+  }
+
+  function closePdfModal() {
+    const modal = document.getElementById('canvas-doc-preview-modal');
+    if (modal && modal.classList.contains('is-open')) {
+      modal.classList.remove('is-open');
+      const iframe = document.getElementById('doc-preview-iframe');
+      if (iframe) iframe.src = '';
+    }
+  }
+
+  // --- SHORTCUTS INFO OVERLAY ---
+  function openShortcutsModal() {
+    let modal = document.getElementById('canvas-shortcuts-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'canvas-shortcuts-modal';
+      modal.className = 'doc-preview-modal';
+      modal.innerHTML = `
+      <div class="doc-preview-backdrop"></div>
+      <div class="doc-preview-dialog shortcuts-dialog">
+      <div class="doc-preview-header">
+      <span class="doc-preview-title">⚡ Keyboard Shortcuts</span>
+      <button type="button" class="doc-preview-close" id="shortcuts-close-btn">✕</button>
+      </div>
+      <div class="shortcuts-content">
+      <div class="shortcut-row"><span class="shortcut-key">j / ↓</span><span class="shortcut-desc">Move cursor down</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">k / ↑</span><span class="shortcut-desc">Move cursor up</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">x</span><span class="shortcut-desc">Toggle active task completed</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">v</span><span class="shortcut-desc">Preview PDF document</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">d</span><span class="shortcut-desc">Download PDF document</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">u</span><span class="shortcut-desc">Open Gradescope upload window</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">o / Enter</span><span class="shortcut-desc">Open assignment URL</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">/</span><span class="shortcut-desc">Focus search box</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">Esc</span><span class="shortcut-desc">Dismiss viewer or search</span></div>
+      </div>
+      </div>
+      `;
+      document.body.appendChild(modal);
+
+      const close = () => modal.classList.remove('is-open');
+      modal.querySelector('.doc-preview-backdrop').addEventListener('click', close);
+      modal.querySelector('#shortcuts-close-btn').addEventListener('click', close);
+    }
     modal.classList.add('is-open');
   }
 
@@ -613,6 +650,7 @@
             if (!target.downloadUrl && candidate.downloadUrl) target.downloadUrl = candidate.downloadUrl;
             if (!target.contentId && candidate.contentId) target.contentId = candidate.contentId;
             if (!target.canvasCourseId && candidate.canvasCourseId) target.canvasCourseId = candidate.canvasCourseId;
+            if (!target.gradescopeUploadUrl && candidate.gradescopeUploadUrl) target.gradescopeUploadUrl = candidate.gradescopeUploadUrl;
             if (!target.isSubmitted && candidate.isSubmitted) target.isSubmitted = true;
             if (!target.dueDate && candidate.dueDate) {
               target.dueDate = candidate.dueDate;
@@ -657,6 +695,7 @@
     <span class="title">Tasks Hub</span>
     </div>
     <div class="widget-controls">
+    <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
     <button class="icon-btn" id="toggle-theme-btn" title="Cycle Theme (Cyan / Synthwave / Emerald / Stealth)">🎨</button>
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
     <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
@@ -686,7 +725,7 @@
     </div>
 
     <div class="search-wrapper">
-    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks or assignments..." />
+    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks (Press / to focus)..." />
     </div>
 
     <div class="view-tabs">
@@ -717,6 +756,8 @@
       widget.style.setProperty('--mouse-x', `-1000px`);
       widget.style.setProperty('--mouse-y', `-1000px`);
     });
+
+    document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
 
     document.getElementById('toggle-theme-btn').addEventListener('click', () => {
       const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
@@ -803,6 +844,105 @@
     } else {
       loadTasks(true);
     }
+
+    initKeyboardShortcuts();
+  }
+
+  // --- KEYBOARD SHORTCUT NAVIGATION CONTROLLER ---
+  function initKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      // Ignore when user is actively typing in inputs or textareas
+      const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea') {
+        if (e.key === 'Escape') {
+          document.activeElement.blur();
+        }
+        return;
+      }
+
+      const cards = Array.from(document.querySelectorAll('#module-tasks-list .mod-task-card'));
+      if (cards.length === 0) return;
+
+      if (e.key === '/' || e.key === '?') {
+        e.preventDefault();
+        const searchInput = document.getElementById('task-search-input');
+        if (searchInput) searchInput.focus();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        closePdfModal();
+        const scModal = document.getElementById('canvas-shortcuts-modal');
+        if (scModal) scModal.classList.remove('is-open');
+        return;
+      }
+
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedTaskIndex = Math.min(selectedTaskIndex + 1, cards.length - 1);
+        highlightSelectedCard(cards);
+        return;
+      }
+
+      if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedTaskIndex = Math.max(selectedTaskIndex - 1, 0);
+        highlightSelectedCard(cards);
+        return;
+      }
+
+      if (selectedTaskIndex >= 0 && selectedTaskIndex < cards.length) {
+        const currentCard = cards[selectedTaskIndex];
+
+        if (e.key === 'x') {
+          e.preventDefault();
+          const checkbox = currentCard.querySelector('.task-checkbox');
+          if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change'));
+          }
+          return;
+        }
+
+        if (e.key === 'v') {
+          e.preventDefault();
+          const viewBtn = currentCard.querySelector('.doc-view-pill');
+          if (viewBtn) viewBtn.click();
+          return;
+        }
+
+        if (e.key === 'd') {
+          const dlBtn = currentCard.querySelector('.download-pill');
+          if (dlBtn) dlBtn.click();
+          return;
+        }
+
+        if (e.key === 'u') {
+          const uploadBtn = currentCard.querySelector('.gs-upload-pill');
+          if (uploadBtn) uploadBtn.click();
+          return;
+        }
+
+        if (e.key === 'o' || e.key === 'Enter') {
+          const link = currentCard.querySelector('.mod-task-title');
+          if (link && link.href) {
+            window.open(link.href, '_blank');
+          }
+          return;
+        }
+      }
+    });
+  }
+
+  function highlightSelectedCard(cards) {
+    cards.forEach((c, i) => {
+      if (i === selectedTaskIndex) {
+        c.classList.add('keyboard-selected');
+        c.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else {
+        c.classList.remove('keyboard-selected');
+      }
+    });
   }
 
   function updateHiddenMenuButton() {
@@ -1124,11 +1264,15 @@
             if (!title || title.toLowerCase() === 'name') return;
 
             let url = course.url;
+            let uploadUrl = null;
+
             if (btnEl && btnEl.getAttribute('data-post-url')) {
               const postUrl = btnEl.getAttribute('data-post-url');
               url = `https://www.gradescope.com${postUrl.replace(/\/submissions.*$/, '')}`;
+              uploadUrl = `https://www.gradescope.com${postUrl}`;
             } else if (linkEl && linkEl.getAttribute('href')) {
               url = `https://www.gradescope.com${linkEl.getAttribute('href')}`;
+              uploadUrl = url;
             }
 
             const statusEl = row.querySelector('.submissionStatus--text, .submissionStatus');
@@ -1168,6 +1312,7 @@
               id: generateTaskId(courseKey, title),
                        title: title,
                        url: url,
+                       gradescopeUploadUrl: uploadUrl,
                        dueDate: dueDate,
                        points: null,
                        isUndatedHw: !dueDate,
@@ -1632,11 +1777,15 @@
       pointsHtml = `<span class="badge-tag points-chip top-points-tag">${task.points} pts</span>`;
     }
 
-    // Bottom Right Metadata: GS Tag + Dual PDF Viewer / Downloader buttons
+    // Bottom Right Actions (Gradescope tag & direct upload, Document Actions)
     let rightBottomMeta = '';
     if (task.isGradescope) {
       rightBottomMeta += `<span class="badge-tag gs-source">GS</span>`;
+      if (task.gradescopeUploadUrl && !isDone) {
+        rightBottomMeta += `<a href="${escapeHTML(task.gradescopeUploadUrl)}" target="_blank" class="gs-upload-pill" title="Upload directly to Gradescope">Upload ⇪</a>`;
+      }
     }
+
     if (task.downloadUrl) {
       rightBottomMeta += `
       <div class="doc-actions-wrap">
@@ -1655,7 +1804,7 @@
     card.className = `mod-task-card ${urgencyClass} ${isCritical ? 'critical-pulse' : ''} ${task.isGradescope ? 'gradescope-item' : ''} ${isDone ? 'is-completed' : ''}`;
 
     card.innerHTML = `
-    <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done">
+    <input type="checkbox" class="task-checkbox" ${isDone ? 'checked' : ''} title="Mark as done (Press x)">
     <div class="task-body">
     <div class="task-title-row">
     <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
@@ -2091,6 +2240,7 @@
   function renderCurrentView() {
     const listContainer = document.getElementById('module-tasks-list');
     listContainer.innerHTML = '';
+    selectedTaskIndex = -1;
 
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
