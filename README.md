@@ -2,6 +2,12 @@
 
 > **YACE** — *Yet Another Canvas Extension*
 
+<a href="https://addons.mozilla.org/firefox/downloads/file/YOUR_ADDON_SLUG/">
+  <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.png" 
+       alt="Get the Add-on" 
+       height="50">
+</a>
+
 A power-user browser extension that scrapes module-embedded files, unifies Gradescope deadlines, and replaces the native Canvas sidebar with a cyber-deck HUD.
 
 ## Features
