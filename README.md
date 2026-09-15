@@ -2,7 +2,7 @@
 
 > **YACE** — *Yet Another Canvas Extension*
 
-<a href="https://addons.mozilla.org/firefox/downloads/file/YOUR_ADDON_SLUG/">
+<a href="https://addons.mozilla.org/en-US/firefox/addon/yace/">
   <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.png" 
        alt="Get the Add-on" 
        height="50">
