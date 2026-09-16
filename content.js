@@ -1462,20 +1462,18 @@
 
     <div class="workload-strip" id="workload-strip-container"></div>
 
-    <div class="progress-container">
-    <div class="progress-meta">
-    <span id="progress-label">0% this week</span>
-    <span id="progress-count">0/0 this week</span>
-    </div>
-    <div class="progress-bar-bg">
-    <div class="progress-bar-fill tier-low" id="progress-bar-fill"></div>
-    </div>
+    <!-- Compact Unified Search, Course Filter & Horizon Scope -->
+    <div class="search-bar-row">
+    <div class="course-filter-dropdown-wrap">
+    <button type="button" class="course-filter-btn" id="course-filter-btn" title="Filter by Class">
+    <span id="course-filter-label">All</span>
+    <span class="course-filter-caret">▾</span>
+    </button>
+    <div class="course-filter-menu" id="course-filter-menu"></div>
     </div>
 
-    <!-- Integrated Search + Scope Horizon Trigger -->
-    <div class="search-bar-row">
     <div class="search-wrapper">
-    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks (/)..." />
+    <input type="text" class="search-input" id="task-search-input" placeholder="Search (/)..." />
     </div>
 
     <div class="radial-horizon-wrap" id="radial-horizon-wrap">
@@ -1491,7 +1489,18 @@
     </div>
     </div>
     </div>
-    <!-- Streamlined HUD Command Bar with direct buttons -->
+
+    <div class="progress-container">
+    <div class="progress-meta">
+    <span id="progress-label">0% this week</span>
+    <span id="progress-count">0/0 this week</span>
+    </div>
+    <div class="progress-bar-bg">
+    <div class="progress-bar-fill tier-low" id="progress-bar-fill"></div>
+    </div>
+    </div>
+
+    <!-- View Tabs + Add Task Bar -->
     <div class="hud-command-bar">
     <div class="hud-view-buttons">
     <button type="button" class="hud-view-btn active" data-tab="upcoming">Due</button>
@@ -1500,20 +1509,14 @@
     <button type="button" class="hud-view-btn" data-tab="grades">Grades</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
     </div>
-    <!-- Quick Add Action -->
     <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>
     </div>
 
-    <!-- Scrollable Course Strip -->
-    <div class="course-scroll-wrap">
-    <div class="course-pills" id="course-pills-container"></div>
-    </div>
     <div id="module-tasks-list">
     <div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>
-    </div>
-    `;
+    </div>    `;
 
     container.prepend(widget);
 
@@ -2648,53 +2651,65 @@
   }
 
   function renderFilterPills() {
-    const pillsContainer = document.getElementById('course-pills-container');
-    pillsContainer.innerHTML = '';
+    const menu = document.getElementById('course-filter-menu');
+    const label = document.getElementById('course-filter-label');
+    const trigger = document.getElementById('course-filter-btn');
+    if (!menu || !label) return;
 
+    menu.innerHTML = '';
     const hiddenCourses = getHiddenCourses();
     const allKeys = Object.keys(cachedCourseMap);
     const visibleKeys = allKeys.filter(k => !hiddenCourses.includes(k));
 
-    if (allKeys.length === 0) return;
+    label.textContent = activeCourseFilter === 'ALL' ? 'All' : activeCourseFilter;
 
-    const allPill = document.createElement('div');
-    allPill.className = `filter-pill all-pill ${activeCourseFilter === 'ALL' ? 'active' : ''}`;
-    allPill.innerHTML = `<span class="pill-label">All</span>`;
-    allPill.addEventListener('click', () => {
+    // "All" item
+    const allItem = document.createElement('div');
+    allItem.className = `course-filter-item ${activeCourseFilter === 'ALL' ? 'active' : ''}`;
+    allItem.innerHTML = `<span>All Courses</span>`;
+    allItem.addEventListener('click', (e) => {
+      e.stopPropagation();
       activeCourseFilter = 'ALL';
+      menu.classList.remove('open');
       renderFilterPills();
       renderCurrentView();
     });
-    pillsContainer.appendChild(allPill);
+    menu.appendChild(allItem);
 
     visibleKeys.forEach(k => {
-      const pill = document.createElement('div');
+      const item = document.createElement('div');
       const palette = getCourseColors(k);
-      pill.style.setProperty('--course-accent', palette.accent);
-      pill.style.setProperty('--course-glow', palette.glow);
-      pill.className = `filter-pill ${activeCourseFilter === k ? 'active' : ''}`;
-      pill.title = k;
-      pill.innerHTML = `
-      <span class="pill-label">${escapeHTML(k)}</span>
-      <span class="pill-remove" title="Hide this class">×</span>
+      item.className = `course-filter-item ${activeCourseFilter === k ? 'active' : ''}`;
+      item.innerHTML = `
+      <span class="cf-item-left"><span class="cf-dot" style="background:${palette.accent}"></span>${escapeHTML(k)}</span>
+      <span class="cf-remove" title="Hide class">×</span>
       `;
 
-      pill.querySelector('.pill-label').addEventListener('click', (e) => {
+      item.querySelector('.cf-item-left').addEventListener('click', (e) => {
         e.stopPropagation();
         activeCourseFilter = k;
+        menu.classList.remove('open');
         renderFilterPills();
         renderCurrentView();
       });
 
-      pill.querySelector('.pill-remove').addEventListener('click', (e) => {
+      item.querySelector('.cf-remove').addEventListener('click', (e) => {
         e.stopPropagation();
         hideCourse(k);
       });
 
-      pillsContainer.appendChild(pill);
+      menu.appendChild(item);
     });
-  }
-  function createTaskCard(task, now, completedMap) {
+
+    if (trigger && !trigger.hasAttribute('data-bound')) {
+      trigger.setAttribute('data-bound', 'true');
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('open');
+      });
+      document.addEventListener('click', () => menu.classList.remove('open'));
+    }
+  }  function createTaskCard(task, now, completedMap) {
     const isDone = !!completedMap[task.id];
     const isStarred = isTaskStarred(task.id);
     const card = document.createElement('div');

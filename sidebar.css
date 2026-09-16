@@ -297,12 +297,18 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
  *  7-DAY WORKLOAD DENSITY STRIP
  *  ========================================================================== */
 .workload-strip {
-  display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 6px !important; margin: 14px 0 !important;
-  background: rgba(0, 0, 0, 0.18) !important; padding: 9px !important; border-radius: 20px !important;
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  gap: 5px !important;
+  margin: 10px 0 8px 0 !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  padding: 8px !important;
+  border-radius: 18px !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35) !important; position: relative !important; z-index: 3 !important;
-}
-.workload-day {
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35) !important;
+  position: relative !important;
+  z-index: 3 !important;
+}.workload-day {
   display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important;
   padding: 9px 2px !important; border-radius: 14px !important; cursor: pointer !important;
   background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -323,8 +329,11 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 /* ==========================================================================
  *  DYNAMIC PROGRESS TRACKER & COMPLETION SYSTEM
  *  ========================================================================== */
-.progress-container { margin: 12px 0 16px 0 !important; position: relative !important; z-index: 3 !important; }
-.progress-meta { display: flex !important; justify-content: space-between !important; font-size: 11.5px !important; color: var(--text-secondary) !important; margin-bottom: 8px !important; font-weight: 600 !important; }
+.progress-container {
+  margin: 6px 0 10px 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+}.progress-meta { display: flex !important; justify-content: space-between !important; font-size: 11.5px !important; color: var(--text-secondary) !important; margin-bottom: 8px !important; font-weight: 600 !important; }
 .progress-meta span#progress-label { transition: color 0.3s ease !important; }
 .progress-bar-bg {
   width: 100% !important; height: 10px !important; background: rgba(0, 0, 0, 0.28) !important; border-radius: 99px !important;
@@ -347,23 +356,111 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 @keyframes completePulse { 0% { box-shadow: 0 0 8px rgba(10, 132, 255, 0.25); } 50% { box-shadow: 0 0 20px rgba(191, 90, 242, 0.5), 0 0 10px rgba(10, 132, 255, 0.4); } 100% { box-shadow: 0 0 8px rgba(10, 132, 255, 0.25); } }
 
 /* ==========================================================================
- *  SEARCH BAR & VIEW TABS (LOCKED VERTICAL ALIGNMENT)
+ *  CONSOLIDATED SEARCH BAR ROW (CLASS + SEARCH + SCOPE)
  *  ========================================================================== */
 .search-bar-row {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  margin-bottom: 12px !important;
+  gap: 6px !important;
+  margin-bottom: 8px !important;
   position: relative !important;
   height: 34px !important;
-  z-index: 5 !important;
+  z-index: 25 !important;
 }
 .search-bar-row:has(.radial-horizon-wrap:hover),
-.search-bar-row:hover {
+.search-bar-row:has(.course-filter-menu.open) {
   z-index: 9999 !important;
 }
 
+/* Integrated Course Filter Dropdown Button */
+.course-filter-dropdown-wrap {
+  position: relative !important;
+  flex-shrink: 0 !important;
+}
+
+.course-filter-btn {
+  height: 34px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: var(--text-primary) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.2s ease !important;
+}
+.course-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: var(--primary-accent) !important;
+  color: #fff !important;
+}
+.course-filter-caret {
+  font-size: 9px !important;
+  color: var(--primary-accent) !important;
+}
+
+.course-filter-menu {
+  display: none !important;
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  left: 0 !important;
+  min-width: 140px !important;
+  background: rgba(22, 22, 28, 0.95) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 16px !important;
+  padding: 5px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+  z-index: 10000 !important;
+}
+.course-filter-menu.open {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.course-filter-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 7px 9px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.course-filter-item:hover, .course-filter-item.active {
+  background: var(--accent-soft) !important;
+  color: var(--primary-accent) !important;
+}
+.cf-item-left {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.cf-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+}
+.cf-remove {
+  font-size: 11px !important;
+  padding: 1px 4px !important;
+  border-radius: 50% !important;
+  color: var(--text-tertiary) !important;
+}
+.cf-remove:hover {
+  color: #ff453a !important;
+  background: rgba(255, 69, 58, 0.25) !important;
+}
 .search-bar-row .search-wrapper {
   flex: 1 1 auto !important;
   height: 34px !important;
