@@ -18,7 +18,7 @@
   const STORAGE_KEY_SEEN_ANNOUNCEMENTS = 'canvas_mod_tasks_seen_announcements_v1';
   const STORAGE_KEY_CUSTOM_TASKS = 'canvas_mod_tasks_custom_assignments_v1';
 
-  const CUSTOM_COLOR_PRESETS = ['#00f2fe', '#f43f5e', '#10b981', '#f59e0b', '#a78bfa', '#ec4899', '#eab308', '#38bdf8'];
+  const CUSTOM_COLOR_PRESETS = ['#0a84ff', '#ff375f', '#30d158', '#ff9f0a', '#bf5af2', '#ff2d55', '#ffd60a', '#64d2ff'];
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
@@ -102,14 +102,14 @@
 
   // --- COLOR FORMATTING HELPERS ---
   const FALLBACK_PALETTES = [
-    { accent: '#00f2fe', glow: 'rgba(0, 242, 254, 0.45)', soft: 'rgba(0, 242, 254, 0.14)' },
- { accent: '#a855f7', glow: 'rgba(168, 85, 247, 0.45)', soft: 'rgba(168, 85, 247, 0.14)' },
- { accent: '#10b981', glow: 'rgba(16, 185, 129, 0.45)', soft: 'rgba(16, 185, 129, 0.14)' },
- { accent: '#f59e0b', glow: 'rgba(245, 158, 11, 0.45)', soft: 'rgba(245, 158, 11, 0.14)' },
- { accent: '#ec4899', glow: 'rgba(236, 72, 153, 0.45)', soft: 'rgba(236, 72, 153, 0.14)' },
- { accent: '#3b82f6', glow: 'rgba(59, 130, 246, 0.45)', soft: 'rgba(59, 130, 246, 0.14)' },
- { accent: '#14b8a6', glow: 'rgba(20, 184, 166, 0.45)', soft: 'rgba(20, 184, 166, 0.14)' },
- { accent: '#f97316', glow: 'rgba(249, 115, 22, 0.45)', soft: 'rgba(249, 115, 22, 0.14)' }
+    { accent: '#0a84ff', glow: 'rgba(10, 132, 255, 0.4)', soft: 'rgba(10, 132, 255, 0.16)' },
+ { accent: '#bf5af2', glow: 'rgba(191, 90, 242, 0.4)', soft: 'rgba(191, 90, 242, 0.16)' },
+ { accent: '#30d158', glow: 'rgba(48, 209, 88, 0.4)', soft: 'rgba(48, 209, 88, 0.16)' },
+ { accent: '#ff9f0a', glow: 'rgba(255, 159, 10, 0.4)', soft: 'rgba(255, 159, 10, 0.16)' },
+ { accent: '#ff375f', glow: 'rgba(255, 55, 95, 0.4)', soft: 'rgba(255, 55, 95, 0.16)' },
+ { accent: '#64d2ff', glow: 'rgba(100, 210, 255, 0.4)', soft: 'rgba(100, 210, 255, 0.16)' },
+ { accent: '#63e6e0', glow: 'rgba(99, 230, 224, 0.4)', soft: 'rgba(99, 230, 224, 0.16)' },
+ { accent: '#ff9500', glow: 'rgba(255, 149, 0, 0.4)', soft: 'rgba(255, 149, 0, 0.16)' }
   ];
 
   function parseColorToRgba(colorStr, alpha) {
@@ -685,7 +685,7 @@
   function launchConfetti(originX, originY) {
     const canvas = ensureConfettiCanvas();
     const ctx = canvas.getContext('2d');
-    const colors = ['#00f2fe', '#4facfe', '#f43f5e', '#c084fc', '#10b981', '#fb923c', '#eab308'];
+    const colors = ['#0a84ff', '#64d2ff', '#ff375f', '#bf5af2', '#30d158', '#ff9f0a', '#ffd60a'];
 
     for (let i = 0; i < 50; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -1450,11 +1450,16 @@
     <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <div class="header">
     <div class="title-row">
+    <div class="traffic-lights" id="traffic-lights" title="Window Controls">
+    <button class="traffic-dot traffic-red" id="tl-red-btn" title="Minimize to the edge"></button>
+    <button class="traffic-dot traffic-yellow" id="tl-yellow-btn" title="Collapse/Expand All"></button>
+    <button class="traffic-dot traffic-green" id="tl-green-btn" title="Reload Everything"></button>
+    </div>
     <span class="title">YACE</span>
     </div>
     <div class="widget-controls">
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
-    <button class="icon-btn" id="toggle-theme-btn" title="Cycle Theme (Cyan / Synthwave / Emerald / Stealth)">🎨</button>
+    <button class="icon-btn" id="toggle-theme-btn" title="Cycle Glass Tint (Liquid Blue / Orchid / Mint / Graphite)">🎨</button>
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
     <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
     <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
@@ -1486,29 +1491,46 @@
     <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks (Press / to focus)..." />
     </div>
 
-    <div class="view-tabs">
-    <button class="tab-btn active" data-tab="upcoming">Upcoming</button>
-    <button class="tab-btn overdue" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></button>
-    <button class="tab-btn" data-tab="completed">Completed</button>
-    <button class="tab-btn" data-tab="grades">Grades</button>
-    <button class="tab-btn" data-tab="announcements">Announce <span class="tab-alert-pill" id="announce-badge" style="display:none;"></span></button>
+    <!-- Streamlined HUD Command Bar -->
+    <div class="hud-command-bar">
+    <div class="hud-left-group">
+    <!-- View Selector Dropdown/Switcher -->
+    <div class="hud-dropdown-wrap">
+    <button type="button" class="hud-dropdown-trigger" id="view-dropdown-btn">
+    <span id="current-view-label">Upcoming</span>
+    <span class="hud-tab-badge" id="hud-overdue-badge" style="display:none;"></span>
+    <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span>
+    <span class="dropdown-caret">▾</span>
+    </button>
+    <div class="hud-dropdown-menu" id="view-dropdown-menu">
+    <div class="hud-dd-item active" data-tab="upcoming">Upcoming</div>
+    <div class="hud-dd-item" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></div>
+    <div class="hud-dd-item" data-tab="completed">Completed</div>
+    <div class="hud-dd-item" data-tab="grades">Grades</div>
+    <div class="hud-dd-item" data-tab="announcements">Announcements</div>
+    </div>
     </div>
 
-    <div class="tasks-action-bar" id="tasks-action-bar">
-    <div class="range-selector" id="assignment-range-selector">
-    <button type="button" class="range-pill" data-range="today">Today</button>
-    <button type="button" class="range-pill" data-range="week">Week</button>
-    <button type="button" class="range-pill active" data-range="2weeks">2 Weeks</button>
-    <button type="button" class="range-pill" data-range="month">Month</button>
-    <button type="button" class="range-pill" data-range="all">All</button>
+    <!-- Inline Horizon Segmented Track -->
+    <div class="hud-range-track" id="assignment-range-selector">
+    <button type="button" class="range-pill" data-range="today" title="Today">1D</button>
+    <button type="button" class="range-pill" data-range="week" title="1 Week">1W</button>
+    <button type="button" class="range-pill active" data-range="2weeks" title="2 Weeks">2W</button>
+    <button type="button" class="range-pill" data-range="month" title="1 Month">1M</button>
+    <button type="button" class="range-pill" data-range="all" title="All Horizons">∞</button>
     </div>
-    <button type="button" class="new-assignment-btn" id="add-custom-task-btn">
-    <span>＋</span> New Assignment
+    </div>
+
+    <!-- Quick Add Action -->
+    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
+    <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>
     </div>
 
+    <!-- Scrollable Course Strip -->
+    <div class="course-scroll-wrap">
     <div class="course-pills" id="course-pills-container"></div>
-
+    </div>
     <div id="module-tasks-list">
     <div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>
     </div>
@@ -1565,6 +1587,17 @@
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
     updateToggleAllButtonState();
 
+    const tlRed = document.getElementById('tl-red-btn');
+    if (tlRed) tlRed.addEventListener('click', (e) => { e.stopPropagation(); setWidgetMinimized(true); });
+    const tlYellow = document.getElementById('tl-yellow-btn');
+    if (tlYellow) tlYellow.addEventListener('click', (e) => { e.stopPropagation(); toggleAllAccordions(); });
+    const tlGreen = document.getElementById('tl-green-btn');
+    if (tlGreen) tlGreen.addEventListener('click', (e) => {
+      e.stopPropagation();
+      scrapeCanvasDashboardColors();
+      loadTasks(true);
+    });
+
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
     const closeBtn = document.getElementById('close-hidden-courses-btn');
 
@@ -1595,62 +1628,76 @@
       renderCurrentView();
     });
 
-    widget.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        widget.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentTab = btn.getAttribute('data-tab');
-        activeDayFilter = null;
-        if (currentTab === 'announcements') {
-          markAnnouncementsSeen();
-          updateAnnouncementBadge();
-        }
-        renderCurrentView();
-      });
+    const viewBtn = document.getElementById('view-dropdown-btn');
+    const viewMenu = document.getElementById('view-dropdown-menu');
+    const currentViewLabel = document.getElementById('current-view-label');
+
+    viewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      viewMenu.classList.toggle('open');
     });
 
-    setInterval(() => {
-      if (document.getElementById('module-tasks-widget')) {
+    document.addEventListener('click', () => {
+      if (viewMenu) viewMenu.classList.remove('open');
+    });
+
+      widget.querySelectorAll('.hud-dd-item').forEach(item => {
+        item.addEventListener('click', () => {
+          widget.querySelectorAll('.hud-dd-item').forEach(i => i.classList.remove('active'));
+          item.classList.add('active');
+          currentTab = item.getAttribute('data-tab');
+          currentViewLabel.textContent = item.textContent.replace(/\(.*?\)/g, '').trim();
+          viewMenu.classList.remove('open');
+          activeDayFilter = null;
+          if (currentTab === 'announcements') {
+            markAnnouncementsSeen();
+            updateAnnouncementBadge();
+          }
+          renderCurrentView();
+        });
+      });
+      setInterval(() => {
+        if (document.getElementById('module-tasks-widget')) {
+          updateProgressBar();
+          renderCurrentView();
+        }
+      }, 30000);
+
+      const cachedGradesLocal = loadLocalGradesCache();
+      if (cachedGradesLocal) {
+        cachedGrades = cachedGradesLocal;
+      }
+      cachedCoursePercentages = loadCoursePercentagesCache();
+
+      const cachedAnnouncementsLocal = loadLocalAnnouncementsCache();
+      if (cachedAnnouncementsLocal) {
+        cachedAnnouncements = cachedAnnouncementsLocal;
+      }
+      updateAnnouncementBadge();
+
+      const cached = loadLocalCache();
+      const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
+      const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
+
+      if (cached && Object.keys(cached).length > 0) {
+        cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
+        applyCustomDueDates();
+        autoCompleteSubmittedTasks(cachedCourseMap);
+        mergeCustomTasksIntoCourseMap(cachedCourseMap);
+        renderFilterPills();
+        updateHiddenMenuButton();
         updateProgressBar();
+        renderWorkloadStrip();
         renderCurrentView();
+
+        if (!isCacheFresh) {
+          loadTasks(false);
+        }
+      } else {
+        loadTasks(true);
       }
-    }, 30000);
 
-    const cachedGradesLocal = loadLocalGradesCache();
-    if (cachedGradesLocal) {
-      cachedGrades = cachedGradesLocal;
-    }
-    cachedCoursePercentages = loadCoursePercentagesCache();
-
-    const cachedAnnouncementsLocal = loadLocalAnnouncementsCache();
-    if (cachedAnnouncementsLocal) {
-      cachedAnnouncements = cachedAnnouncementsLocal;
-    }
-    updateAnnouncementBadge();
-
-    const cached = loadLocalCache();
-    const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
-    const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
-
-    if (cached && Object.keys(cached).length > 0) {
-      cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
-      applyCustomDueDates();
-      autoCompleteSubmittedTasks(cachedCourseMap);
-      mergeCustomTasksIntoCourseMap(cachedCourseMap);
-      renderFilterPills();
-      updateHiddenMenuButton();
-      updateProgressBar();
-      renderWorkloadStrip();
-      renderCurrentView();
-
-      if (!isCacheFresh) {
-        loadTasks(false);
-      }
-    } else {
-      loadTasks(true);
-    }
-
-    initKeyboardShortcuts();
+      initKeyboardShortcuts();
   }
 
   // --- KEYBOARD SHORTCUT NAVIGATION CONTROLLER ---
@@ -3402,10 +3449,14 @@
     });
 
     const overdueBadge = document.getElementById('overdue-total-badge');
+    const hudOverdueBadge = document.getElementById('hud-overdue-badge');
     if (overdueBadge) {
       overdueBadge.innerText = totalOverdueCount > 0 ? `(${totalOverdueCount})` : '';
     }
-
+    if (hudOverdueBadge) {
+      hudOverdueBadge.style.display = totalOverdueCount > 0 ? 'inline-flex' : 'none';
+      hudOverdueBadge.innerText = totalOverdueCount;
+    }
     if (currentTab === 'grades') {
       renderGradesView(listContainer, hiddenCourses);
       return;
@@ -3457,7 +3508,7 @@
         if (currentTab === 'upcoming') return !isOverdue;
         return true;      });
 
-      allFilteredTasks.push(...tasks);
+        allFilteredTasks.push(...tasks);
     });
 
     if (currentTab === 'completed' || currentTab === 'overdue') {
@@ -3586,8 +3637,8 @@
           if (currentTab === 'upcoming') return !isOverdue;
           return true;        });
 
-        if (visibleTasks.length === 0) return;
-        renderedCount += visibleTasks.length;
+          if (visibleTasks.length === 0) return;
+          renderedCount += visibleTasks.length;
 
         visibleTasks.sort(withStarredFirst((a, b) => {
           const edA = effectiveDueDate(a);
