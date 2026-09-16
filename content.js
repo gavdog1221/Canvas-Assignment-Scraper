@@ -3708,6 +3708,9 @@ let activeCourseFilter = 'ALL';
     }
   }
   // --- DINING VIEW RENDERING ---
+  // --- DINING VIEW RENDERING ---
+  let showFullDiningMenu = false;
+
   async function renderDiningView(listContainer) {
     if (activeDiningHall !== 80 && activeDiningHall !== 30) {
       activeDiningHall = 80;
@@ -3719,6 +3722,9 @@ let activeCourseFilter = 'ALL';
     <button type="button" class="dining-pill ${activeDiningHall === 80 ? 'active' : ''}" data-hall="80">HoCo</button>
     <button type="button" class="dining-pill ${activeDiningHall === 30 ? 'active' : ''}" data-hall="30">Philly</button>
     </div>
+    <button type="button" class="dining-toggle-expand ${showFullDiningMenu ? 'active' : ''}" id="dining-toggle-expand">
+    ${showFullDiningMenu ? 'Daily Dish Only' : 'Show Full Menu'}
+    </button>
     </div>
     <div id="dining-menu-body">
     <div class="mod-empty-msg">Loading today's menus...</div>
@@ -3735,17 +3741,28 @@ let activeCourseFilter = 'ALL';
         return;
       }
 
-      menuBody.innerHTML = '';
+      const columnsContainer = document.createElement('div');
+      columnsContainer.className = 'dining-columns-grid';
+
       meals.forEach(meal => {
-        const mealCard = document.createElement('div');
-        mealCard.className = 'dining-meal-card';
+        const mealCol = document.createElement('div');
+        mealCol.className = 'dining-meal-col';
+
+        let visibleCats = (meal.categories || []).filter(cat => cat.items && cat.items.length > 0);
+
+        if (!showFullDiningMenu) {
+          // Strictly target "The Daily Dish" (stripping dashes, casing, and spaces)
+          visibleCats = visibleCats.filter(cat => {
+            const clean = cat.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return clean.includes('dailydish');
+          });
+        }
 
         let categoriesHtml = '';
-        (meal.categories || []).forEach(cat => {
-          if (!cat.items || cat.items.length === 0) return;
+        visibleCats.forEach(cat => {
           categoriesHtml += `
           <div class="dining-station-group">
-          <div class="dining-station-title">${escapeHTML(cat.name)}</div>
+          ${showFullDiningMenu ? `<div class="dining-station-title">${escapeHTML(cat.name)}</div>` : ''}
           <ul class="dining-item-list">
           ${cat.items.map(item => `<li>${escapeHTML(item)}</li>`).join('')}
           </ul>
@@ -3753,14 +3770,19 @@ let activeCourseFilter = 'ALL';
           `;
         });
 
-        mealCard.innerHTML = `
+        mealCol.innerHTML = `
         <div class="dining-meal-header">
         <span class="dining-meal-name">${escapeHTML(meal.meal)}</span>
         </div>
-        <div class="dining-stations-wrap">${categoriesHtml || '<div class="mod-empty-msg">No items listed.</div>'}</div>
+        <div class="dining-stations-wrap">
+        ${categoriesHtml || '<div class="dining-empty-sub">No Daily Dish</div>'}
+        </div>
         `;
-        menuBody.appendChild(mealCard);
+        columnsContainer.appendChild(mealCol);
       });
+
+      menuBody.innerHTML = '';
+      menuBody.appendChild(columnsContainer);
     }
 
     const pills = listContainer.querySelectorAll('.dining-pill');
@@ -3773,10 +3795,19 @@ let activeCourseFilter = 'ALL';
       });
     });
 
+    const expandBtn = listContainer.querySelector('#dining-toggle-expand');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => {
+        showFullDiningMenu = !showFullDiningMenu;
+        expandBtn.textContent = showFullDiningMenu ? 'Daily Dish Only' : 'Show Full Menu';
+        expandBtn.classList.toggle('active', showFullDiningMenu);
+        renderActiveHall(diningCache);
+      });
+    }
+
     const data = await ensureTodaysDiningMenus();
     renderActiveHall(data);
-  }  // --- ANNOUNCEMENTS TAB RENDERING ---
-  function renderAnnouncementsView(listContainer, hiddenCourses) {
+  } function renderAnnouncementsView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 
     let items = (cachedAnnouncements || []).filter(a => !hiddenCourses.includes(a.courseKey));
