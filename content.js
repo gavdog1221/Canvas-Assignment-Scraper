@@ -1450,11 +1450,6 @@
     <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <div class="header">
     <div class="title-row">
-    <div class="traffic-lights" id="traffic-lights" title="Window Controls">
-    <button class="traffic-dot traffic-red" id="tl-red-btn" title="Minimize to the edge"></button>
-    <button class="traffic-dot traffic-yellow" id="tl-yellow-btn" title="Collapse/Expand All"></button>
-    <button class="traffic-dot traffic-green" id="tl-green-btn" title="Reload Everything"></button>
-    </div>
     <span class="title">YACE</span>
     </div>
     <div class="widget-controls">
@@ -1586,17 +1581,6 @@
     });
     document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
     updateToggleAllButtonState();
-
-    const tlRed = document.getElementById('tl-red-btn');
-    if (tlRed) tlRed.addEventListener('click', (e) => { e.stopPropagation(); setWidgetMinimized(true); });
-    const tlYellow = document.getElementById('tl-yellow-btn');
-    if (tlYellow) tlYellow.addEventListener('click', (e) => { e.stopPropagation(); toggleAllAccordions(); });
-    const tlGreen = document.getElementById('tl-green-btn');
-    if (tlGreen) tlGreen.addEventListener('click', (e) => {
-      e.stopPropagation();
-      scrapeCanvasDashboardColors();
-      loadTasks(true);
-    });
 
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
     const closeBtn = document.getElementById('close-hidden-courses-btn');

@@ -140,15 +140,12 @@ overflow: visible !important;
 }
 #module-tasks-widget * { box-sizing: border-box !important; }
 
-/* Thin specular highlight along the top edge, like light catching curved glass —
- * tinted with a soft red/yellow/green/blue sweep so the glass reads as colorful
- * rather than plain monochrome, echoing the traffic-light accent below. */
+/* Thin specular highlight along the top edge, like light catching curved glass */
 #module-tasks-widget::before {
 content: "" !important; position: absolute !important; top: 0 !important; left: 8% !important; right: 8% !important;
-height: 2px !important;
-background: linear-gradient(90deg, transparent, #ff5f57 12%, #febc2e 38%, #28c840 62%, var(--secondary-accent) 88%, transparent) !important;
-opacity: 0.55 !important; z-index: 2 !important; border-radius: 99px !important;
-filter: blur(0.2px) !important;
+height: 1px !important;
+background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent) !important;
+opacity: 0.8 !important; z-index: 2 !important; border-radius: 99px !important;
 }
 
 /* Soft cursor-tracking sheen instead of a neon radial glow */
@@ -175,40 +172,6 @@ border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 position: relative !important; z-index: 3 !important;
 }
 #module-tasks-widget .title-row { display: flex !important; align-items: center !important; gap: 9px !important; }
-
-/* macOS-style traffic-light window controls — glossy liquid-glass spheres
- * with a real specular highlight, tinted red/yellow/green, that light up
- * and reveal their glyph on hover just like a native titlebar. */
-.traffic-lights { display: flex !important; align-items: center !important; gap: 8px !important; margin-right: 2px !important; }
-.traffic-dot {
-  position: relative !important; width: 13px !important; height: 13px !important; border-radius: 50% !important;
-  padding: 0 !important; cursor: pointer !important; flex-shrink: 0 !important;
-  border: 1px solid rgba(0, 0, 0, 0.25) !important;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), inset 0 -2px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.35) !important;
-  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, filter 0.2s ease !important;
-}
-.traffic-dot::before {
-  content: "" !important; position: absolute !important; inset: 0 !important; border-radius: 50% !important;
-  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.9), transparent 55%) !important;
-  pointer-events: none !important;
-}
-.traffic-dot::after {
-  content: "" !important; position: absolute !important; inset: 0 !important; display: flex !important;
-  align-items: center !important; justify-content: center !important; font-size: 8px !important; line-height: 1 !important;
-  font-weight: 900 !important; color: rgba(0, 0, 0, 0.55) !important; opacity: 0 !important; transition: opacity 0.15s ease !important;
-}
-.traffic-lights:hover .traffic-dot::after { opacity: 1 !important; }
-.traffic-dot:active { transform: scale(0.88) !important; }
-.traffic-red { background: radial-gradient(circle at 32% 28%, #ff8f87, #ff5f57 55%, #e0443e) !important; }
-.traffic-red::after { content: "\\2715" !important; }
-.traffic-red:hover { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), inset 0 -2px 3px rgba(0, 0, 0, 0.25), 0 0 8px rgba(255, 95, 87, 0.75) !important; }
-.traffic-yellow { background: radial-gradient(circle at 32% 28%, #ffe08a, #febc2e 55%, #d69e24) !important; }
-.traffic-yellow::after { content: "\\2013" !important; }
-.traffic-yellow:hover { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), inset 0 -2px 3px rgba(0, 0, 0, 0.25), 0 0 8px rgba(254, 188, 46, 0.75) !important; }
-.traffic-green { background: radial-gradient(circle at 32% 28%, #7fe89a, #28c840 55%, #1fa233) !important; }
-.traffic-green::after { content: "\\002B" !important; font-size: 9px !important; }
-.traffic-green:hover { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.55), inset 0 -2px 3px rgba(0, 0, 0, 0.25), 0 0 8px rgba(40, 200, 64, 0.75) !important; }
-
 #module-tasks-widget .title {
 font-weight: 700 !important; font-size: 16px !important; color: #ffffff !important;
 letter-spacing: -0.3px !important; display: flex !important; align-items: center !important; gap: 9px !important;
