@@ -2516,11 +2516,31 @@
                 const isSubmitted = !!(a.submission && (a.submission.submitted_at || a.submission.workflow_state === 'submitted'));
 
                 if (dueDate || isHwLike) {
+                  let downloadUrl = null;
+                  let contentId = null;
+
+                  // Parse embedded file links from the assignment description
+                  if (a.description) {
+                    // Match /files/12345/download or /files/12345
+                    const fileMatch = a.description.match(/\/courses\/\d+\/files\/(\d+)(?:\/download)?/i) ||
+                    a.description.match(/\/files\/(\d+)(?:\/download)?/i);
+                    if (fileMatch) {
+                      contentId = fileMatch[1];
+                      downloadUrl = `${origin}/courses/${course.id}/files/${contentId}/download?download_frd=1`;
+                    } else {
+                      // Fallback match for direct PDF href links inside details/body
+                      const pdfLinkMatch = a.description.match(/href="([^"]+\.pdf[^"]*)"/i);
+                      if (pdfLinkMatch) {
+                        downloadUrl = pdfLinkMatch[1].replace(/&amp;/g, '&');
+                      }
+                    }
+                  }
+
                   unifiedCourseMap[courseKey].tasks.push({
                     id: generateTaskId(courseKey, a.name),
                                                          canvasAssignmentId: a.id || null,
                                                          canvasCourseId: course.id,
-                                                         contentId: null,
+                                                         contentId: contentId,
                                                          title: parsed.title,
                                                          url: a.html_url,
                                                          dueDate: dueDate,
@@ -2531,10 +2551,9 @@
                                                          isSubmitted: isSubmitted,
                                                          courseKey: courseKey,
                                                          courseName: rawCourseName,
-                                                         downloadUrl: null
+                                                         downloadUrl: downloadUrl
                   });
-                }
-              }
+                }              }
             }
           }
         } catch (e) {
@@ -2777,14 +2796,21 @@
 
     if (task.isCustom) {
       rightBottomMeta += `
-      <div class="doc-actions-wrap custom-task-actions">
-      ${task.isRecurring ? `<span class="badge-tag custom-source" title="Repeats">↻ Custom</span>` : `<span class="badge-tag custom-source" title="Custom assignment">✦ Custom</span>`}
-      <button type="button" class="custom-edit-btn" data-template-id="${escapeHTML(task.templateId)}" title="Edit this assignment">✏️</button>
-      <button type="button" class="custom-delete-btn" data-template-id="${escapeHTML(task.templateId)}" title="Delete this assignment (whole series)">🗑</button>
+      <div class="radial-custom-wrap" title="Custom Task Actions">
+      <button type="button" class="radial-custom-trigger">
+      ${task.isRecurring ? '↻' : '✦'}
+      </button>
+      <div class="radial-custom-menu">
+      <button type="button" class="custom-pie-slice custom-edit-slice custom-edit-btn" data-template-id="${escapeHTML(task.templateId)}" title="Edit assignment">
+      <span>✏️</span>
+      </button>
+      <button type="button" class="custom-pie-slice custom-del-slice custom-delete-btn" data-template-id="${escapeHTML(task.templateId)}" title="Delete assignment">
+      <span>🗑</span>
+      </button>
+      </div>
       </div>
       `;
     }
-
     // Assign Canvas Native Color
     let coursePalette = getCourseColors(task.courseKey, task.canvasCourseId);
     if (task.isCustom && task.customColor) {
@@ -2805,13 +2831,14 @@
     <div class="task-body">
     <div class="task-title-row">
     <button type="button" class="star-btn ${isStarred ? 'is-starred' : ''}" title="${isStarred ? 'Unpin from top' : 'Pin to top'}">★</button>
-    <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
     <a class="mod-task-title ${task.isCustom ? 'custom-task-title' : ''}" href="${task.isCustom ? 'javascript:void(0)' : task.url}" ${task.isCustom ? '' : 'target="_blank"'} title="${task.notes ? escapeHTML(task.notes) : ''}">${escapeHTML(task.title)}</a>
     ${pointsHtml}
     </div>
     <div class="task-meta-row">
     <div class="task-meta-left">
-    ${dueLabel ? `<span class="due-indicator">🗓️ ${dueLabel}</span>` : ''}    ${statusBadgeHtml}
+    <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
+    ${dueLabel ? `<span class="due-indicator">${dueLabel}</span>` : ''}
+    ${statusBadgeHtml}
     </div>
     <div class="task-meta-right">
     ${rightBottomMeta}
