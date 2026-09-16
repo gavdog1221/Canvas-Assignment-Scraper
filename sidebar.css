@@ -1775,6 +1775,388 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
 }
 
 /* ==========================================================================
+ *  CUSTOM ASSIGNMENT MAKER: TASK CARD ACCENTS
+ *  ========================================================================== */
+.badge-tag.custom-source {
+  background: rgba(167, 139, 250, 0.2) !important;
+  color: #ddd6fe !important;
+  border: 1px solid rgba(167, 139, 250, 0.5) !important;
+}
+
+.custom-task-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: auto !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.custom-edit-btn,
+.custom-delete-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  border: 1.2px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(30, 36, 49, 0.85) !important;
+  color: #cbd5e1 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.custom-edit-btn:hover {
+  border-color: var(--primary-accent) !important;
+  color: var(--primary-accent) !important;
+  box-shadow: 0 0 8px var(--accent-glow) !important;
+}
+
+.custom-delete-btn:hover {
+  border-color: #f87171 !important;
+  color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.15) !important;
+}
+
+.mod-task-title.custom-task-title {
+  cursor: pointer !important;
+}
+
+/* ==========================================================================
+ *  CUSTOM ASSIGNMENT MAKER: MODAL
+ *  ========================================================================== */
+#yace-assignment-modal {
+--primary-accent: #00f2fe;
+--secondary-accent: #4facfe;
+--accent-glow: rgba(0, 242, 254, 0.45);
+--accent-soft: rgba(0, 242, 254, 0.12);
+}
+
+#yace-assignment-modal[data-theme="synthwave"] {
+--primary-accent: #f43f5e;
+--secondary-accent: #c084fc;
+--accent-glow: rgba(244, 63, 94, 0.5);
+--accent-soft: rgba(244, 63, 94, 0.15);
+}
+
+#yace-assignment-modal[data-theme="emerald"] {
+--primary-accent: #10b981;
+--secondary-accent: #06b6d4;
+--accent-glow: rgba(16, 185, 129, 0.5);
+--accent-soft: rgba(16, 185, 129, 0.15);
+}
+
+#yace-assignment-modal[data-theme="stealth"] {
+--primary-accent: #e2e8f0;
+--secondary-accent: #94a3b8;
+--accent-glow: rgba(226, 232, 240, 0.3);
+--accent-soft: rgba(226, 232, 240, 0.08);
+}
+
+.assignment-dialog {
+  width: 92vw !important;
+  max-width: 480px !important;
+  height: auto !important;
+  max-height: 88vh !important;
+}
+
+.assignment-modal-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 16px 20px 20px !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  background: #0f131a !important;
+}
+
+.am-label {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.3px !important;
+  color: #94a3b8 !important;
+  text-transform: uppercase !important;
+  margin: 10px 0 5px !important;
+}
+
+.am-label:first-child {
+  margin-top: 0 !important;
+}
+
+.am-optional {
+  text-transform: none !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  letter-spacing: 0 !important;
+}
+
+.am-input {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: rgba(20, 24, 33, 0.9) !important;
+  border: 1.2px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  color: #f1f5f9 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  padding: 8px 10px !important;
+  outline: none !important;
+  transition: all 0.15s ease !important;
+  font-family: inherit !important;
+}
+
+.am-input:focus {
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px var(--accent-glow) !important;
+}
+
+.am-input:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+.am-textarea {
+  resize: vertical !important;
+  min-height: 54px !important;
+  line-height: 1.4 !important;
+}
+
+.am-hidden {
+  display: none !important;
+}
+
+.am-row {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: flex-start !important;
+}
+
+.am-col {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+}
+
+.am-col-narrow {
+  flex: 0 0 96px !important;
+}
+
+.am-interval-row {
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
+}
+
+.am-inline-label {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #cbd5e1 !important;
+  white-space: nowrap !important;
+}
+
+.am-input-tiny {
+  width: 58px !important;
+  flex: 0 0 58px !important;
+  text-align: center !important;
+}
+
+.am-input-inline {
+  width: auto !important;
+  display: inline-block !important;
+  margin-left: 6px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+}
+
+.am-weekday-picker {
+  display: flex !important;
+  gap: 6px !important;
+  margin-bottom: 14px !important;
+}
+
+.am-day-pill {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  border: 1.2px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(20, 24, 33, 0.9) !important;
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.am-day-pill:hover {
+  border-color: var(--primary-accent) !important;
+  color: #f1f5f9 !important;
+}
+
+.am-day-pill.selected {
+  background: var(--primary-accent) !important;
+  border-color: var(--primary-accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+.am-ends-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  margin-bottom: 4px !important;
+}
+
+.am-radio-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #cbd5e1 !important;
+  cursor: pointer !important;
+}
+
+.am-radio-row input[type="radio"] {
+  accent-color: var(--primary-accent) !important;
+  cursor: pointer !important;
+}
+
+.am-color-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-bottom: 6px !important;
+}
+
+.am-color-swatch {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  border: 2px solid rgba(255, 255, 255, 0.15) !important;
+  background: var(--swatch-color, transparent) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.am-color-swatch:hover {
+  transform: scale(1.1) !important;
+}
+
+.am-color-swatch.selected {
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4), 0 0 10px var(--swatch-color, var(--accent-glow)) !important;
+}
+
+.am-color-swatch.am-color-auto {
+  background: rgba(20, 24, 33, 0.9) !important;
+  border-style: dashed !important;
+  color: #94a3b8 !important;
+  font-size: 8px !important;
+  font-weight: 800 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-transform: uppercase !important;
+}
+
+.am-color-swatch.am-color-auto.selected {
+  border-style: solid !important;
+  border-color: var(--primary-accent) !important;
+  color: var(--primary-accent) !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+.am-checkbox-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #f1f5f9 !important;
+  margin-top: 14px !important;
+  cursor: pointer !important;
+}
+
+.am-checkbox-row input[type="checkbox"] {
+  accent-color: var(--primary-accent) !important;
+  width: 15px !important;
+  height: 15px !important;
+  cursor: pointer !important;
+}
+
+.assignment-modal-footer {
+  border-bottom: none !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+  justify-content: space-between !important;
+}
+
+.am-footer-right {
+  display: flex !important;
+  gap: 8px !important;
+  margin-left: auto !important;
+}
+
+.am-btn {
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  border: 1.2px solid rgba(255, 255, 255, 0.18) !important;
+  background: rgba(30, 36, 49, 0.85) !important;
+  color: #e2e8f0 !important;
+  transition: all 0.15s ease !important;
+}
+
+.am-btn-ghost:hover {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.am-btn-primary {
+  background: linear-gradient(90deg, var(--secondary-accent), var(--primary-accent)) !important;
+  border-color: var(--primary-accent) !important;
+  color: #000000 !important;
+}
+
+.am-btn-primary:hover {
+  box-shadow: 0 0 14px var(--accent-glow) !important;
+  transform: translateY(-1px) !important;
+}
+
+.am-btn-danger {
+  background: rgba(248, 113, 113, 0.12) !important;
+  border-color: rgba(248, 113, 113, 0.5) !important;
+  color: #fca5a5 !important;
+}
+
+.am-btn-danger:hover {
+  background: #f87171 !important;
+  color: #1a0d0d !important;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.5) !important;
+}
+
+@media (max-width: 480px) {
+  .assignment-dialog {
+    width: 96vw !important;
+  }
+  .am-row {
+    flex-direction: column !important;
+  }
+  .am-col-narrow {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+  }
+}
+
+/* ==========================================================================
  *  GRADES TAB: GPA BANNER, WHAT-IF MATRIX & COURSE CARDS
  *  ========================================================================== */
 
@@ -2270,4 +2652,79 @@ box-shadow: 0 0 12px var(--primary-accent), 0 0 24px var(--primary-accent) !impo
   border-radius: 5px !important;
   padding: 1px 6px !important;
   font-family: ui-monospace, SFMono-Regular, monospace !important;
+}
+/* ==========================================================================
+ *  TASKS ACTION BAR & RANGE SELECTOR
+ *  ========================================================================== */
+.tasks-action-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.range-selector {
+  display: flex !important;
+  background: rgba(10, 13, 18, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  padding: 2px !important;
+  gap: 2px !important;
+}
+
+.range-pill {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 4px 6px !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.range-pill:hover {
+  color: #ffffff !important;
+}
+
+.range-pill.active {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--primary-accent) !important;
+}
+
+.new-assignment-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--primary-accent) !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 5px 10px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+  transition: all 0.18s ease !important;
+}
+
+.new-assignment-btn span {
+  color: var(--primary-accent) !important;
+  font-weight: 900 !important;
+}
+
+.new-assignment-btn:hover {
+  background: var(--primary-accent) !important;
+  color: #0b0f14 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 0 16px var(--primary-accent) !important;
+}
+
+.new-assignment-btn:hover span {
+  color: #0b0f14 !important;
 }

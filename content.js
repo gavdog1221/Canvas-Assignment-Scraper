@@ -16,6 +16,9 @@
   const STORAGE_KEY_MINIMIZED = 'canvas_mod_tasks_minimized_v1';
   const STORAGE_KEY_ANNOUNCEMENTS_CACHE = 'canvas_mod_tasks_announcements_cache_v1';
   const STORAGE_KEY_SEEN_ANNOUNCEMENTS = 'canvas_mod_tasks_seen_announcements_v1';
+  const STORAGE_KEY_CUSTOM_TASKS = 'canvas_mod_tasks_custom_assignments_v1';
+
+  const CUSTOM_COLOR_PRESETS = ['#00f2fe', '#f43f5e', '#10b981', '#f59e0b', '#a78bfa', '#ec4899', '#eab308', '#38bdf8'];
 
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
@@ -23,6 +26,7 @@
   let currentTab = 'upcoming';
   let activeCourseFilter = 'ALL';
   let activeDayFilter = null;
+  let assignmentRangeFilter = '2weeks'; // 'today' | 'week' | '2weeks' | 'month' | 'all'
   let searchQuery = '';
   let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
   let isHiddenMenuOpen = false;
@@ -46,6 +50,11 @@
   let showAllOverdue = false;
   let lastViewSignature = '';
   let gradesSortMode = 'recent'; // 'recent' | 'highest' | 'lowest'
+
+  // --- Custom Assignment Maker state ---
+  let editingAssignmentId = null;
+  let modalSelectedDays = new Set();
+  let modalSelectedColor = '';
 
   try {
     whatIfScores = JSON.parse(localStorage.getItem(STORAGE_KEY_WHATIF) || '{}');
@@ -233,6 +242,7 @@
       <div class="shortcut-row"><span class="shortcut-key">d</span><span class="shortcut-desc">Download PDF document</span></div>
       <div class="shortcut-row"><span class="shortcut-key">u</span><span class="shortcut-desc">Open Gradescope upload window</span></div>
       <div class="shortcut-row"><span class="shortcut-key">o / Enter</span><span class="shortcut-desc">Open assignment URL</span></div>
+      <div class="shortcut-row"><span class="shortcut-key">n</span><span class="shortcut-desc">Create a new custom assignment</span></div>
       <div class="shortcut-row"><span class="shortcut-key">/</span><span class="shortcut-desc">Focus search box</span></div>
       <div class="shortcut-row"><span class="shortcut-key">Esc</span><span class="shortcut-desc">Dismiss viewer or search</span></div>
       </div>
@@ -245,6 +255,415 @@
       modal.querySelector('#shortcuts-close-btn').addEventListener('click', close);
     }
     modal.classList.add('is-open');
+  }
+
+  // --- CUSTOM ASSIGNMENT MAKER: modal UI ---
+  function ensureAssignmentModal() {
+    let modal = document.getElementById('yace-assignment-modal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'yace-assignment-modal';
+    modal.className = 'doc-preview-modal assignment-modal';
+    modal.setAttribute('data-theme', currentTheme);
+    modal.innerHTML = `
+    <div class="doc-preview-backdrop"></div>
+    <div class="doc-preview-dialog assignment-dialog">
+    <div class="doc-preview-header">
+    <span class="doc-preview-title" id="assignment-modal-title">New Custom Assignment</span>
+    <button type="button" class="doc-preview-close" id="assignment-modal-close" title="Close">✕</button>
+    </div>
+    <div class="assignment-modal-body">
+
+    <label class="am-label">Title</label>
+    <input type="text" id="am-title" class="am-input" maxlength="120" placeholder="e.g. Read Chapter 4, Study for Midterm...">
+
+    <div class="am-row">
+    <div class="am-col">
+    <label class="am-label">Course / Label</label>
+    <select id="am-course-select" class="am-input"></select>
+    <input type="text" id="am-course-custom" class="am-input am-hidden" placeholder="Custom label, e.g. Personal, Job Apps...">
+    </div>
+    <div class="am-col am-col-narrow">
+    <label class="am-label">Points <span class="am-optional">(optional)</span></label>
+    <input type="number" id="am-points" class="am-input" min="0" step="0.5" placeholder="—">
+    </div>
+    </div>
+
+    <div class="am-row">
+    <div class="am-col">
+    <label class="am-label">Due date</label>
+    <input type="date" id="am-date" class="am-input">
+    </div>
+    <div class="am-col am-col-narrow">
+    <label class="am-label">Due time</label>
+    <input type="time" id="am-time" class="am-input" value="23:59">
+    </div>
+    </div>
+
+    <label class="am-label">Repeat</label>
+    <select id="am-repeat-freq" class="am-input">
+    <option value="none">Does not repeat</option>
+    <option value="daily">Daily</option>
+    <option value="weekly">Weekly</option>
+    <option value="monthly">Monthly</option>
+    </select>
+
+    <div id="am-repeat-options" class="am-hidden">
+    <div class="am-row am-interval-row">
+    <span class="am-inline-label">Every</span>
+    <input type="number" id="am-interval" class="am-input am-input-tiny" min="1" max="52" value="1">
+    <span class="am-inline-label" id="am-interval-unit">week(s)</span>
+    </div>
+
+    <div id="am-weekday-picker" class="am-weekday-picker am-hidden">
+    <button type="button" class="am-day-pill" data-day="0">S</button>
+    <button type="button" class="am-day-pill" data-day="1">M</button>
+    <button type="button" class="am-day-pill" data-day="2">T</button>
+    <button type="button" class="am-day-pill" data-day="3">W</button>
+    <button type="button" class="am-day-pill" data-day="4">T</button>
+    <button type="button" class="am-day-pill" data-day="5">F</button>
+    <button type="button" class="am-day-pill" data-day="6">S</button>
+    </div>
+
+    <label class="am-label">Ends</label>
+    <div class="am-ends-group">
+    <label class="am-radio-row"><input type="radio" name="am-ends" value="never" checked> Never</label>
+    <label class="am-radio-row">On <input type="date" id="am-end-date" class="am-input am-input-inline" disabled></label>
+    <label class="am-radio-row">After <input type="number" id="am-end-count" class="am-input am-input-tiny" min="1" max="200" value="10" disabled> occurrences</label>
+    </div>
+    </div>
+
+    <label class="am-label">Color</label>
+    <div class="am-color-row" id="am-color-row">
+    <button type="button" class="am-color-swatch am-color-auto selected" data-color="" title="Auto (course color)">Auto</button>
+    </div>
+
+    <label class="am-label">Notes <span class="am-optional">(optional)</span></label>
+    <textarea id="am-notes" class="am-input am-textarea" rows="3" placeholder="Any extra detail worth remembering..."></textarea>
+
+    <label class="am-checkbox-row"><input type="checkbox" id="am-pin-top"> Pin to top ⭐</label>
+    </div>
+    <div class="doc-preview-header assignment-modal-footer">
+    <button type="button" class="am-btn am-btn-danger am-hidden" id="am-delete-btn">Delete</button>
+    <div class="am-footer-right">
+    <button type="button" class="am-btn am-btn-ghost" id="am-cancel-btn">Cancel</button>
+    <button type="button" class="am-btn am-btn-primary" id="am-save-btn">Save Assignment</button>
+    </div>
+    </div>
+    </div>
+    `;
+    document.body.appendChild(modal);
+
+    const colorRow = modal.querySelector('#am-color-row');
+    CUSTOM_COLOR_PRESETS.forEach(hex => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'am-color-swatch';
+      btn.style.setProperty('--swatch-color', hex);
+      btn.setAttribute('data-color', hex);
+      btn.title = hex;
+      colorRow.appendChild(btn);
+    });
+
+    const close = () => modal.classList.remove('is-open');
+    modal.querySelector('.doc-preview-backdrop').addEventListener('click', close);
+    modal.querySelector('#assignment-modal-close').addEventListener('click', close);
+    modal.querySelector('#am-cancel-btn').addEventListener('click', close);
+
+    const freqSelect = modal.querySelector('#am-repeat-freq');
+    const repeatOptions = modal.querySelector('#am-repeat-options');
+    const weekdayPicker = modal.querySelector('#am-weekday-picker');
+    const intervalUnit = modal.querySelector('#am-interval-unit');
+
+    freqSelect.addEventListener('change', () => {
+      const freq = freqSelect.value;
+      repeatOptions.classList.toggle('am-hidden', freq === 'none');
+      weekdayPicker.classList.toggle('am-hidden', freq !== 'weekly');
+      intervalUnit.textContent = freq === 'daily' ? 'day(s)' : freq === 'monthly' ? 'month(s)' : 'week(s)';
+      if (freq === 'weekly' && modalSelectedDays.size === 0) {
+        const dateVal = modal.querySelector('#am-date').value;
+        const d = dateVal ? new Date(`${dateVal}T00:00:00`) : new Date();
+        modalSelectedDays.add(d.getDay());
+        syncWeekdayPills(modal);
+      }
+    });
+
+    weekdayPicker.querySelectorAll('.am-day-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        const day = parseInt(pill.getAttribute('data-day'), 10);
+        if (modalSelectedDays.has(day)) modalSelectedDays.delete(day);
+        else modalSelectedDays.add(day);
+        syncWeekdayPills(modal);
+      });
+    });
+
+    modal.querySelectorAll('input[name="am-ends"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const mode = modal.querySelector('input[name="am-ends"]:checked').value;
+        modal.querySelector('#am-end-date').disabled = mode !== 'on';
+        modal.querySelector('#am-end-count').disabled = mode !== 'after';
+      });
+    });
+
+    modal.querySelector('#am-course-select').addEventListener('change', (e) => {
+      const customInput = modal.querySelector('#am-course-custom');
+      const isCustom = e.target.value === '__custom__';
+      customInput.classList.toggle('am-hidden', !isCustom);
+      if (isCustom) customInput.focus();
+    });
+
+      colorRow.addEventListener('click', (e) => {
+        const btn = e.target.closest('.am-color-swatch');
+        if (!btn) return;
+        modalSelectedColor = btn.getAttribute('data-color') || '';
+        colorRow.querySelectorAll('.am-color-swatch').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+
+      modal.querySelector('#am-save-btn').addEventListener('click', () => saveAssignmentFromModal(modal));
+      modal.querySelector('#am-delete-btn').addEventListener('click', () => deleteAssignmentFromModal(modal));
+
+      return modal;
+  }
+
+  function syncWeekdayPills(modal) {
+    modal.querySelectorAll('.am-day-pill').forEach(pill => {
+      const day = parseInt(pill.getAttribute('data-day'), 10);
+      pill.classList.toggle('selected', modalSelectedDays.has(day));
+    });
+  }
+
+  function openAssignmentModal(templateId = null) {
+    const modal = ensureAssignmentModal();
+    modal.setAttribute('data-theme', currentTheme);
+    editingAssignmentId = templateId;
+
+    const titleEl = modal.querySelector('#assignment-modal-title');
+    const deleteBtn = modal.querySelector('#am-delete-btn');
+    const courseSelect = modal.querySelector('#am-course-select');
+    const courseCustom = modal.querySelector('#am-course-custom');
+
+    const existingKeys = Object.keys(cachedCourseMap).sort();
+    courseSelect.innerHTML = '';
+    existingKeys.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = (cachedCourseMap[k] && cachedCourseMap[k].name) || k;
+      courseSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = '+ New label...';
+    courseSelect.appendChild(customOpt);
+
+    const template = templateId ? getCustomAssignments().find(t => t.id === templateId) : null;
+
+    if (template) {
+      titleEl.textContent = 'Edit Custom Assignment';
+      deleteBtn.classList.remove('am-hidden');
+      modal.querySelector('#am-title').value = template.title;
+      modal.querySelector('#am-points').value = (template.points === null || template.points === undefined) ? '' : template.points;
+      modal.querySelector('#am-date').value = template.startDate;
+      modal.querySelector('#am-time').value = template.time || '23:59';
+      modal.querySelector('#am-notes').value = template.notes || '';
+      modal.querySelector('#am-pin-top').checked = !!template.pinToTop;
+
+      if (existingKeys.includes(template.courseKey)) {
+        courseSelect.value = template.courseKey;
+        courseCustom.classList.add('am-hidden');
+        courseCustom.value = '';
+      } else {
+        courseSelect.value = '__custom__';
+        courseCustom.classList.remove('am-hidden');
+        courseCustom.value = template.courseLabel || template.courseKey;
+      }
+
+      const rep = template.repeat || { freq: 'none' };
+      modal.querySelector('#am-repeat-freq').value = rep.freq || 'none';
+      modal.querySelector('#am-interval').value = rep.interval || 1;
+      modalSelectedDays = new Set(rep.daysOfWeek || []);
+      modal.querySelector('#am-repeat-options').classList.toggle('am-hidden', (rep.freq || 'none') === 'none');
+      modal.querySelector('#am-weekday-picker').classList.toggle('am-hidden', rep.freq !== 'weekly');
+      modal.querySelector('#am-interval-unit').textContent = rep.freq === 'daily' ? 'day(s)' : rep.freq === 'monthly' ? 'month(s)' : 'week(s)';
+      syncWeekdayPills(modal);
+
+      const endMode = rep.endMode || 'never';
+      modal.querySelectorAll('input[name="am-ends"]').forEach(r => { r.checked = r.value === endMode; });
+      modal.querySelector('#am-end-date').value = rep.endDate || '';
+      modal.querySelector('#am-end-date').disabled = endMode !== 'on';
+      modal.querySelector('#am-end-count').value = rep.count || 10;
+      modal.querySelector('#am-end-count').disabled = endMode !== 'after';
+
+      modalSelectedColor = template.color || '';
+    } else {
+      titleEl.textContent = 'New Custom Assignment';
+      deleteBtn.classList.add('am-hidden');
+      modal.querySelector('#am-title').value = '';
+      modal.querySelector('#am-points').value = '';
+      const today = new Date();
+      modal.querySelector('#am-date').value = localDateKey(today);
+      modal.querySelector('#am-time').value = '23:59';
+      modal.querySelector('#am-notes').value = '';
+      modal.querySelector('#am-pin-top').checked = false;
+
+      courseSelect.value = existingKeys.length ? existingKeys[0] : '__custom__';
+      courseCustom.classList.toggle('am-hidden', courseSelect.value !== '__custom__');
+      courseCustom.value = '';
+
+      modal.querySelector('#am-repeat-freq').value = 'none';
+      modal.querySelector('#am-interval').value = 1;
+      modalSelectedDays = new Set([today.getDay()]);
+      modal.querySelector('#am-repeat-options').classList.add('am-hidden');
+      modal.querySelector('#am-weekday-picker').classList.add('am-hidden');
+      modal.querySelector('#am-interval-unit').textContent = 'week(s)';
+      syncWeekdayPills(modal);
+
+      modal.querySelectorAll('input[name="am-ends"]').forEach(r => { r.checked = r.value === 'never'; });
+      modal.querySelector('#am-end-date').value = '';
+      modal.querySelector('#am-end-date').disabled = true;
+      modal.querySelector('#am-end-count').value = 10;
+      modal.querySelector('#am-end-count').disabled = true;
+
+      modalSelectedColor = '';
+    }
+
+    modal.querySelectorAll('.am-color-swatch').forEach(b => {
+      b.classList.toggle('selected', (b.getAttribute('data-color') || '') === modalSelectedColor);
+    });
+
+    modal.classList.add('is-open');
+    setTimeout(() => {
+      const titleInput = modal.querySelector('#am-title');
+      if (titleInput) titleInput.focus();
+    }, 50);
+  }
+
+  function saveAssignmentFromModal(modal) {
+    const titleInput = modal.querySelector('#am-title');
+    const title = titleInput.value.trim();
+    if (!title) {
+      titleInput.focus();
+      return;
+    }
+
+    const dateInput = modal.querySelector('#am-date');
+    const dateVal = dateInput.value;
+    if (!dateVal) {
+      dateInput.focus();
+      return;
+    }
+
+    const timeVal = modal.querySelector('#am-time').value || '23:59';
+    const pointsRaw = modal.querySelector('#am-points').value;
+    const points = pointsRaw === '' ? null : Number(pointsRaw);
+    const notes = modal.querySelector('#am-notes').value.trim();
+    const pinToTop = modal.querySelector('#am-pin-top').checked;
+
+    const courseSelect = modal.querySelector('#am-course-select');
+    const courseCustomInput = modal.querySelector('#am-course-custom');
+    let courseKey, courseLabel;
+    if (courseSelect.value === '__custom__') {
+      const raw = courseCustomInput.value.trim();
+      if (!raw) {
+        courseCustomInput.focus();
+        return;
+      }
+      courseLabel = raw;
+      courseKey = normalizeCourseCode(raw);
+    } else {
+      courseKey = courseSelect.value;
+      courseLabel = (cachedCourseMap[courseKey] && cachedCourseMap[courseKey].name) || courseKey;
+    }
+
+    const freq = modal.querySelector('#am-repeat-freq').value;
+    const interval = Math.max(1, parseInt(modal.querySelector('#am-interval').value, 10) || 1);
+    const endMode = modal.querySelector('input[name="am-ends"]:checked').value;
+    const endDateRaw = modal.querySelector('#am-end-date').value || null;
+    const count = parseInt(modal.querySelector('#am-end-count').value, 10) || 10;
+
+    const repeat = {
+      freq,
+      interval,
+      daysOfWeek: freq === 'weekly' ? Array.from(modalSelectedDays) : [],
+                                    endMode,
+                                    endDate: endMode === 'on' ? endDateRaw : null,
+                                    count: endMode === 'after' ? count : null
+    };
+
+    if (freq === 'weekly' && repeat.daysOfWeek.length === 0) {
+      repeat.daysOfWeek = [new Date(`${dateVal}T00:00:00`).getDay()];
+    }
+
+    const list = getCustomAssignments();
+    let template = editingAssignmentId ? list.find(t => t.id === editingAssignmentId) : null;
+    if (!template) {
+      template = { id: generateCustomId(), createdAt: Date.now() };
+      list.push(template);
+    }
+
+    template.title = title;
+    template.courseKey = courseKey;
+    template.courseLabel = courseLabel;
+    template.startDate = dateVal;
+    template.time = timeVal;
+    template.points = points;
+    template.notes = notes;
+    template.pinToTop = pinToTop;
+    template.color = modalSelectedColor || null;
+    template.repeat = repeat;
+
+    saveCustomAssignments(list);
+    mergeCustomTasksIntoCourseMap(cachedCourseMap);
+
+    if (pinToTop) {
+      const occurrences = generateOccurrences(template);
+      const starred = getStarredTasks();
+      occurrences.forEach(occ => {
+        starred[`${template.id}_${localDateKey(occ)}`] = true;
+      });
+      localStorage.setItem(STORAGE_KEY_STARRED, JSON.stringify(starred));
+    }
+
+    renderFilterPills();
+    updateHiddenMenuButton();
+    updateProgressBar();
+    renderWorkloadStrip();
+    renderCurrentView();
+
+    modal.classList.remove('is-open');
+  }
+
+  function deleteAssignmentFromModal(modal) {
+    if (!editingAssignmentId) return;
+    if (!confirm('Delete this custom assignment? This removes every occurrence in its recurrence series.')) return;
+
+    const targetId = editingAssignmentId;
+    const list = getCustomAssignments().filter(t => t.id !== targetId);
+    saveCustomAssignments(list);
+
+    const prefix = `${targetId}_`;
+    const completed = getCompletedTasks();
+    const starred = getStarredTasks();
+    let changedCompleted = false;
+    let changedStarred = false;
+    Object.keys(completed).forEach(id => {
+      if (id.startsWith(prefix)) { delete completed[id]; changedCompleted = true; }
+    });
+    Object.keys(starred).forEach(id => {
+      if (id.startsWith(prefix)) { delete starred[id]; changedStarred = true; }
+    });
+    if (changedCompleted) localStorage.setItem(STORAGE_KEY_DONE, JSON.stringify(completed));
+    if (changedStarred) localStorage.setItem(STORAGE_KEY_STARRED, JSON.stringify(starred));
+
+    mergeCustomTasksIntoCourseMap(cachedCourseMap);
+    renderFilterPills();
+    updateHiddenMenuButton();
+    updateProgressBar();
+    renderWorkloadStrip();
+    renderCurrentView();
+
+    modal.classList.remove('is-open');
   }
 
   // --- FULL VIEWPORT CONFETTI ENGINE ---
@@ -497,6 +916,174 @@
 
   function effectiveDueDate(t) {
     return t.dueDate || t.customDueDate || null;
+  }
+
+  // --- CUSTOM ASSIGNMENT MAKER: storage + recurrence engine ---
+  function getCustomAssignments() {
+    try {
+      const list = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOM_TASKS) || '[]');
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveCustomAssignments(list) {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_TASKS, JSON.stringify(list));
+  }
+
+  function generateCustomId() {
+    return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function addDaysToDate(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  function addMonthsSafe(date, n) {
+    const d = new Date(date);
+    const targetDay = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    const daysInTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(targetDay, daysInTarget));
+    return d;
+  }
+
+  // Expands a custom-assignment "template" (with an optional recurrence
+  // rule) into concrete due-date occurrences, Google-Calendar style:
+  // none / daily / weekly (with specific weekdays) / monthly, each endable
+  // by "never" (capped to a sane horizon so storage can't grow forever),
+  // "on <date>", or "after N occurrences".
+  function generateOccurrences(template) {
+    const HARD_CAP = 200;
+    const HORIZON_MONTHS = 8;
+
+    const timeParts = (template.time || '23:59').split(':').map(n => parseInt(n, 10));
+    const hh = isNaN(timeParts[0]) ? 23 : timeParts[0];
+    const mm = isNaN(timeParts[1]) ? 59 : timeParts[1];
+
+    const base = new Date(`${template.startDate}T00:00:00`);
+    if (isNaN(base.getTime())) return [];
+    base.setHours(hh, mm, 0, 0);
+
+    const rep = template.repeat || { freq: 'none' };
+    const results = [];
+
+    if (!rep.freq || rep.freq === 'none') {
+      results.push(new Date(base));
+      return results;
+    }
+
+    const interval = Math.max(1, parseInt(rep.interval, 10) || 1);
+    let endDate = null;
+    let maxCount = HARD_CAP;
+
+    if (rep.endMode === 'on' && rep.endDate) {
+      endDate = new Date(`${rep.endDate}T23:59:59`);
+    } else if (rep.endMode === 'after' && rep.count) {
+      maxCount = Math.min(HARD_CAP, Math.max(1, parseInt(rep.count, 10) || 1));
+    } else {
+      endDate = addMonthsSafe(base, HORIZON_MONTHS);
+    }
+
+    if (rep.freq === 'daily') {
+      let cursor = new Date(base);
+      while (results.length < maxCount && (!endDate || cursor <= endDate)) {
+        results.push(new Date(cursor));
+        cursor = addDaysToDate(cursor, interval);
+      }
+    } else if (rep.freq === 'weekly') {
+      const days = (rep.daysOfWeek && rep.daysOfWeek.length)
+      ? Array.from(new Set(rep.daysOfWeek)).sort((a, b) => a - b)
+      : [base.getDay()];
+      const weekStart = addDaysToDate(base, -base.getDay());
+
+      outer:
+      for (let weekIndex = 0; weekIndex < 520; weekIndex++) {
+        const thisWeekStart = addDaysToDate(weekStart, weekIndex * 7 * interval);
+        if (endDate && thisWeekStart > endDate) break;
+
+        for (const dow of days) {
+          const occ = new Date(thisWeekStart);
+          occ.setDate(occ.getDate() + dow);
+          occ.setHours(hh, mm, 0, 0);
+          if (occ < base) continue;
+          if (endDate && occ > endDate) continue;
+          results.push(occ);
+          if (results.length >= maxCount) break outer;
+        }
+      }
+      results.sort((a, b) => a - b);
+    } else if (rep.freq === 'monthly') {
+      for (let m = 0; m < 240 && results.length < maxCount; m++) {
+        const occ = addMonthsSafe(base, m * interval);
+        if (endDate && occ > endDate) break;
+        results.push(occ);
+      }
+    }
+
+    if (results.length === 0) results.push(new Date(base));
+    return results.slice(0, HARD_CAP);
+  }
+
+  // Removes any previously-generated custom task instances from a course
+  // map (and drops now-empty course buckets that only ever existed to hold
+  // custom tasks), so this can be called freely and idempotently before
+  // regenerating fresh instances from the saved templates.
+  function stripCustomTasks(courseMap) {
+    Object.keys(courseMap).forEach(key => {
+      const course = courseMap[key];
+      if (!course || !Array.isArray(course.tasks)) return;
+      course.tasks = course.tasks.filter(t => !t.isCustom);
+    });
+    Object.keys(courseMap).forEach(key => {
+      const course = courseMap[key];
+      if (course && course.isCustomCourse && (!course.tasks || course.tasks.length === 0)) {
+        delete courseMap[key];
+      }
+    });
+  }
+
+  function mergeCustomTasksIntoCourseMap(courseMap) {
+    stripCustomTasks(courseMap);
+    const templates = getCustomAssignments();
+
+    templates.forEach(template => {
+      const key = template.courseKey;
+      if (!courseMap[key]) {
+        courseMap[key] = { name: template.courseLabel || key, canvasCourseId: null, tasks: [], isCustomCourse: true };
+      }
+
+      const occurrences = generateOccurrences(template);
+      occurrences.forEach(occDate => {
+        const instanceId = `${template.id}_${localDateKey(occDate)}`;
+        courseMap[key].tasks.push({
+          id: instanceId,
+          templateId: template.id,
+          canvasAssignmentId: null,
+          canvasCourseId: null,
+          contentId: null,
+          title: template.title,
+          url: 'javascript:void(0)',
+                                  dueDate: occDate,
+                                  points: (template.points !== null && template.points !== undefined && template.points !== '') ? Number(template.points) : null,
+                                  isUndatedHw: false,
+                                  gradescope: false,
+                                  isGradescope: false,
+                                  isSubmitted: false,
+                                  courseKey: key,
+                                  courseName: courseMap[key].name,
+                                  downloadUrl: null,
+                                  isCustom: true,
+                                  customColor: template.color || null,
+                                  notes: template.notes || '',
+                                  isRecurring: !!(template.repeat && template.repeat.freq && template.repeat.freq !== 'none')
+        });
+      });
+    });
   }
 
   function getHiddenCourses() {
@@ -907,6 +1494,19 @@
     <button class="tab-btn" data-tab="announcements">Announce <span class="tab-alert-pill" id="announce-badge" style="display:none;"></span></button>
     </div>
 
+    <div class="tasks-action-bar" id="tasks-action-bar">
+    <div class="range-selector" id="assignment-range-selector">
+    <button type="button" class="range-pill" data-range="today">Today</button>
+    <button type="button" class="range-pill" data-range="week">Week</button>
+    <button type="button" class="range-pill active" data-range="2weeks">2 Weeks</button>
+    <button type="button" class="range-pill" data-range="month">Month</button>
+    <button type="button" class="range-pill" data-range="all">All</button>
+    </div>
+    <button type="button" class="new-assignment-btn" id="add-custom-task-btn">
+    <span>＋</span> New Assignment
+    </button>
+    </div>
+
     <div class="course-pills" id="course-pills-container"></div>
 
     <div id="module-tasks-list">
@@ -941,7 +1541,16 @@
     });
 
     document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
+    document.getElementById('add-custom-task-btn').addEventListener('click', () => openAssignmentModal());
 
+    widget.querySelectorAll('.range-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        widget.querySelectorAll('.range-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        assignmentRangeFilter = pill.getAttribute('data-range');
+        renderCurrentView();
+      });
+    });
     document.getElementById('toggle-theme-btn').addEventListener('click', () => {
       const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
       currentTheme = THEMES[nextIdx];
@@ -1027,6 +1636,7 @@
       cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
       applyCustomDueDates();
       autoCompleteSubmittedTasks(cachedCourseMap);
+      mergeCustomTasksIntoCourseMap(cachedCourseMap);
       renderFilterPills();
       updateHiddenMenuButton();
       updateProgressBar();
@@ -1055,6 +1665,25 @@
         return;
       }
 
+      const anyModalOpen = document.querySelector('.doc-preview-modal.is-open');
+
+      if (e.key === 'Escape') {
+        closePdfModal();
+        const scModal = document.getElementById('canvas-shortcuts-modal');
+        if (scModal) scModal.classList.remove('is-open');
+        const amModal = document.getElementById('yace-assignment-modal');
+        if (amModal) amModal.classList.remove('is-open');
+        return;
+      }
+
+      if (e.key === 'n' && !anyModalOpen) {
+        e.preventDefault();
+        openAssignmentModal();
+        return;
+      }
+
+      if (anyModalOpen) return;
+
       const cards = Array.from(document.querySelectorAll('#module-tasks-list .mod-task-card'));
       if (cards.length === 0) return;
 
@@ -1062,13 +1691,6 @@
         e.preventDefault();
         const searchInput = document.getElementById('task-search-input');
         if (searchInput) searchInput.focus();
-        return;
-      }
-
-      if (e.key === 'Escape') {
-        closePdfModal();
-        const scModal = document.getElementById('canvas-shortcuts-modal');
-        if (scModal) scModal.classList.remove('is-open');
         return;
       }
 
@@ -1120,7 +1742,9 @@
 
         if (e.key === 'o' || e.key === 'Enter') {
           const link = currentCard.querySelector('.mod-task-title');
-          if (link && link.href) {
+          if (link && link.classList.contains('custom-task-title')) {
+            link.click();
+          } else if (link && link.href) {
             window.open(link.href, '_blank');
           }
           return;
@@ -1990,6 +2614,7 @@
       applyCustomDueDates();
       autoCompleteSubmittedTasks(cachedCourseMap);
       saveLocalCache(unifiedCourseMap);
+      mergeCustomTasksIntoCourseMap(cachedCourseMap);
       renderFilterPills();
       updateHiddenMenuButton();
       updateProgressBar();
@@ -2151,8 +2776,25 @@
       `;
     }
 
+    if (task.isCustom) {
+      rightBottomMeta += `
+      <div class="doc-actions-wrap custom-task-actions">
+      ${task.isRecurring ? `<span class="badge-tag custom-source" title="Repeats">↻ Custom</span>` : `<span class="badge-tag custom-source" title="Custom assignment">✦ Custom</span>`}
+      <button type="button" class="custom-edit-btn" data-template-id="${escapeHTML(task.templateId)}" title="Edit this assignment">✏️</button>
+      <button type="button" class="custom-delete-btn" data-template-id="${escapeHTML(task.templateId)}" title="Delete this assignment (whole series)">🗑</button>
+      </div>
+      `;
+    }
+
     // Assign Canvas Native Color
-    const coursePalette = getCourseColors(task.courseKey, task.canvasCourseId);
+    let coursePalette = getCourseColors(task.courseKey, task.canvasCourseId);
+    if (task.isCustom && task.customColor) {
+      coursePalette = {
+        accent: task.customColor,
+        glow: parseColorToRgba(task.customColor, 0.45) || coursePalette.glow,
+                                    soft: parseColorToRgba(task.customColor, 0.14) || coursePalette.soft
+      };
+    }
     card.style.setProperty('--task-course-accent', coursePalette.accent);
     card.style.setProperty('--task-course-glow', coursePalette.glow);
     card.style.setProperty('--task-course-soft', coursePalette.soft);
@@ -2165,7 +2807,7 @@
     <div class="task-title-row">
     <button type="button" class="star-btn ${isStarred ? 'is-starred' : ''}" title="${isStarred ? 'Unpin from top' : 'Pin to top'}">★</button>
     <span class="course-tag-chip">${escapeHTML(task.courseKey)}</span>
-    <a class="mod-task-title" href="${task.url}" target="_blank">${escapeHTML(task.title)}</a>
+    <a class="mod-task-title ${task.isCustom ? 'custom-task-title' : ''}" href="${task.isCustom ? 'javascript:void(0)' : task.url}" ${task.isCustom ? '' : 'target="_blank"'} title="${task.notes ? escapeHTML(task.notes) : ''}">${escapeHTML(task.title)}</a>
     ${pointsHtml}
     </div>
     <div class="task-meta-row">
@@ -2199,6 +2841,39 @@
                        viewBtn.getAttribute('data-file-id')
           );
         });
+      }
+
+      // Hook Custom Assignment edit/delete (and title click for custom tasks,
+      // since they have no external URL to open)
+      if (task.isCustom) {
+        const titleLink = card.querySelector('.custom-task-title');
+        if (titleLink) {
+          titleLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openAssignmentModal(task.templateId);
+          });
+        }
+
+        const customEditBtn = card.querySelector('.custom-edit-btn');
+        if (customEditBtn) {
+          customEditBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openAssignmentModal(task.templateId);
+          });
+        }
+
+        const customDeleteBtn = card.querySelector('.custom-delete-btn');
+        if (customDeleteBtn) {
+          customDeleteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            editingAssignmentId = task.templateId;
+            const modal = ensureAssignmentModal();
+            deleteAssignmentFromModal(modal);
+          });
+        }
       }
 
       // Hook Star / Pin-to-top toggle
@@ -2703,13 +3378,17 @@
     const starredMap = getStarredTasks();
     const now = new Date();
 
-    const viewSignature = `${currentTab}|${activeCourseFilter}|${activeDayFilter}|${searchQuery}`;
+    const viewSignature = `${currentTab}|${activeCourseFilter}|${activeDayFilter}|${assignmentRangeFilter}|${searchQuery}`;
     if (viewSignature !== lastViewSignature) {
       showAllCompleted = false;
       showAllOverdue = false;
       lastViewSignature = viewSignature;
     }
 
+    const taskActionBar = document.getElementById('tasks-action-bar');
+    if (taskActionBar) {
+      taskActionBar.style.display = (currentTab === 'upcoming' || currentTab === 'overdue' || currentTab === 'completed') ? 'flex' : 'none';
+    }
     let totalOverdueCount = 0;
     let renderedCount = 0;
     let showBigEmptyState = true;
@@ -2755,13 +3434,28 @@
           if (localDateKey(ed) !== activeDayFilter) return false;
         }
 
+        if (currentTab === 'upcoming' && ed && assignmentRangeFilter !== 'all') {
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+          if (assignmentRangeFilter === 'today') {
+            if (ed > endOfToday) return false;
+          } else if (assignmentRangeFilter === 'week') {
+            const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()), 23, 59, 59, 999);
+            if (ed > endOfWeek) return false;
+          } else if (assignmentRangeFilter === '2weeks') {
+            const endOf2Weeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+            if (ed > endOf2Weeks) return false;
+          } else if (assignmentRangeFilter === 'month') {
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+            if (ed > endOfMonth) return false;
+          }
+        }
+
         if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
         if (currentTab === 'completed') return isDone;
         if (isDone) return false;
         if (currentTab === 'overdue') return isOverdue;
         if (currentTab === 'upcoming') return !isOverdue;
-        return true;
-      });
+        return true;      });
 
       allFilteredTasks.push(...tasks);
     });
@@ -2869,13 +3563,28 @@
             if (localDateKey(ed) !== activeDayFilter) return false;
           }
 
+          if (currentTab === 'upcoming' && ed && assignmentRangeFilter !== 'all') {
+            const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+            if (assignmentRangeFilter === 'today') {
+              if (ed > endOfToday) return false;
+            } else if (assignmentRangeFilter === 'week') {
+              const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()), 23, 59, 59, 999);
+              if (ed > endOfWeek) return false;
+            } else if (assignmentRangeFilter === '2weeks') {
+              const endOf2Weeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+              if (ed > endOf2Weeks) return false;
+            } else if (assignmentRangeFilter === 'month') {
+              const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+              if (ed > endOfMonth) return false;
+            }
+          }
+
           if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
           if (currentTab === 'completed') return isDone;
           if (isDone) return false;
           if (currentTab === 'overdue') return isOverdue;
           if (currentTab === 'upcoming') return !isOverdue;
-          return true;
-        });
+          return true;        });
 
         if (visibleTasks.length === 0) return;
         renderedCount += visibleTasks.length;
