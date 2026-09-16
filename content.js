@@ -3751,13 +3751,12 @@ let activeCourseFilter = 'ALL';
         let visibleCats = (meal.categories || []).filter(cat => cat.items && cat.items.length > 0);
 
         if (!showFullDiningMenu) {
-          // Strictly target "The Daily Dish" (stripping dashes, casing, and spaces)
           visibleCats = visibleCats.filter(cat => {
             const clean = cat.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return clean.includes('dailydish');
+            // HoCo = "The Daily Dish", Philly = "Main Line Left"
+            return clean.includes('dailydish') || clean.includes('mainlineleft');
           });
         }
-
         let categoriesHtml = '';
         visibleCats.forEach(cat => {
           categoriesHtml += `

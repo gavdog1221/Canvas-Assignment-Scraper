@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YACE: Yet Another Canvas Extension",
-  "version": "2.1",
+  "version": "3.0",
   "description": "YACE — Yet Another Canvas Extension. Unifies Canvas assignments, PDFs, Gradescope tasks, and announcements into a cyber-deck HUD.",
 "permissions": [
     "https://mycourses.unh.edu/*",
