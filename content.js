@@ -1428,6 +1428,12 @@
   }
 
   function injectWidget(container) {
+    const todayFormatted = new Date().toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+
     const widget = document.createElement('div');
     widget.id = 'module-tasks-widget';
     widget.setAttribute('data-theme', currentTheme);
@@ -1436,6 +1442,7 @@
     <div class="header">
     <div class="title-row">
     <span class="title">YACE</span>
+    <span class="widget-current-date">${todayFormatted}</span>
     </div>
     <div class="widget-controls">
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
@@ -1465,40 +1472,34 @@
     </div>
     </div>
 
+    <!-- Integrated Search + Scope Horizon Trigger -->
+    <div class="search-bar-row">
     <div class="search-wrapper">
-    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks (Press / to focus)..." />
+    <input type="text" class="search-input" id="task-search-input" placeholder="Search tasks (/)..." />
     </div>
 
-    <!-- Streamlined HUD Command Bar -->
-    <div class="hud-command-bar">
-    <div class="hud-left-group">
-    <!-- View Selector Dropdown/Switcher -->
-    <div class="hud-dropdown-wrap">
-    <button type="button" class="hud-dropdown-trigger" id="view-dropdown-btn">
-    <span id="current-view-label">Upcoming</span>
-    <span class="hud-tab-badge" id="hud-overdue-badge" style="display:none;"></span>
-    <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span>
-    <span class="dropdown-caret">▾</span>
+    <div class="radial-horizon-wrap" id="radial-horizon-wrap">
+    <button type="button" class="radial-horizon-trigger" id="radial-horizon-trigger" title="Hover to choose horizon">
+    <span id="radial-horizon-label">2W</span>
     </button>
-    <div class="hud-dropdown-menu" id="view-dropdown-menu">
-    <div class="hud-dd-item active" data-tab="upcoming">Upcoming</div>
-    <div class="hud-dd-item" data-tab="overdue">Overdue <span id="overdue-total-badge"></span></div>
-    <div class="hud-dd-item" data-tab="completed">Completed</div>
-    <div class="hud-dd-item" data-tab="grades">Grades</div>
-    <div class="hud-dd-item" data-tab="announcements">Announcements</div>
+    <div class="radial-pie-menu">
+    <button type="button" class="pie-slice" data-range="today" style="--slice-index: 0;" title="1 Day (Today)"><span>1D</span></button>
+    <button type="button" class="pie-slice" data-range="week" style="--slice-index: 1;" title="1 Week"><span>1W</span></button>
+    <button type="button" class="pie-slice active" data-range="2weeks" style="--slice-index: 2;" title="2 Weeks"><span>2W</span></button>
+    <button type="button" class="pie-slice" data-range="month" style="--slice-index: 3;" title="1 Month"><span>1M</span></button>
+    <button type="button" class="pie-slice" data-range="all" style="--slice-index: 4;" title="All Horizons"><span>∞</span></button>
     </div>
     </div>
-
-    <!-- Inline Horizon Segmented Track -->
-    <div class="hud-range-track" id="assignment-range-selector">
-    <button type="button" class="range-pill" data-range="today" title="Today">1D</button>
-    <button type="button" class="range-pill" data-range="week" title="1 Week">1W</button>
-    <button type="button" class="range-pill active" data-range="2weeks" title="2 Weeks">2W</button>
-    <button type="button" class="range-pill" data-range="month" title="1 Month">1M</button>
-    <button type="button" class="range-pill" data-range="all" title="All Horizons">∞</button>
     </div>
+    <!-- Streamlined HUD Command Bar with direct buttons -->
+    <div class="hud-command-bar">
+    <div class="hud-view-buttons">
+    <button type="button" class="hud-view-btn active" data-tab="upcoming">Due</button>
+    <button type="button" class="hud-view-btn" data-tab="overdue">Overdue <span class="hud-tab-badge" id="hud-overdue-badge" style="display:none;"></span><span id="overdue-total-badge" style="display:none;"></span></button>
+    <button type="button" class="hud-view-btn" data-tab="completed">Done</button>
+    <button type="button" class="hud-view-btn" data-tab="grades">Grades</button>
+    <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
     </div>
-
     <!-- Quick Add Action -->
     <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
@@ -1542,16 +1543,45 @@
 
     document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
     document.getElementById('add-custom-task-btn').addEventListener('click', () => openAssignmentModal());
+    const courseScrollWrap = widget.querySelector('.course-scroll-wrap');
+    if (courseScrollWrap) {
+      courseScrollWrap.addEventListener('wheel', (e) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          courseScrollWrap.scrollLeft += e.deltaY;
+        }
+      }, { passive: false });
+    }
+    const radialLabel = document.getElementById('radial-horizon-label');
+    const radialWrap = document.getElementById('radial-horizon-wrap');
+    const rangeLabels = {
+      today: '1D',
+      week: '1W',
+      '2weeks': '2W',
+      month: '1M',
+      all: '∞'
+    };
 
-    widget.querySelectorAll('.range-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        widget.querySelectorAll('.range-pill').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        assignmentRangeFilter = pill.getAttribute('data-range');
+    if (radialWrap) {
+      radialWrap.addEventListener('mouseleave', () => {
+        radialWrap.classList.remove('is-closed');
+      });
+    }
+
+    widget.querySelectorAll('.pie-slice').forEach(slice => {
+      slice.addEventListener('click', (e) => {
+        e.stopPropagation();
+        widget.querySelectorAll('.pie-slice').forEach(s => s.classList.remove('active'));
+        slice.classList.add('active');
+        assignmentRangeFilter = slice.getAttribute('data-range');
+        if (radialLabel) radialLabel.textContent = rangeLabels[assignmentRangeFilter] || '2W';
+
+        // Immediately dismiss the menu
+        if (radialWrap) radialWrap.classList.add('is-closed');
+
         renderCurrentView();
       });
-    });
-    document.getElementById('toggle-theme-btn').addEventListener('click', () => {
+    });    document.getElementById('toggle-theme-btn').addEventListener('click', () => {
       const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
       currentTheme = THEMES[nextIdx];
       localStorage.setItem(STORAGE_KEY_THEME, currentTheme);
@@ -1584,35 +1614,19 @@
       renderCurrentView();
     });
 
-    const viewBtn = document.getElementById('view-dropdown-btn');
-    const viewMenu = document.getElementById('view-dropdown-menu');
-    const currentViewLabel = document.getElementById('current-view-label');
-
-    viewBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      viewMenu.classList.toggle('open');
-    });
-
-    document.addEventListener('click', () => {
-      if (viewMenu) viewMenu.classList.remove('open');
-    });
-
-      widget.querySelectorAll('.hud-dd-item').forEach(item => {
-        item.addEventListener('click', () => {
-          widget.querySelectorAll('.hud-dd-item').forEach(i => i.classList.remove('active'));
-          item.classList.add('active');
-          currentTab = item.getAttribute('data-tab');
-          currentViewLabel.textContent = item.textContent.replace(/\(.*?\)/g, '').trim();
-          viewMenu.classList.remove('open');
-          activeDayFilter = null;
-          if (currentTab === 'announcements') {
-            markAnnouncementsSeen();
-            updateAnnouncementBadge();
-          }
-          renderCurrentView();
-        });
+    widget.querySelectorAll('.hud-view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        widget.querySelectorAll('.hud-view-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentTab = btn.getAttribute('data-tab');
+        activeDayFilter = null;
+        if (currentTab === 'announcements') {
+          markAnnouncementsSeen();
+          updateAnnouncementBadge();
+        }
+        renderCurrentView();
       });
-      setInterval(() => {
+    });      setInterval(() => {
         if (document.getElementById('module-tasks-widget')) {
           updateProgressBar();
           renderCurrentView();
@@ -2625,8 +2639,8 @@
     if (allKeys.length === 0) return;
 
     const allPill = document.createElement('div');
-    allPill.className = `filter-pill ${activeCourseFilter === 'ALL' ? 'active' : ''}`;
-    allPill.innerHTML = `<span>All</span>`;
+    allPill.className = `filter-pill all-pill ${activeCourseFilter === 'ALL' ? 'active' : ''}`;
+    allPill.innerHTML = `<span class="pill-label">All</span>`;
     allPill.addEventListener('click', () => {
       activeCourseFilter = 'ALL';
       renderFilterPills();
@@ -2636,7 +2650,11 @@
 
     visibleKeys.forEach(k => {
       const pill = document.createElement('div');
+      const palette = getCourseColors(k);
+      pill.style.setProperty('--course-accent', palette.accent);
+      pill.style.setProperty('--course-glow', palette.glow);
       pill.className = `filter-pill ${activeCourseFilter === k ? 'active' : ''}`;
+      pill.title = k;
       pill.innerHTML = `
       <span class="pill-label">${escapeHTML(k)}</span>
       <span class="pill-remove" title="Hide this class">×</span>
@@ -2657,7 +2675,6 @@
       pillsContainer.appendChild(pill);
     });
   }
-
   function createTaskCard(task, now, completedMap) {
     const isDone = !!completedMap[task.id];
     const isStarred = isTaskStarred(task.id);
