@@ -373,28 +373,6 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 @keyframes tabAlertPulse { 0% { box-shadow: 0 0 4px rgba(255, 69, 58, 0.35); } 50% { box-shadow: 0 0 12px rgba(255, 69, 58, 0.7); } 100% { box-shadow: 0 0 4px rgba(255, 69, 58, 0.35); } }
 
 /* ==========================================================================
- *  COURSE ACCORDION
- *  ========================================================================== */
-.course-accordion {
-  margin-bottom: 10px !important; border: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 18px !important;
-  overflow: hidden !important; background: rgba(255, 255, 255, 0.04) !important; backdrop-filter: blur(14px) !important;
-  transition: border-color 0.2s ease, background 0.2s ease !important; position: relative !important; z-index: 3 !important;
-}
-.course-accordion:hover { border-color: rgba(255, 255, 255, 0.24) !important; background: rgba(255, 255, 255, 0.06) !important; }
-.course-header { padding: 12px 15px !important; cursor: pointer !important; display: flex !important; justify-content: space-between !important; align-items: center !important; background: transparent !important; user-select: none !important; transition: background 0.15s ease !important; }
-.course-header:hover { background: rgba(255, 255, 255, 0.05) !important; }
-.course-title-group { display: flex !important; align-items: center !important; gap: 8px !important; overflow: hidden !important; }
-.course-arrow { font-size: 10px !important; color: var(--text-secondary) !important; transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1) !important; }
-.course-accordion.open .course-arrow { transform: rotate(90deg) !important; }
-.course-name { font-size: 12.5px !important; font-weight: 600 !important; color: var(--text-primary) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-.course-badge { background: rgba(255, 255, 255, 0.1) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; color: var(--primary-accent) !important; font-size: 10.5px !important; font-weight: 700 !important; padding: 2px 9px !important; border-radius: 999px !important; }
-.course-badge.overdue-count { background: rgba(255, 69, 58, 0.2) !important; color: #ffb4ae !important; border-color: rgba(255, 69, 58, 0.4) !important; }
-.accordion-wrapper { display: grid !important; grid-template-rows: 0fr !important; transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1) !important; }
-.course-accordion.open .accordion-wrapper { grid-template-rows: 1fr !important; }
-.course-content { overflow: hidden !important; padding: 0 11px !important; display: flex !important; flex-direction: column !important; gap: 8px !important; background: rgba(0, 0, 0, 0.12) !important; }
-.course-accordion.open .course-content { padding: 11px !important; border-top: 1px solid rgba(255, 255, 255, 0.08) !important; }
-
-/* ==========================================================================
  *  TASK CARDS — frosted glass panes with a tinted left accent edge
  *  ========================================================================== */
 .mod-task-card {

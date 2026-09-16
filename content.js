@@ -1,8 +1,6 @@
 (async function initUnifiedDashboard() {
   const origin = window.location.origin;
   const STORAGE_KEY_DONE = 'canvas_mod_tasks_completed_v5';
-  const STORAGE_KEY_OPEN = 'canvas_mod_tasks_open_accordions_v5';
-  const STORAGE_KEY_FLAT = 'canvas_mod_tasks_flat_view_v1';
   const STORAGE_KEY_CACHE = 'canvas_mod_tasks_cache_payload_v7';
   const STORAGE_KEY_CACHE_TIME = 'canvas_mod_tasks_cache_time_v7';
   const STORAGE_KEY_HIDDEN_COURSES = 'canvas_mod_tasks_hidden_courses_v1';
@@ -28,7 +26,6 @@
   let activeDayFilter = null;
   let assignmentRangeFilter = '2weeks'; // 'today' | 'week' | '2weeks' | 'month' | 'all'
   let searchQuery = '';
-  let isFlatView = localStorage.getItem(STORAGE_KEY_FLAT) !== 'false';
   let isHiddenMenuOpen = false;
   let cachedCourseMap = {};
   let cachedGrades = [];
@@ -1122,18 +1119,6 @@
     renderCurrentView();
   }
 
-  function getSavedAccordions() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_OPEN) || '{}');
-    } catch { return {}; }
-  }
-
-  function saveAccordionState(courseId, isOpen) {
-    const state = getSavedAccordions();
-    state[courseId] = isOpen;
-    localStorage.setItem(STORAGE_KEY_OPEN, JSON.stringify(state));
-  }
-
   function loadLocalCache() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CACHE);
@@ -1456,8 +1441,6 @@
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
     <button class="icon-btn" id="toggle-theme-btn" title="Cycle Glass Tint (Liquid Blue / Orchid / Mint / Graphite)">🎨</button>
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
-    <button class="icon-btn" id="toggle-view-mode" title="Switch Grouped / Chronological">${isFlatView ? 'Group' : 'Timeline'}</button>
-    <button class="icon-btn" id="toggle-all-accordions" title="Collapse/Expand All">Toggle</button>
     <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
     </div>
     </div>
@@ -1579,9 +1562,6 @@
       scrapeCanvasDashboardColors();
       loadTasks(true);
     });
-    document.getElementById('toggle-all-accordions').addEventListener('click', toggleAllAccordions);
-    updateToggleAllButtonState();
-
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
     const closeBtn = document.getElementById('close-hidden-courses-btn');
 
@@ -1597,14 +1577,6 @@
       e.preventDefault();
       isHiddenMenuOpen = false;
       updateHiddenMenuButton();
-    });
-
-    document.getElementById('toggle-view-mode').addEventListener('click', (e) => {
-      isFlatView = !isFlatView;
-      localStorage.setItem(STORAGE_KEY_FLAT, isFlatView);
-      e.target.innerText = isFlatView ? 'Group' : 'Timeline';
-      updateToggleAllButtonState();
-      renderCurrentView();
     });
 
     document.getElementById('task-search-input').addEventListener('input', (e) => {
@@ -1985,27 +1957,6 @@
     }
 
     countEl.innerText = `${completed}/${total} this week`;
-  }
-
-  function updateToggleAllButtonState() {
-    const btn = document.getElementById('toggle-all-accordions');
-    if (!btn) return;
-    btn.disabled = isFlatView;
-    btn.title = isFlatView
-    ? 'Switch to Group view to collapse/expand courses'
-    : 'Collapse/Expand All';
-  }
-
-  function toggleAllAccordions() {
-    if (isFlatView) return;
-    const accordions = Array.from(document.querySelectorAll('.course-accordion'));
-    if (accordions.length === 0) return;
-    const anyClosed = accordions.some(acc => !acc.classList.contains('open'));
-    accordions.forEach(acc => {
-      acc.classList.toggle('open', anyClosed);
-      const key = acc.getAttribute('data-course-key');
-      if (key) saveAccordionState(key, anyClosed);
-    });
   }
 
   function getCsrfToken() {
@@ -3405,7 +3356,6 @@
 
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
-    const savedAccordionState = getSavedAccordions();
     const starredMap = getStarredTasks();
     const now = new Date();
 
@@ -3496,10 +3446,9 @@
     });
 
     if (currentTab === 'completed' || currentTab === 'overdue') {
-      // Always render Completed/Overdue as a single sorted list (regardless
-      // of the Group/Timeline view toggle) scoped to the current week by
-      // default — grouping by course, or showing every task ever, doesn't
-      // fix the bloat problem since a single course can rack up dozens of
+      // Always render Completed/Overdue as a single sorted list scoped to
+      // the current week by default — showing every task ever doesn't fix
+      // the bloat problem since a single course can rack up dozens of
       // finished or missed items on its own.
       if (currentTab === 'completed') {
         // Most recently completed first.
@@ -3568,7 +3517,7 @@
           listContainer.appendChild(collapseBtn);
         }
       }
-    } else if (isFlatView) {
+    } else {
       allFilteredTasks.sort(withStarredFirst((a, b) => {
         const edA = effectiveDueDate(a);
         const edB = effectiveDueDate(b);
@@ -3581,92 +3530,6 @@
       renderedCount = allFilteredTasks.length;
       allFilteredTasks.forEach(task => {
         listContainer.appendChild(createTaskCard(task, now, completedMap));
-      });
-    } else {
-      Object.keys(cachedCourseMap).forEach(courseKey => {
-        if (hiddenCourses.includes(courseKey)) return;
-        if (activeCourseFilter !== 'ALL' && activeCourseFilter !== courseKey) return;
-
-        const course = cachedCourseMap[courseKey];
-        const visibleTasks = course.tasks.filter(t => {
-          const isDone = !!completedMap[t.id];
-          const ed = effectiveDueDate(t);
-          const isOverdue = ed && ed < now;
-
-          if (activeDayFilter) {
-            if (!ed) return false;
-            if (localDateKey(ed) !== activeDayFilter) return false;
-          }
-
-          if (currentTab === 'upcoming' && ed && assignmentRangeFilter !== 'all') {
-            const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-            if (assignmentRangeFilter === 'today') {
-              if (ed > endOfToday) return false;
-            } else if (assignmentRangeFilter === 'week') {
-              const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (7 - now.getDay()), 23, 59, 59, 999);
-              if (ed > endOfWeek) return false;
-            } else if (assignmentRangeFilter === '2weeks') {
-              const endOf2Weeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-              if (ed > endOf2Weeks) return false;
-            } else if (assignmentRangeFilter === 'month') {
-              const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-              if (ed > endOfMonth) return false;
-            }
-          }
-
-          if (searchQuery && !t.title.toLowerCase().includes(searchQuery)) return false;
-          if (currentTab === 'completed') return isDone;
-          if (isDone) return false;
-          if (currentTab === 'overdue') return isOverdue;
-          if (currentTab === 'upcoming') return !isOverdue;
-          return true;        });
-
-          if (visibleTasks.length === 0) return;
-          renderedCount += visibleTasks.length;
-
-        visibleTasks.sort(withStarredFirst((a, b) => {
-          const edA = effectiveDueDate(a);
-          const edB = effectiveDueDate(b);
-          if (edA && edB) return edA - edB;
-          if (edA) return -1;
-          if (edB) return 1;
-          return 0;
-        }, starredMap));
-
-        const isOpen = savedAccordionState[courseKey] !== undefined ? savedAccordionState[courseKey] : true;
-        const accordion = document.createElement('div');
-        accordion.className = `course-accordion ${isOpen ? 'open' : ''}`;
-        accordion.setAttribute('data-course-key', courseKey);
-
-        const header = document.createElement('div');
-        header.className = 'course-header';
-        header.innerHTML = `
-        <div class="course-title-group">
-        <span class="course-arrow">▶</span>
-        <span class="course-name" title="${escapeHTML(course.name)}">${escapeHTML(course.name)}</span>
-        </div>
-        <span class="course-badge ${currentTab === 'overdue' ? 'overdue-count' : ''}">${visibleTasks.length}</span>
-        `;
-
-        header.addEventListener('click', () => {
-          const opened = accordion.classList.toggle('open');
-          saveAccordionState(courseKey, opened);
-        });
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'accordion-wrapper';
-
-        const body = document.createElement('div');
-        body.className = 'course-content';
-
-        visibleTasks.forEach(task => {
-          body.appendChild(createTaskCard(task, now, completedMap));
-        });
-
-        wrapper.appendChild(body);
-        accordion.appendChild(header);
-        accordion.appendChild(wrapper);
-        listContainer.appendChild(accordion);
       });
     }
 
