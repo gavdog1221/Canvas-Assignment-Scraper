@@ -2124,7 +2124,16 @@ let activeCourseFilter = 'ALL';
 
     doc.querySelectorAll('.shortmenumeals, .shortmenucats, .shortmenurecipes').forEach(el => {
       if (el.classList.contains('shortmenumeals')) {
-        currentMeal = { meal: el.textContent.trim(), categories: [] };
+        const rawMealText = el.textContent.trim();
+        // Check if FoodPro included times in the meal label (e.g., "Lunch (11:00am - 2:00pm)")
+        const timeMatch = rawMealText.match(/\((.*?)\)/);
+        const mealTitle = rawMealText.replace(/\(.*?\)/, '').trim();
+
+        currentMeal = {
+          meal: mealTitle,
+          hours: timeMatch ? timeMatch[1] : null,
+          categories: []
+        };
         meals.push(currentMeal);
         currentCategory = null;
       } else if (el.classList.contains('shortmenucats') && currentMeal) {
@@ -2132,30 +2141,205 @@ let activeCourseFilter = 'ALL';
         currentCategory = { name: catName, items: [] };
         currentMeal.categories.push(currentCategory);
       } else if (el.classList.contains('shortmenurecipes') && currentCategory) {
-        const dish = el.textContent.trim();
-        if (dish) currentCategory.items.push(dish);
+        const dishName = el.textContent.trim();
+        if (!dishName) return;
+
+        const traits = [];
+        const container = el.closest('tr') || el;
+        const imgs = container.querySelectorAll('img');
+
+        imgs.forEach(img => {
+          const alt = (img.getAttribute('alt') || '').toLowerCase();
+          const src = (img.getAttribute('src') || '').toLowerCase();
+          if (alt.includes('vegan') || src.includes('vgn') || src.includes('vegan')) {
+            traits.push('vgn');
+          } else if (alt.includes('vegetarian') || src.includes('veg')) {
+            traits.push('veg');
+          }
+          if (alt.includes('gluten') || src.includes('gf') || alt.includes('wheat free')) {
+            traits.push('gf');
+          }
+          if (alt.includes('halal') || src.includes('halal')) {
+            traits.push('halal');
+          }
+        });
+
+        currentCategory.items.push({
+          name: dishName,
+          traits: Array.from(new Set(traits))
+        });
       }
     });
 
     return meals;
   }
+  let cachedOfficialHours = null;
 
-  async function ensureTodaysDiningMenus() {
+  function parseMinutesFromTimeString(str) {
+    const m = str.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+    if (!m) return null;
+    let hours = parseInt(m[1], 10);
+    const minutes = m[2] ? parseInt(m[2], 10) : 0;
+    const isPm = m[3].toLowerCase() === 'pm';
+    if (isPm && hours !== 12) hours += 12;
+    if (!isPm && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+
+  function matchesDayAbbr(str, dayIdx) {
+    // dayIdx: 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const map = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const target = map[dayIdx];
+    const s = str.toLowerCase();
+
+    // Check direct match, e.g. "sun:", "thu:"
+    if (s.startsWith(target)) return true;
+
+    // Check range matches, e.g. "mon - fri:", "mon - wed:"
+    const rangeMatch = s.match(/([a-z]{3})\s*[-–—]\s*([a-z]{3})/i);
+    if (rangeMatch) {
+      const start = map.indexOf(rangeMatch[1].toLowerCase());
+      const end = map.indexOf(rangeMatch[2].toLowerCase());
+      if (start !== -1 && end !== -1) {
+        if (start <= end) {
+          return dayIdx >= start && dayIdx <= end;
+        } else {
+          // Wrapped range like Fri - Mon
+          return dayIdx >= start || dayIdx <= end;
+        }
+      }
+    }
+    return false;
+  }
+
+  async function fetchLiveDiningHours() {
+    if (cachedOfficialHours) return cachedOfficialHours;
+
+    const response = await browser.runtime.sendMessage({ type: 'FETCH_DINING_HOURS' }).catch(() => null);
+    if (!response || !response.success || !response.html) {
+      return null;
+    }
+
+    const doc = new DOMParser().parseFromString(response.html, 'text/html');
+    const todayIdx = new Date().getDay();
+    const parsedHours = { 80: null, 30: null };
+
+    // Break page into sections by dining hall
+    const textAll = doc.body ? doc.body.innerText : '';
+    const hocoIndex = textAll.search(/holloway commons/i);
+    const phillyIndex = textAll.search(/philbrook/i);
+
+    const sections = [];
+    if (hocoIndex !== -1 && phillyIndex !== -1) {
+      if (hocoIndex < phillyIndex) {
+        sections.push({ hall: 80, text: textAll.slice(hocoIndex, phillyIndex) });
+        sections.push({ hall: 30, text: textAll.slice(phillyIndex) });
+      } else {
+        sections.push({ hall: 30, text: textAll.slice(phillyIndex, hocoIndex) });
+        sections.push({ hall: 80, text: textAll.slice(hocoIndex) });
+      }
+    }
+
+    sections.forEach(({ hall, text }) => {
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const isCurrentlyOpen = text.toLowerCase().includes('currently open');
+
+      let todayTimeRange = null;
+      let isExplicitClosed = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (matchesDayAbbr(lines[i], todayIdx)) {
+          // Next 1 or 2 lines usually contain the time or "Closed"
+          const nextLines = lines.slice(i + 1, i + 3).join(' ');
+          if (/closed/i.test(nextLines)) {
+            isExplicitClosed = true;
+            break;
+          }
+          const m = nextLines.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm))\s*[-–—]\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm))/i);
+          if (m) {
+            todayTimeRange = m;
+            break;
+          }
+        }
+      }
+
+      parsedHours[hall] = {
+        isCurrentlyOpen: isCurrentlyOpen,
+        isExplicitClosed: isExplicitClosed,
+        openStr: todayTimeRange ? todayTimeRange[1] : null,
+        closeStr: todayTimeRange ? todayTimeRange[2] : null,
+        openMin: todayTimeRange ? parseMinutesFromTimeString(todayTimeRange[1]) : null,
+                     closeMin: todayTimeRange ? parseMinutesFromTimeString(todayTimeRange[2]) : null
+      };
+    });
+
+    cachedOfficialHours = parsedHours;
+    return parsedHours;
+  }
+
+  async function getDiningHallStatus(hallNum, meals) {
+    const hoursData = await fetchLiveDiningHours();
+    const live = hoursData ? hoursData[hallNum] : null;
+
+    if (live) {
+      if (live.isExplicitClosed) {
+        return { isOpen: false, label: 'Closed Today' };
+      }
+
+      const now = new Date();
+      const curMinutes = now.getHours() * 60 + now.getMinutes();
+
+      if (live.openMin && live.closeMin) {
+        const openStr = live.openStr.toUpperCase();
+        const closeStr = live.closeStr.toUpperCase();
+
+        if (curMinutes >= live.openMin && curMinutes < live.closeMin) {
+          return { isOpen: true, label: `Open until ${closeStr}` };
+        } else if (curMinutes < live.openMin) {
+          return { isOpen: false, label: `Closed until ${openStr}` };
+        } else {
+          return { isOpen: false, label: `Closed for the night (at ${closeStr})` };
+        }
+      }
+
+      if (live.isCurrentlyOpen) {
+        const defaultClose = hallNum === 80 ? '9:00 PM' : '9:00 PM';
+        return { isOpen: true, label: `Currently open (closes ~${defaultClose})` };
+      }
+    }
+
+    // Secondary fallback based on current time
+    const now = new Date();
+    const curMinutes = now.getHours() * 60 + now.getMinutes();
+    const openMin = 435; // 7:15 AM
+    const closeMin = 1260; // 9:00 PM
+
+    if (curMinutes >= openMin && curMinutes < closeMin) {
+      return { isOpen: true, label: 'Open until 9:00 PM' };
+    } else {
+      return { isOpen: false, label: 'Closed until 7:15 AM' };
+    }
+  }  async function ensureTodaysDiningMenus() {
     const todayKey = new Date().toDateString();
-    if (diningCache.date === todayKey && diningCache[80] && diningCache[30]) {
+    if (diningCache.date === todayKey && Array.isArray(diningCache[80]) && Array.isArray(diningCache[30])) {
       return diningCache;
     }
 
-    const [hocoRes, phillyRes] = await Promise.all([
-      browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 80, locationName: 'Holloway Commons' }),
-                                                   browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 30, locationName: 'Philbrook' })
-    ]);
+    try {
+      const [hocoRes, phillyRes] = await Promise.all([
+        browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 80, locationName: 'Holloway Commons' }).catch(() => null),
+                                                     browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 30, locationName: 'Philbrook' }).catch(() => null)
+      ]);
 
-    diningCache = {
-      date: todayKey,
-      80: (hocoRes && hocoRes.success) ? parseMenuHtml(hocoRes.html) : [],
-                                    30: (phillyRes && phillyRes.success) ? parseMenuHtml(phillyRes.html) : []
-    };
+      diningCache = {
+        date: todayKey,
+        80: (hocoRes && hocoRes.success && hocoRes.html) ? parseMenuHtml(hocoRes.html) : [],
+                                    30: (phillyRes && phillyRes.success && phillyRes.html) ? parseMenuHtml(phillyRes.html) : []
+      };
+    } catch (err) {
+      console.warn('[YACE] Dining fetch failure:', err);
+      diningCache = { date: todayKey, 80: [], 30: [] };
+    }
 
     return diningCache;
   }  async function fetchGradescopeData() {
@@ -3707,10 +3891,38 @@ let activeCourseFilter = 'ALL';
       }
     }
   }
-  // --- DINING VIEW RENDERING ---
-  // --- DINING VIEW RENDERING ---
-  let showFullDiningMenu = false;
+  // --- DINING VIEW RENDERING (DEFAULT MAIN DISH + EXPANDABLE PIE WHEEL) ---
+  let activeStationFilter = '__DEFAULT__';
 
+  function isDefaultMainStation(name, hallNum) {
+    if (!name) return false;
+    const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (hallNum === 30) {
+      return clean.includes('mainlineleft') || clean.includes('mainline');
+    }
+    return clean.includes('dailydish') || clean.includes('mainline');
+  }
+
+  function cleanStationLabel(st) {
+    let clean = st.replace(/^--\s*|\s*--$/g, '')
+    .replace(/^The\s+/i, '')
+    .replace(/Specialties|Creations|Station|Bar\b/gi, '')
+    .trim();
+    const map = {
+      'Holloway Deli': 'Deli',
+      'Vegan': 'Vegan',
+      'Corner': 'Corner',
+      'Daily Dish': 'Daily Dish',
+      'Allergen Friendly': 'Allergen',
+      'Soup and More': 'Soups',
+      'Pasta': 'Pasta',
+      'Desserts': 'Desserts',
+      'Breakfast Nook': 'Breaky',
+      'Main Line Left': 'Main Line',
+      'Grill Specialty': 'Grill'
+    };
+    return map[clean] || clean;
+  }
   async function renderDiningView(listContainer) {
     if (activeDiningHall !== 80 && activeDiningHall !== 30) {
       activeDiningHall = 80;
@@ -3722,10 +3934,17 @@ let activeCourseFilter = 'ALL';
     <button type="button" class="dining-pill ${activeDiningHall === 80 ? 'active' : ''}" data-hall="80">HoCo</button>
     <button type="button" class="dining-pill ${activeDiningHall === 30 ? 'active' : ''}" data-hall="30">Philly</button>
     </div>
-    <button type="button" class="dining-toggle-expand ${showFullDiningMenu ? 'active' : ''}" id="dining-toggle-expand">
-    ${showFullDiningMenu ? 'Daily Dish Only' : 'Show Full Menu'}
+
+    <!-- VisionOS Radial Pie Trigger -->
+    <div class="dining-station-pie-wrap" id="dining-station-pie-wrap">
+    <button type="button" class="dining-pie-trigger" id="dining-pie-trigger" title="Hover to change station">
+    <span class="pie-trigger-label" id="dining-pie-label">Dish</span>
+    <span class="pie-trigger-caret">▾</span>
     </button>
+    <div class="dining-radial-menu" id="dining-radial-menu"></div>
     </div>
+    </div>
+
     <div id="dining-menu-body">
     <div class="mod-empty-msg">Loading today's menus...</div>
     </div>
@@ -3733,55 +3952,201 @@ let activeCourseFilter = 'ALL';
 
     function renderActiveHall(data) {
       const menuBody = document.getElementById('dining-menu-body');
+      const pieMenu = document.getElementById('dining-radial-menu');
+      const pieLabel = document.getElementById('dining-pie-label');
+      const pieWrap = document.getElementById('dining-station-pie-wrap');
       if (!menuBody) return;
 
-      const meals = data[activeDiningHall] || [];
+      menuBody.innerHTML = '';
+      const meals = (data && data[activeDiningHall]) ? data[activeDiningHall] : [];
+
+      const statusBanner = document.createElement('div');
+      statusBanner.className = 'dining-status-banner';
+      statusBanner.innerHTML = `
+      <span class="status-indicator-dot"></span>
+      <span class="status-indicator-text">Checking hours...</span>
+      `;
+      menuBody.appendChild(statusBanner);
+
+      getDiningHallStatus(activeDiningHall, meals).then(statusInfo => {
+        statusBanner.className = `dining-status-banner ${statusInfo.isOpen ? 'is-open' : 'is-closed'}`;
+        statusBanner.querySelector('.status-indicator-text').textContent = statusInfo.label;
+      });
+
       if (meals.length === 0) {
-        menuBody.innerHTML = '<div class="mod-empty-msg">No menu posted today or dining hall is closed.</div>';
+        if (pieWrap) pieWrap.style.display = 'none';
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'mod-empty-msg';
+        emptyMsg.innerText = 'No menu posted today or dining hall is closed.';
+        menuBody.appendChild(emptyMsg);
         return;
       }
 
-      const columnsContainer = document.createElement('div');
-      columnsContainer.className = 'dining-columns-grid';
+      if (pieWrap) pieWrap.style.display = 'inline-flex';
 
-      meals.forEach(meal => {
-        const mealCol = document.createElement('div');
-        mealCol.className = 'dining-meal-col';
+      // Scan all unique station names present today
+      const allStationsSet = new Set();
+      meals.forEach(m => {
+        (m.categories || []).forEach(c => {
+          if (c.name && c.items && c.items.length > 0) {
+            allStationsSet.add(c.name);
+          }
+        });
+      });
 
-        let visibleCats = (meal.categories || []).filter(cat => cat.items && cat.items.length > 0);
+      const uniqueStations = Array.from(allStationsSet);
+      const defaultStationName = activeDiningHall === 30 ? 'Main Line Left' : 'The Daily Dish';
 
-        if (!showFullDiningMenu) {
-          visibleCats = visibleCats.filter(cat => {
-            const clean = cat.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            // HoCo = "The Daily Dish", Philly = "Main Line Left"
-            return clean.includes('dailydish') || clean.includes('mainlineleft');
+      // Update the trigger button text
+      if (pieLabel) {
+        if (activeStationFilter === '__DEFAULT__') {
+          pieLabel.textContent = activeDiningHall === 30 ? 'Main Line' : 'Daily Dish';
+        } else if (activeStationFilter === 'ALL') {
+          pieLabel.textContent = 'All Items';
+        } else {
+          const short = cleanStationLabel(activeStationFilter);
+          pieLabel.textContent = short.length > 9 ? `${short.slice(0, 8)}…` : short;
+        }
+      }
+
+      // Build Radial Pie Slices
+      if (pieMenu) {
+        pieMenu.innerHTML = '';
+        const pieOptions = [
+          { key: '__DEFAULT__', label: activeDiningHall === 30 ? 'Main' : 'Daily', title: defaultStationName },
+          { key: 'ALL', label: 'All', title: 'All Stations' },
+          ...uniqueStations.map(st => ({
+            key: st,
+            label: cleanStationLabel(st),
+                                       title: st
+          }))
+        ];
+        const totalSlices = pieOptions.length;
+        const angleStep = 360 / totalSlices;
+
+        // Decorative Plate Center Hub
+        const centerHub = document.createElement('div');
+        centerHub.className = 'dining-plate-center-hub';
+        centerHub.innerHTML = `<span>🍽️</span>`;
+        pieMenu.appendChild(centerHub);
+
+        pieOptions.forEach((opt, idx) => {
+          const sliceBtn = document.createElement('button');
+          sliceBtn.type = 'button';
+          const isSelected = activeStationFilter === opt.key;
+          sliceBtn.className = `dining-pie-slice ${isSelected ? 'active' : ''}`;
+          sliceBtn.title = opt.title;
+
+          sliceBtn.style.setProperty('--slice-rot', `${idx * angleStep}deg`);
+          sliceBtn.style.setProperty('--slice-skew', `${Math.max(0, 90 - angleStep)}deg`);
+
+          // Calculate radial coordinates along the recessed inner well of the plate
+          const midAngleDeg = (idx * angleStep) + (angleStep / 2) - 90;
+          const midAngleRad = (midAngleDeg * Math.PI) / 180;
+          const radius = 104; // Positioned right along the rim slope
+          const labelX = Math.round(140 + radius * Math.cos(midAngleRad));
+          const labelY = Math.round(140 + radius * Math.sin(midAngleRad));
+          sliceBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            activeStationFilter = opt.key;
+            if (pieWrap) pieWrap.classList.add('is-closed');
+            renderActiveHall(diningCache);
+          });
+          pieMenu.appendChild(sliceBtn);
+
+          // Direct upright label pinned to plate rim
+          const labelEl = document.createElement('span');
+          labelEl.className = `dining-plate-label ${isSelected ? 'active' : ''}`;
+          labelEl.textContent = opt.label;
+          labelEl.style.left = `${labelX}px`;
+          labelEl.style.top = `${labelY}px`;
+          labelEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sliceBtn.click();
+          });
+          pieMenu.appendChild(labelEl);
+        });
+        if (pieWrap) {
+          pieWrap.addEventListener('mouseleave', () => {
+            pieWrap.classList.remove('is-closed');
           });
         }
+      }
+
+      const stackContainer = document.createElement('div');
+      stackContainer.className = 'dining-rows-stack';
+      let totalVisibleDishes = 0;
+
+      meals.forEach(meal => {
+        let visibleCats = (meal.categories || []).filter(cat => cat.items && cat.items.length > 0);
+
+        if (activeStationFilter === '__DEFAULT__') {
+          visibleCats = visibleCats.filter(cat => isDefaultMainStation(cat.name, activeDiningHall));
+        } else if (activeStationFilter !== 'ALL') {
+          visibleCats = visibleCats.filter(cat => cat.name.toLowerCase() === activeStationFilter.toLowerCase());
+        }
+
+        if (visibleCats.length === 0 && activeStationFilter !== 'ALL') {
+          return;
+        }
+
+        const mealRow = document.createElement('div');
+        mealRow.className = 'dining-meal-row';
+
         let categoriesHtml = '';
         visibleCats.forEach(cat => {
+          totalVisibleDishes += cat.items.length;
           categoriesHtml += `
           <div class="dining-station-group">
-          ${showFullDiningMenu ? `<div class="dining-station-title">${escapeHTML(cat.name)}</div>` : ''}
+          <div class="dining-station-title">${escapeHTML(cat.name)}</div>
           <ul class="dining-item-list">
-          ${cat.items.map(item => `<li>${escapeHTML(item)}</li>`).join('')}
+          ${cat.items.map(dishObj => {
+            const name = typeof dishObj === 'string' ? dishObj : dishObj.name;
+            const traits = (dishObj && dishObj.traits) || [];
+            const badgeHtml = traits.map(t => {
+              if (t === 'vgn') return '<span class="diet-dot vgn" title="Vegan">VG</span>';
+              if (t === 'veg') return '<span class="diet-dot veg" title="Vegetarian">V</span>';
+              if (t === 'gf') return '<span class="diet-dot gf" title="Gluten-Friendly">GF</span>';
+              if (t === 'halal') return '<span class="diet-dot halal" title="Halal">H</span>';
+              return '';
+            }).join('');
+
+            return `<li><span class="dish-name-text">${escapeHTML(name)}</span>${badgeHtml ? `<span class="diet-badges">${badgeHtml}</span>` : ''}</li>`;
+          }).join('')}
           </ul>
           </div>
           `;
         });
 
-        mealCol.innerHTML = `
+        mealRow.innerHTML = `
         <div class="dining-meal-header">
         <span class="dining-meal-name">${escapeHTML(meal.meal)}</span>
+        ${meal.hours ? `<span class="dining-meal-hours">${escapeHTML(meal.hours)}</span>` : ''}
         </div>
         <div class="dining-stations-wrap">
-        ${categoriesHtml || '<div class="dining-empty-sub">No Daily Dish</div>'}
+        ${categoriesHtml || '<div class="dining-empty-sub">No items available.</div>'}
         </div>
         `;
-        columnsContainer.appendChild(mealCol);
+        stackContainer.appendChild(mealRow);
       });
 
-      menuBody.innerHTML = '';
-      menuBody.appendChild(columnsContainer);
+      if (totalVisibleDishes === 0) {
+        const noItems = document.createElement('div');
+        noItems.className = 'mod-empty-msg';
+        const displayStation = activeStationFilter === '__DEFAULT__' ? defaultStationName : activeStationFilter;
+        noItems.innerHTML = `No items found under "<strong>${escapeHTML(displayStation)}</strong>".<br><span style="color:var(--primary-accent); cursor:pointer; font-size:11px; font-weight:700; margin-top:6px; display:inline-block;" id="dining-reset-all">Show All Stations ↗</span>`;
+        menuBody.appendChild(noItems);
+
+        const resetBtn = noItems.querySelector('#dining-reset-all');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            activeStationFilter = 'ALL';
+            renderActiveHall(diningCache);
+          });
+        }
+      } else {
+        menuBody.appendChild(stackContainer);
+      }
     }
 
     const pills = listContainer.querySelectorAll('.dining-pill');
@@ -3790,19 +4155,10 @@ let activeCourseFilter = 'ALL';
         pills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         activeDiningHall = parseInt(pill.getAttribute('data-hall'), 10);
+        activeStationFilter = '__DEFAULT__'; // Resets to hall's main dish
         renderActiveHall(diningCache);
       });
     });
-
-    const expandBtn = listContainer.querySelector('#dining-toggle-expand');
-    if (expandBtn) {
-      expandBtn.addEventListener('click', () => {
-        showFullDiningMenu = !showFullDiningMenu;
-        expandBtn.textContent = showFullDiningMenu ? 'Daily Dish Only' : 'Show Full Menu';
-        expandBtn.classList.toggle('active', showFullDiningMenu);
-        renderActiveHall(diningCache);
-      });
-    }
 
     const data = await ensureTodaysDiningMenus();
     renderActiveHall(data);
