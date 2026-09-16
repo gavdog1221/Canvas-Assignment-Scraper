@@ -21,8 +21,8 @@
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
 
-  let currentTab = 'upcoming';
-  let activeCourseFilter = 'ALL';
+let currentTab = 'upcoming';
+let activeCourseFilter = 'ALL';
   let activeDayFilter = null;
   let assignmentRangeFilter = '2weeks'; // 'today' | 'week' | '2weeks' | 'month' | 'all'
   let searchQuery = '';
@@ -37,7 +37,8 @@
   let isMinimized = localStorage.getItem(STORAGE_KEY_MINIMIZED) === 'true';
 
   let selectedTaskIndex = -1;
-
+  let cachedDiningMenu = null;
+  let activeDiningHall = 80; // 80 = Holloway Commons (HoCo), 30 = Philbrook (Philly), 50 = Stillings
   // Completed/Overdue tabs default to showing only the current week's
   // assignments (Mon–Sun) so they don't grow into a huge list as the
   // semester goes on. A "Show all" button reveals everything else, and can
@@ -1446,11 +1447,21 @@
     </div>
     <div class="widget-controls">
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
-    <button class="icon-btn" id="toggle-theme-btn" title="Cycle Glass Tint (Liquid Blue / Orchid / Mint / Graphite)">🎨</button>
+
+    <!-- Theme Swatch Palette Dock -->
+    <div class="theme-dock-wrap" id="theme-dock-wrap">
+    <button type="button" class="icon-btn theme-dock-trigger" id="theme-dock-trigger" title="Switch Theme Tint">🎨</button>
+    <div class="theme-dock-flyout">
+    <button type="button" class="theme-gem-btn ${currentTheme === 'cyan' ? 'active' : ''}" data-theme="cyan" title="Liquid Blue" style="--gem-color: #0a84ff;"></button>
+    <button type="button" class="theme-gem-btn ${currentTheme === 'synthwave' ? 'active' : ''}" data-theme="synthwave" title="Orchid Glass" style="--gem-color: #bf5af2;"></button>
+    <button type="button" class="theme-gem-btn ${currentTheme === 'emerald' ? 'active' : ''}" data-theme="emerald" title="Mint Glass" style="--gem-color: #30d158;"></button>
+    <button type="button" class="theme-gem-btn ${currentTheme === 'stealth' ? 'active' : ''}" data-theme="stealth" title="Graphite Glass" style="--gem-color: #e5e5ea;"></button>
+    </div>
+    </div>
+
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
     <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
-    </div>
-    </div>
+    </div>    </div>
 
     <div class="hidden-courses-popover" id="hidden-courses-popover">
     <div class="hidden-popover-header">
@@ -1508,8 +1519,8 @@
     <button type="button" class="hud-view-btn" data-tab="completed">Done</button>
     <button type="button" class="hud-view-btn" data-tab="grades">Grades</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
-    </div>
-    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
+    <button type="button" class="hud-view-btn" data-tab="food">Food</button>
+    </div>    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>
     </div>
@@ -1584,11 +1595,40 @@
 
         renderCurrentView();
       });
-    });    document.getElementById('toggle-theme-btn').addEventListener('click', () => {
-      const nextIdx = (THEMES.indexOf(currentTheme) + 1) % THEMES.length;
-      currentTheme = THEMES[nextIdx];
-      localStorage.setItem(STORAGE_KEY_THEME, currentTheme);
-      widget.setAttribute('data-theme', currentTheme);
+    });    const themeDockWrap = document.getElementById('theme-dock-wrap');
+    const themeDockTrigger = document.getElementById('theme-dock-trigger');
+
+    // Click toggle so it stays open reliably without relying solely on hover
+    if (themeDockTrigger && themeDockWrap) {
+      themeDockTrigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        themeDockWrap.classList.toggle('is-open');
+      });
+
+      document.addEventListener('click', () => {
+        themeDockWrap.classList.remove('is-open');
+      });
+    }
+
+    widget.querySelectorAll('.theme-gem-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const selectedTheme = btn.getAttribute('data-theme');
+        if (!selectedTheme) return;
+
+        currentTheme = selectedTheme;
+        localStorage.setItem(STORAGE_KEY_THEME, currentTheme);
+        widget.setAttribute('data-theme', currentTheme);
+
+        const modal = document.getElementById('yace-assignment-modal');
+        if (modal) modal.setAttribute('data-theme', currentTheme);
+
+        widget.querySelectorAll('.theme-gem-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Close dock once picked
+        if (themeDockWrap) themeDockWrap.classList.remove('is-open');
+      });
     });
 
     document.getElementById('refresh-mod-tasks').addEventListener('click', () => {
@@ -2068,8 +2108,57 @@
     const token = extractCoreAssignmentToken(title, courseKey) || title.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     return `${courseKey}_${token}`;
   }
+  // Stores today's parsed menus in-memory so swapping tabs never refetches
+  let diningCache = {
+    date: null,
+    80: null, // HoCo
+    30: null  // Philly
+  };
 
-  async function fetchGradescopeData() {
+  function parseMenuHtml(htmlString) {
+    if (!htmlString) return [];
+    const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+    const meals = [];
+    let currentMeal = null;
+    let currentCategory = null;
+
+    doc.querySelectorAll('.shortmenumeals, .shortmenucats, .shortmenurecipes').forEach(el => {
+      if (el.classList.contains('shortmenumeals')) {
+        currentMeal = { meal: el.textContent.trim(), categories: [] };
+        meals.push(currentMeal);
+        currentCategory = null;
+      } else if (el.classList.contains('shortmenucats') && currentMeal) {
+        const catName = el.textContent.replace(/--/g, '').trim();
+        currentCategory = { name: catName, items: [] };
+        currentMeal.categories.push(currentCategory);
+      } else if (el.classList.contains('shortmenurecipes') && currentCategory) {
+        const dish = el.textContent.trim();
+        if (dish) currentCategory.items.push(dish);
+      }
+    });
+
+    return meals;
+  }
+
+  async function ensureTodaysDiningMenus() {
+    const todayKey = new Date().toDateString();
+    if (diningCache.date === todayKey && diningCache[80] && diningCache[30]) {
+      return diningCache;
+    }
+
+    const [hocoRes, phillyRes] = await Promise.all([
+      browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 80, locationName: 'Holloway Commons' }),
+                                                   browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 30, locationName: 'Philbrook' })
+    ]);
+
+    diningCache = {
+      date: todayKey,
+      80: (hocoRes && hocoRes.success) ? parseMenuHtml(hocoRes.html) : [],
+                                    30: (phillyRes && phillyRes.success) ? parseMenuHtml(phillyRes.html) : []
+    };
+
+    return diningCache;
+  }  async function fetchGradescopeData() {
     const gsTasksByCourse = {};
     const gsGradesByCourse = {};
 
@@ -3460,6 +3549,10 @@
       return;
     }
 
+    if (currentTab === 'food') {
+      renderDiningView(listContainer);
+      return;
+    }
     let allFilteredTasks = [];
 
     Object.keys(cachedCourseMap).forEach(courseKey => {
@@ -3614,9 +3707,75 @@
       }
     }
   }
+  // --- DINING VIEW RENDERING ---
+  async function renderDiningView(listContainer) {
+    if (activeDiningHall !== 80 && activeDiningHall !== 30) {
+      activeDiningHall = 80;
+    }
 
-  // --- ANNOUNCEMENTS TAB RENDERING ---
-  // --- ANNOUNCEMENTS TAB RENDERING ---
+    listContainer.innerHTML = `
+    <div class="dining-header-controls">
+    <div class="dining-hall-pills">
+    <button type="button" class="dining-pill ${activeDiningHall === 80 ? 'active' : ''}" data-hall="80">HoCo</button>
+    <button type="button" class="dining-pill ${activeDiningHall === 30 ? 'active' : ''}" data-hall="30">Philly</button>
+    </div>
+    </div>
+    <div id="dining-menu-body">
+    <div class="mod-empty-msg">Loading today's menus...</div>
+    </div>
+    `;
+
+    function renderActiveHall(data) {
+      const menuBody = document.getElementById('dining-menu-body');
+      if (!menuBody) return;
+
+      const meals = data[activeDiningHall] || [];
+      if (meals.length === 0) {
+        menuBody.innerHTML = '<div class="mod-empty-msg">No menu posted today or dining hall is closed.</div>';
+        return;
+      }
+
+      menuBody.innerHTML = '';
+      meals.forEach(meal => {
+        const mealCard = document.createElement('div');
+        mealCard.className = 'dining-meal-card';
+
+        let categoriesHtml = '';
+        (meal.categories || []).forEach(cat => {
+          if (!cat.items || cat.items.length === 0) return;
+          categoriesHtml += `
+          <div class="dining-station-group">
+          <div class="dining-station-title">${escapeHTML(cat.name)}</div>
+          <ul class="dining-item-list">
+          ${cat.items.map(item => `<li>${escapeHTML(item)}</li>`).join('')}
+          </ul>
+          </div>
+          `;
+        });
+
+        mealCard.innerHTML = `
+        <div class="dining-meal-header">
+        <span class="dining-meal-name">${escapeHTML(meal.meal)}</span>
+        </div>
+        <div class="dining-stations-wrap">${categoriesHtml || '<div class="mod-empty-msg">No items listed.</div>'}</div>
+        `;
+        menuBody.appendChild(mealCard);
+      });
+    }
+
+    const pills = listContainer.querySelectorAll('.dining-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeDiningHall = parseInt(pill.getAttribute('data-hall'), 10);
+        renderActiveHall(diningCache);
+      });
+    });
+
+    const data = await ensureTodaysDiningMenus();
+    renderActiveHall(data);
+  }  // --- ANNOUNCEMENTS TAB RENDERING ---
   function renderAnnouncementsView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 

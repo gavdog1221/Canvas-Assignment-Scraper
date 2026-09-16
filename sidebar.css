@@ -219,6 +219,77 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; color: #ffffff !important;
   box-shadow: 0 0 12px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
+/* ==========================================================================
+ *  THEME SWATCH PALETTE DOCK
+ *  ========================================================================== */
+.theme-dock-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.theme-dock-flyout {
+  position: absolute !important;
+  top: 50% !important;
+  right: 100% !important;
+  transform: translateY(-50%) scale(0.8) !important;
+  margin-right: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: rgba(18, 18, 22, 0.95) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  padding: 4px 7px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  z-index: 100 !important;
+}
+
+/* Invisible hover-bridge preventing accidental close across the 6px gap */
+.theme-dock-flyout::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  left: 100% !important;
+  width: 14px !important;
+}
+
+/* Open state triggers either via click (.is-open) OR steady hover */
+.theme-dock-wrap.is-open .theme-dock-flyout,
+.theme-dock-wrap:hover .theme-dock-flyout,
+.theme-dock-flyout:hover {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(-50%) scale(1) !important;
+}
+.theme-gem-btn {
+  width: 17px !important;
+  height: 17px !important;
+  border-radius: 50% !important;
+  background: var(--gem-color) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.theme-gem-btn:hover {
+  transform: scale(1.3) !important;
+  box-shadow: 0 0 10px var(--gem-color) !important;
+  border-color: #ffffff !important;
+}
+
+.theme-gem-btn.active {
+  border-color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 10px var(--gem-color) !important;
+  transform: scale(1.15) !important;
+}
 .eye-badge {
   position: absolute !important; top: -3px !important; right: -3px !important; width: 7px !important; height: 7px !important;
   border-radius: 50% !important; background: var(--primary-accent) !important;
@@ -1382,4 +1453,104 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 .pill-remove:hover {
   color: #ff453a !important;
   background: rgba(255, 69, 58, 0.25) !important;
+}
+/* ==========================================================================
+ *  DINING / FOOD TAB
+ *  ========================================================================== */
+.dining-header-controls {
+  display: flex !important;
+  justify-content: center !important;
+  margin-bottom: 12px !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.dining-hall-pills {
+  display: flex !important;
+  gap: 5px !important;
+  background: rgba(0, 0, 0, 0.25) !important;
+  padding: 3px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.dining-pill {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-secondary) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 5px 14px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+.dining-pill:hover {
+  color: #ffffff !important;
+}
+
+.dining-pill.active {
+  background: var(--accent-soft) !important;
+  color: var(--primary-accent) !important;
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+.dining-meal-card {
+  background: var(--card-bg) !important;
+  backdrop-filter: blur(16px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 18px !important;
+  padding: 14px 16px !important;
+  margin-bottom: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+.dining-meal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 10px !important;
+}
+
+.dining-meal-name {
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.4px !important;
+  color: var(--primary-accent) !important;
+  text-transform: uppercase !important;
+}
+
+.dining-stations-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.dining-station-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+}
+
+.dining-station-title {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  text-transform: uppercase !important;
+  color: var(--gold) !important;
+}
+
+.dining-item-list {
+  margin: 0 !important;
+  padding-left: 18px !important;
+  color: var(--text-primary) !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+}
+
+.dining-item-list li {
+  margin-bottom: 2px !important;
 }
