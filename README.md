@@ -1,25 +1,57 @@
-# YACE (Yet Another Canvas Extension)
+# YACE — modular source + esbuild pipeline
 
-> **YACE** — *Yet Another Canvas Extension*[cite: 2]
+This is the original `content.js` (4,393 lines, single IIFE, ~90 functions)
+split into 25 ES modules under `src/content/`, plus the untouched
+`background.js`, `manifest.json` (updated to load `dist/content.js`), and
+`sidebar.css`.
 
-A power-user browser extension that scrapes module-embedded files, unifies Gradescope deadlines, integrates campus dining menus, and replaces the native Canvas sidebar with a cyber-deck HUD.[cite: 2, 7]
+The split was generated mechanically from the original file: every top-level
+function was extracted with its original body untouched except for one
+change — references to the old closure-scoped `let` variables (`currentTab`,
+`cachedCourseMap`, `whatIfScores`, etc.) were rewritten to `state.<name>`,
+where `state` is the shared mutable store in `src/content/state.js` (see
+comment at the top of that file for why a plain object is used instead of
+`let` exports). Every generated file has been syntax-checked with
+`node --check`, and every `import { ... } from '...'` has been verified
+against the real `export` statements in its target file.
 
-## Features
+## Build
 
-- **Unified Timeline:** Canvas + Gradescope merged into a single schedule.[cite: 2]
-- **Custom Assignment Maker:** Create custom tasks (readings, personal to-dos, job applications) directly alongside Canvas coursework.[cite: 2] Includes Google Calendar–style recurrence (daily, weekly on specific days, monthly), customizable end conditions, optional point values, notes, custom color pickers, and pin-to-top toggles.[cite: 2] Accessible via the ➕ button or by pressing `n`.[cite: 2]
-- **Weekly Progress HUD:** Tracks Monday-to-Sunday task completion accompanied by celebratory confetti milestones.[cite: 2]
-- **7-Day Workload Strip:** Live, interactive density strip showcasing task distribution over the next 7 days for quick day-by-day filtering.[cite: 1, 4]
-- **Radial Horizon Scope:** An interactive pie-menu popover embedded in the search dock to scope deadlines by horizon: Today (1D), 1 Week (1W), 2 Weeks (2W), 1 Month (1M), or All Horizons (∞).[cite: 6]
-- **Inline View Navigation & Live Date:** Glass navigation buttons allowing fast toggling between Due, Overdue, Done, Grades, News, and Food views, paired with the live formatted current date in the header.[cite: 5, 6]
-- **Consolidated Course Filtering:** Quick dropdown selector integrated into the search dock to filter tasks and grades down to single courses without dashboard clutter.[cite: 5, 6]
-- **UNH Dining Dashboard:** Live daily menu scraping for Holloway Commons (HoCo) and Philbrook (Philly) featuring an instantaneous three-column Breakfast/Lunch/Dinner layout.[cite: 6, 7] Defaults to showing just daily entrées ("The Daily Dish" / "Main Line Left") with an expansion toggle for the full station catalog.[cite: 6]
-- **What-If Grade Simulator & GPA Hero:** Live letter grade distributions, real-time GPA calculation, and an interactive What-If score simulation matrix.[cite: 1, 4]
-- **In-Tab Document Viewer:** Fast-preview assignment PDFs in an embedded frosted glass modal without cluttering local downloads.[cite: 2]
-- **Gradescope Direct Actions:** One-click launch directly to Gradescope submission drawers.[cite: 2]
-- **Vim / Power-User Navigation:** Navigate via `j`/`k`, toggle completion status with `x`, preview files with `v`, download with `d`, launch Gradescope uploads with `u`, focus search with `/`, and create custom tasks with `n`.[cite: 2, 4]
-- **Smart Title Cleanup:** Module files and assignment titles (e.g., `RevisedA2.pdf`, `Lab_01_v2_FINAL.docx`) are automatically parsed and sanitized into readable names.[cite: 2]
-- **Pin to Top:** Star ⭐ any assignment to pin it to the top of any view, regardless of due date.[cite: 2]
-- **Announcements & Inbox Hub:** Aggregates course announcements and unread Canvas conversations into a dedicated tab with neon notification badges.[cite: 2, 4]
-- **Theme Tint Switcher:** Switch between Liquid Blue, Orchid Glass, Mint Glass, and Graphite Glass via the top controls.[cite: 1, 4]
-- **Minimize to Edge:** Collapse the entire HUD to a slim arrow tab pinned to the screen margin, and slide it back out with one click.[cite: 2]
+```bash
+npm install
+npm run build     # one-shot, minified, no sourcemap -> dist/content.js
+npm run watch      # rebuilds on save, inline sourcemap, for `about:debugging`
+```
+
+`dist/` is not checked in here — run `npm run build` (or `npm run watch`)
+once before loading the extension.
+
+## Loading in Firefox for development
+
+1. `npm install && npm run watch` (leave this running in a terminal)
+2. `about:debugging#/runtime/this-firefox` → "Load Temporary Add-on…" → select
+   this folder's `manifest.json`
+3. After each source edit, esbuild rewrites `dist/content.js` automatically
+   (watch mode) — but Firefox does **not** auto-reload temporary extensions,
+   so click "Reload" on the extension card in `about:debugging` to pick up
+   the new bundle.
+4. Before packaging for AMO, run `npm run build` (prod mode) instead — it
+   strips the inline sourcemap and minifies.
+
+## Directory map
+
+```
+src/content/
+├── index.js                 entry point / bootstrap
+├── constants.js              storage keys, palettes, THEMES
+├── state.js                  shared mutable store
+├── services/                 network calls (Canvas API, dining API, task-load orchestration)
+├── storage/                  localStorage get/set pairs (caches, starred, hidden courses, custom assignments...)
+├── utils/                    pure helpers (colors, dates, text parsing, grade math)
+├── components/                reusable UI pieces (PDF modal, assignment modal, confetti, widget shell)
+├── views/                     the 5 tab renderers (upcoming, grades, dining, general, announcements)
+└── handlers/                  keyboard shortcut controller
+```
+
+See the accompanying chat message for the full function → file mapping and
+the reasoning behind each module boundary.

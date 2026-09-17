@@ -1,0 +1,274 @@
+import { state } from '../state.js';
+import { ensureTodaysDiningMenus, getDiningHallStatus } from '../services/dining-api.js';
+import { escapeHTML } from '../utils/text.js';
+
+export function isDefaultMainStation(name, hallNum) {
+    if (!name) return false;
+    const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (hallNum === 30) {
+      return clean.includes('mainlineleft') || clean.includes('mainline');
+    }
+    return clean.includes('dailydish') || clean.includes('mainline');
+  }
+
+export function cleanStationLabel(st) {
+    let clean = st.replace(/^--\s*|\s*--$/g, '')
+    .replace(/^The\s+/i, '')
+    .replace(/Specialties|Creations|Station|Bar\b/gi, '')
+    .trim();
+    const map = {
+      'Holloway Deli': 'Deli',
+      'Vegan': 'Vegan',
+      'Corner': 'Corner',
+      'Daily Dish': 'Daily Dish',
+      'Allergen Friendly': 'Allergen',
+      'Soup and More': 'Soups',
+      'Pasta': 'Pasta',
+      'Desserts': 'Desserts',
+      'Breakfast Nook': 'Breaky',
+      'Main Line Left': 'Main Line',
+      'Grill Specialty': 'Grill'
+    };
+    return map[clean] || clean;
+  }
+
+export async function renderDiningView(listContainer) {
+    if (state.activeDiningHall !== 80 && state.activeDiningHall !== 30) {
+      state.activeDiningHall = 80;
+    }
+
+    listContainer.innerHTML = `
+    <div class="dining-header-controls">
+    <div class="dining-hall-pills">
+    <button type="button" class="dining-pill ${state.activeDiningHall === 80 ? 'active' : ''}" data-hall="80">HoCo</button>
+    <button type="button" class="dining-pill ${state.activeDiningHall === 30 ? 'active' : ''}" data-hall="30">Philly</button>
+    </div>
+
+    <!-- VisionOS Radial Pie Trigger -->
+    <div class="dining-station-pie-wrap" id="dining-station-pie-wrap">
+    <button type="button" class="dining-pie-trigger" id="dining-pie-trigger" title="Hover to change station">
+    <span class="pie-trigger-label" id="dining-pie-label">Dish</span>
+    <span class="pie-trigger-caret">▾</span>
+    </button>
+    <div class="dining-radial-menu" id="dining-radial-menu"></div>
+    </div>
+    </div>
+
+    <div id="dining-menu-body">
+    <div class="mod-empty-msg">Loading today's menus...</div>
+    </div>
+    `;
+
+    function renderActiveHall(data) {
+      const menuBody = document.getElementById('dining-menu-body');
+      const pieMenu = document.getElementById('dining-radial-menu');
+      const pieLabel = document.getElementById('dining-pie-label');
+      const pieWrap = document.getElementById('dining-station-pie-wrap');
+      if (!menuBody) return;
+
+      menuBody.innerHTML = '';
+      const meals = (data && data[state.activeDiningHall]) ? data[state.activeDiningHall] : [];
+
+      const statusBanner = document.createElement('div');
+      statusBanner.className = 'dining-status-banner';
+      statusBanner.innerHTML = `
+      <span class="status-indicator-dot"></span>
+      <span class="status-indicator-text">Checking hours...</span>
+      `;
+      menuBody.appendChild(statusBanner);
+
+      getDiningHallStatus(state.activeDiningHall, meals).then(statusInfo => {
+        statusBanner.className = `dining-status-banner ${statusInfo.isOpen ? 'is-open' : 'is-closed'}`;
+        statusBanner.querySelector('.status-indicator-text').textContent = statusInfo.label;
+      });
+
+      if (meals.length === 0) {
+        if (pieWrap) pieWrap.style.display = 'none';
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'mod-empty-msg';
+        emptyMsg.innerText = 'No menu posted today or dining hall is closed.';
+        menuBody.appendChild(emptyMsg);
+        return;
+      }
+
+      if (pieWrap) pieWrap.style.display = 'inline-flex';
+
+      // Scan all unique station names present today
+      const allStationsSet = new Set();
+      meals.forEach(m => {
+        (m.categories || []).forEach(c => {
+          if (c.name && c.items && c.items.length > 0) {
+            allStationsSet.add(c.name);
+          }
+        });
+      });
+
+      const uniqueStations = Array.from(allStationsSet);
+      const defaultStationName = state.activeDiningHall === 30 ? 'Main Line Left' : 'The Daily Dish';
+
+      // Update the trigger button text
+      if (pieLabel) {
+        if (state.activeStationFilter === '__DEFAULT__') {
+          pieLabel.textContent = state.activeDiningHall === 30 ? 'Main Line' : 'Daily Dish';
+        } else if (state.activeStationFilter === 'ALL') {
+          pieLabel.textContent = 'All Items';
+        } else {
+          const short = cleanStationLabel(state.activeStationFilter);
+          pieLabel.textContent = short.length > 9 ? `${short.slice(0, 8)}…` : short;
+        }
+      }
+
+      // Build Radial Pie Slices
+      if (pieMenu) {
+        pieMenu.innerHTML = '';
+        const pieOptions = [
+          { key: '__DEFAULT__', label: state.activeDiningHall === 30 ? 'Main' : 'Daily', title: defaultStationName },
+          { key: 'ALL', label: 'All', title: 'All Stations' },
+          ...uniqueStations.map(st => ({
+            key: st,
+            label: cleanStationLabel(st),
+                                       title: st
+          }))
+        ];
+        const totalSlices = pieOptions.length;
+        const angleStep = 360 / totalSlices;
+
+        // Decorative Plate Center Hub
+        const centerHub = document.createElement('div');
+        centerHub.className = 'dining-plate-center-hub';
+        centerHub.innerHTML = `<span>🍽️</span>`;
+        pieMenu.appendChild(centerHub);
+
+        pieOptions.forEach((opt, idx) => {
+          const sliceBtn = document.createElement('button');
+          sliceBtn.type = 'button';
+          const isSelected = state.activeStationFilter === opt.key;
+          sliceBtn.className = `dining-pie-slice ${isSelected ? 'active' : ''}`;
+          sliceBtn.title = opt.title;
+
+          sliceBtn.style.setProperty('--slice-rot', `${idx * angleStep}deg`);
+          sliceBtn.style.setProperty('--slice-skew', `${Math.max(0, 90 - angleStep)}deg`);
+
+          // Calculate radial coordinates along the recessed inner well of the plate
+          const midAngleDeg = (idx * angleStep) + (angleStep / 2) - 90;
+          const midAngleRad = (midAngleDeg * Math.PI) / 180;
+          const radius = 104; // Positioned right along the rim slope
+          const labelX = Math.round(140 + radius * Math.cos(midAngleRad));
+          const labelY = Math.round(140 + radius * Math.sin(midAngleRad));
+          sliceBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.activeStationFilter = opt.key;
+            if (pieWrap) pieWrap.classList.add('is-closed');
+            renderActiveHall(state.diningCache);
+          });
+          pieMenu.appendChild(sliceBtn);
+
+          // Direct upright label pinned to plate rim
+          const labelEl = document.createElement('span');
+          labelEl.className = `dining-plate-label ${isSelected ? 'active' : ''}`;
+          labelEl.textContent = opt.label;
+          labelEl.style.left = `${labelX}px`;
+          labelEl.style.top = `${labelY}px`;
+          labelEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sliceBtn.click();
+          });
+          pieMenu.appendChild(labelEl);
+        });
+        if (pieWrap) {
+          pieWrap.addEventListener('mouseleave', () => {
+            pieWrap.classList.remove('is-closed');
+          });
+        }
+      }
+
+      const stackContainer = document.createElement('div');
+      stackContainer.className = 'dining-rows-stack';
+      let totalVisibleDishes = 0;
+
+      meals.forEach(meal => {
+        let visibleCats = (meal.categories || []).filter(cat => cat.items && cat.items.length > 0);
+
+        if (state.activeStationFilter === '__DEFAULT__') {
+          visibleCats = visibleCats.filter(cat => isDefaultMainStation(cat.name, state.activeDiningHall));
+        } else if (state.activeStationFilter !== 'ALL') {
+          visibleCats = visibleCats.filter(cat => cat.name.toLowerCase() === state.activeStationFilter.toLowerCase());
+        }
+
+        if (visibleCats.length === 0 && state.activeStationFilter !== 'ALL') {
+          return;
+        }
+
+        const mealRow = document.createElement('div');
+        mealRow.className = 'dining-meal-row';
+
+        let categoriesHtml = '';
+        visibleCats.forEach(cat => {
+          totalVisibleDishes += cat.items.length;
+          categoriesHtml += `
+          <div class="dining-station-group">
+          <div class="dining-station-title">${escapeHTML(cat.name)}</div>
+          <ul class="dining-item-list">
+          ${cat.items.map(dishObj => {
+            const name = typeof dishObj === 'string' ? dishObj : dishObj.name;
+            const traits = (dishObj && dishObj.traits) || [];
+            const badgeHtml = traits.map(t => {
+              if (t === 'vgn') return '<span class="diet-dot vgn" title="Vegan">VG</span>';
+              if (t === 'veg') return '<span class="diet-dot veg" title="Vegetarian">V</span>';
+              if (t === 'gf') return '<span class="diet-dot gf" title="Gluten-Friendly">GF</span>';
+              if (t === 'halal') return '<span class="diet-dot halal" title="Halal">H</span>';
+              return '';
+            }).join('');
+
+            return `<li><span class="dish-name-text">${escapeHTML(name)}</span>${badgeHtml ? `<span class="diet-badges">${badgeHtml}</span>` : ''}</li>`;
+          }).join('')}
+          </ul>
+          </div>
+          `;
+        });
+
+        mealRow.innerHTML = `
+        <div class="dining-meal-header">
+        <span class="dining-meal-name">${escapeHTML(meal.meal)}</span>
+        ${meal.hours ? `<span class="dining-meal-hours">${escapeHTML(meal.hours)}</span>` : ''}
+        </div>
+        <div class="dining-stations-wrap">
+        ${categoriesHtml || '<div class="dining-empty-sub">No items available.</div>'}
+        </div>
+        `;
+        stackContainer.appendChild(mealRow);
+      });
+
+      if (totalVisibleDishes === 0) {
+        const noItems = document.createElement('div');
+        noItems.className = 'mod-empty-msg';
+        const displayStation = state.activeStationFilter === '__DEFAULT__' ? defaultStationName : state.activeStationFilter;
+        noItems.innerHTML = `No items found under "<strong>${escapeHTML(displayStation)}</strong>".<br><span style="color:var(--primary-accent); cursor:pointer; font-size:11px; font-weight:700; margin-top:6px; display:inline-block;" id="dining-reset-all">Show All Stations ↗</span>`;
+        menuBody.appendChild(noItems);
+
+        const resetBtn = noItems.querySelector('#dining-reset-all');
+        if (resetBtn) {
+          resetBtn.addEventListener('click', () => {
+            state.activeStationFilter = 'ALL';
+            renderActiveHall(state.diningCache);
+          });
+        }
+      } else {
+        menuBody.appendChild(stackContainer);
+      }
+    }
+
+    const pills = listContainer.querySelectorAll('.dining-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        state.activeDiningHall = parseInt(pill.getAttribute('data-hall'), 10);
+        state.activeStationFilter = '__DEFAULT__'; // Resets to hall's main dish
+        renderActiveHall(state.diningCache);
+      });
+    });
+
+    const data = await ensureTodaysDiningMenus();
+    renderActiveHall(data);
+  }

@@ -2,15 +2,18 @@
   "manifest_version": 2,
   "name": "YACE: Yet Another Canvas Extension",
   "version": "3.0",
-  "description": "YACE — Yet Another Canvas Extension. Unifies Canvas assignments, PDFs, Gradescope tasks, and announcements into a cyber-deck HUD.",
-"permissions": [
+  "description": "YACE \u2014 Yet Another Canvas Extension. Unifies Canvas assignments, PDFs, Gradescope tasks, and announcements into a cyber-deck HUD.",
+  "permissions": [
     "https://mycourses.unh.edu/*",
     "https://www.gradescope.com/*",
     "https://unh.instructure.com/*",
     "*://foodpro.unh.edu/*",
     "https://www.unh.edu/*"
-  ],  "background": {
-    "scripts": ["background.js"]
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
   },
   "content_scripts": [
     {
@@ -20,8 +23,12 @@
         "https://mycourses.unh.edu/courses",
         "https://unh.instructure.com/*"
       ],
-      "js": ["content.js"],
-      "css": ["sidebar.css"],
+      "js": [
+        "dist/content.js"
+      ],
+      "css": [
+        "sidebar.css"
+      ],
       "run_at": "document_idle"
     }
   ],

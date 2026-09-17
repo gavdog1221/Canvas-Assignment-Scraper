@@ -1,0 +1,105 @@
+import { state } from '../state.js';
+import { STORAGE_KEY_SEEN_ANNOUNCEMENTS } from '../constants.js';
+import { getCourseColors } from '../utils/colors.js';
+import { escapeHTML } from '../utils/text.js';
+
+export function getSeenAnnouncements() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_SEEN_ANNOUNCEMENTS) || '{}');
+    } catch { return {}; }
+  }
+
+export function markAnnouncementsSeen() {
+    const seen = getSeenAnnouncements();
+    (state.cachedAnnouncements || []).forEach(a => { seen[a.id] = true; });
+    localStorage.setItem(STORAGE_KEY_SEEN_ANNOUNCEMENTS, JSON.stringify(seen));
+  }
+
+export function updateAnnouncementBadge() {
+    const badge = document.getElementById('announce-badge');
+    if (!badge) return;
+    const seen = getSeenAnnouncements();
+    const unseenCount = (state.cachedAnnouncements || []).filter(a => !seen[a.id]).length;
+    const total = unseenCount + (state.cachedUnreadInboxCount || 0);
+
+    if (total > 0) {
+      badge.style.display = 'inline-flex';
+      badge.innerText = total > 9 ? '9+' : String(total);
+      badge.title = `${unseenCount} new announcement${unseenCount === 1 ? '' : 's'}, ${state.cachedUnreadInboxCount} unread inbox message${state.cachedUnreadInboxCount === 1 ? '' : 's'}`;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+export function renderAnnouncementsView(listContainer, hiddenCourses) {
+    listContainer.innerHTML = '';
+
+    let items = (state.cachedAnnouncements || []).filter(a => !hiddenCourses.includes(a.courseKey));
+
+    if (state.activeCourseFilter !== 'ALL') {
+      items = items.filter(a => a.courseKey === state.activeCourseFilter);
+    }
+    if (state.searchQuery) {
+      items = items.filter(a =>
+      a.title.toLowerCase().includes(state.searchQuery) ||
+      (a.message || '').toLowerCase().includes(state.searchQuery)
+      );
+    }
+
+    if (items.length === 0) {
+      listContainer.innerHTML = state.searchQuery
+      ? `<div class="mod-empty-msg">No announcements match "${escapeHTML(state.searchQuery)}"</div>`
+      : '<div class="mod-empty-msg">📭 No recent announcements.</div>';
+      return;
+    }
+
+    const seen = getSeenAnnouncements();
+    const now = Date.now();
+
+    items.forEach(item => {
+      const card = document.createElement('div');
+      const isUnseen = !seen[item.id];
+      const isFresh = !!item.postedAt && (now - item.postedAt.getTime()) < 48 * 60 * 60 * 1000;
+
+      const coursePalette = getCourseColors(item.courseKey, item.canvasCourseId);
+      card.style.setProperty('--task-course-accent', coursePalette.accent);
+      card.style.setProperty('--task-course-glow', coursePalette.glow);
+      card.style.setProperty('--task-course-soft', coursePalette.soft);
+
+      card.className = `announcement-card ${isFresh ? 'announcement-fresh' : ''} ${isUnseen ? 'announcement-unseen' : ''}`;
+
+      const dateStr = item.postedAt
+      ? item.postedAt.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      : '';
+      const rawMsg = item.message || '';
+      const isLong = rawMsg.length > 140;
+      const snippet = isLong ? `${rawMsg.slice(0, 140)}…` : rawMsg;
+
+      card.innerHTML = `
+      <div class="announcement-top-row">
+      <span class="course-tag-chip">${escapeHTML(item.courseKey)}</span>
+      ${isFresh ? '<span class="badge-tag announce-new-pill"><span class="pulsing-dot"></span>NEW</span>' : ''}
+      <span class="announcement-date">${escapeHTML(dateStr)}</span>
+      </div>
+      <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${escapeHTML(item.title)}</a>
+      ${snippet ? `<div class="announcement-snippet">${escapeHTML(snippet)}</div>` : ''}
+      ${isLong ? `
+        <div class="announcement-full-msg">${escapeHTML(rawMsg)}</div>
+        <button type="button" class="announcement-expand-btn" title="Read full announcement">▼</button>
+        ` : ''}
+        `;
+
+        if (isLong) {
+          const expandBtn = card.querySelector('.announcement-expand-btn');
+          expandBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const isExpanded = card.classList.toggle('is-expanded');
+            expandBtn.innerText = isExpanded ? '▲' : '▼';
+            expandBtn.title = isExpanded ? 'Show less' : 'Read full announcement';
+          });
+        }
+
+        listContainer.appendChild(card);
+    });
+  }

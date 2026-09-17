@@ -1,0 +1,14 @@
+{
+  "name": "yace-canvas-extension",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs --prod",
+    "watch": "node build.mjs --watch",
+    "dev": "node build.mjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
