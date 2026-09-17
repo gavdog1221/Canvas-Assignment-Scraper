@@ -764,16 +764,62 @@ let activeCourseFilter = 'ALL';
     }
   }
 
+  // --- DYNAMIC "CURRENT TERM" DETECTION ---
+  // Deliberately computed from today's date every time this runs, rather
+  // than a hardcoded season/year, so the extension doesn't need a manual
+  // code edit every semester. This is used as a NAME-BASED FALLBACK for
+  // sources that don't expose real term dates (Gradescope's dashboard
+  // markup), and as a secondary check for Canvas courses whose term data
+  // is missing. Wherever real term start/end dates ARE available (Canvas's
+  // API), prefer isCourseInActiveTermWindow() below instead — matching a
+  // course's actual enrollment term is far more reliable than guessing
+  // from whatever text happens to be in its name.
+  function getCurrentSemesterInfo(date = new Date()) {
+    const month = date.getMonth(); // 0 = Jan
+    const year = date.getFullYear();
+    // Rough (but generous) US academic-calendar boundaries. A few weeks of
+    // overlap on either side is intentional slack, not precision: this is
+    // only ever a fallback guess, never the sole source of truth.
+    let season;
+    if (month <= 4) season = 'spring';        // Jan – May
+    else if (month <= 6) season = 'summer';   // Jun – Jul
+    else season = 'fall';                     // Aug – Dec
+    return { season, year, shortYear: String(year).slice(-2) };
+  }
+
   function isCurrentSemesterCourse(name) {
     if (!name) return false;
     const str = name.toLowerCase();
-    if (str.includes('spring') || str.includes('sp26') || str.includes('sp25') || str.includes('2025') || str.includes('2024')) {
-      return false;
-    }
-    if (/fall\s*2026|fa\s*26|f26|fall\s*26/i.test(str)) {
-      return true;
-    }
-    return !/spring|summer|winter|fall/i.test(str);
+
+    // No semester/year token in the name at all (very common — plenty of
+    // instructors just call it "ECE541" with no term tag) → nothing to
+    // exclude it on, so treat it as current rather than guessing wrong.
+    const hasAnyTermToken = /\b(spring|summer|winter|fall|sp|su|fa|wi)\s*['’]?\s*\d{2,4}\b|\b20\d{2}\b/i.test(str);
+    if (!hasAnyTermToken) return true;
+
+    const { season, year, shortYear } = getCurrentSemesterInfo();
+    const seasonAliases = { spring: ['spring', 'sp'], summer: ['summer', 'su'], fall: ['fall', 'fa'], winter: ['winter', 'wi'] };
+    const aliasGroup = seasonAliases[season].join('|');
+    const currentTermRegex = new RegExp(`\\b(?:${aliasGroup})\\s*['’]?\\s*(?:${year}|${shortYear})\\b`, 'i');
+    if (currentTermRegex.test(str)) return true;
+
+    // Named, but tagged with a term other than the current one → exclude.
+    return false;
+  }
+
+  // Prefer this whenever Canvas gives us real term data (include[]=term).
+  // A course counts as "current" if today falls inside its enrollment
+  // term's date range, with a couple weeks of slack on each side to cover
+  // early access before the official start and grading/finals after the
+  // official end.
+  function isCourseInActiveTermWindow(course) {
+    const term = course && course.term;
+    if (!term || (!term.start_at && !term.end_at)) return null; // unknown — let caller fall back
+    const GRACE_MS = 21 * 24 * 60 * 60 * 1000; // 3 weeks
+    const now = Date.now();
+    const start = term.start_at ? new Date(term.start_at).getTime() - GRACE_MS : -Infinity;
+    const end = term.end_at ? new Date(term.end_at).getTime() + GRACE_MS : Infinity;
+    return now >= start && now <= end;
   }
 
   function normalizeCourseCode(name) {
@@ -1524,6 +1570,7 @@ let activeCourseFilter = 'ALL';
     <button type="button" class="hud-view-btn" data-tab="overdue">Overdue <span class="hud-tab-badge" id="hud-overdue-badge" style="display:none;"></span><span id="overdue-total-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="completed">Done</button>
     <button type="button" class="hud-view-btn" data-tab="grades">Grades</button>
+    <button type="button" class="hud-view-btn" data-tab="general">Info</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="food">Food</button>
     </div>    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
@@ -2660,19 +2707,28 @@ let activeCourseFilter = 'ALL';
     try {
       const gradescopePromise = fetchGradescopeData();
 
+      // Pull EVERY actively-enrolled course, not just ones the student has
+      // starred as a favorite — favoriting is a manual, easy-to-forget step,
+      // and relying on it silently drops legitimate current courses from
+      // the scan. include[]=term gets us real start/end dates so "current"
+      // can be determined from actual enrollment data instead of guessing
+      // from the course's name. per_page is generous (100) so no course
+      // gets truncated off a large course list.
       let courses = [];
-      const favRes = await fetch(`${origin}/api/v1/users/self/favorites/courses?include[]=total_scores`, {
+      const courseRes = await fetch(`${origin}/api/v1/courses?enrollment_state=active&include[]=total_scores&include[]=term&include[]=syllabus_body&per_page=100`, {
         credentials: 'include',
         headers: headers
       });
-      if (favRes.ok) courses = await favRes.json();
+      if (courseRes.ok) courses = await courseRes.json();
 
+      // Fallback only if that somehow comes back empty (e.g. a permissions
+      // quirk) — favorites is better than nothing.
       if (!courses || courses.length === 0) {
-        const courseRes = await fetch(`${origin}/api/v1/courses?enrollment_state=active&include[]=total_scores&per_page=25`, {
+        const favRes = await fetch(`${origin}/api/v1/users/self/favorites/courses?include[]=total_scores&include[]=term&include[]=syllabus_body`, {
           credentials: 'include',
           headers: headers
         });
-        if (courseRes.ok) courses = await courseRes.json();
+        if (favRes.ok) courses = await favRes.json();
       }
 
       if (showLoadingUI) {
@@ -2681,6 +2737,10 @@ let activeCourseFilter = 'ALL';
 
       const activeCourses = (courses || []).filter(course => {
         if (!course.id || course.access_restricted_by_date) return false;
+        // Real term dates take priority; only fall back to name-guessing
+        // when Canvas doesn't give us term info to work with.
+        const termWindowResult = isCourseInActiveTermWindow(course);
+        if (termWindowResult !== null) return termWindowResult;
         const rawName = course.course_code || course.name;
         return isCurrentSemesterCourse(rawName);
       });
@@ -2695,7 +2755,21 @@ let activeCourseFilter = 'ALL';
         courseNameById[c.id] = rawCourseName;
         const courseKey = normalizeCourseCode(rawCourseName);
         if (!unifiedCourseMap[courseKey]) {
-          unifiedCourseMap[courseKey] = { name: rawCourseName, canvasCourseId: c.id, tasks: [] };
+          const courseBaseUrl = `${origin}/courses/${c.id}`;
+          const syllabusText = (c.syllabus_body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          unifiedCourseMap[courseKey] = {
+            name: rawCourseName,
+            canvasCourseId: c.id,
+            tasks: [],
+            resources: {
+              hasSyllabusContent: syllabusText.length > 0,
+              syllabusUrl: `${courseBaseUrl}/assignments/syllabus`,
+              modulesUrl: `${courseBaseUrl}/modules`,
+              filesUrl: `${courseBaseUrl}/files`,
+              gradesUrl: `${courseBaseUrl}/grades`,
+              homeUrl: courseBaseUrl
+            }
+          };
         }
 
         if (Array.isArray(c.enrollments)) {
@@ -3739,6 +3813,11 @@ let activeCourseFilter = 'ALL';
       return;
     }
 
+    if (currentTab === 'general') {
+      renderGeneralView(listContainer, hiddenCourses);
+      return;
+    }
+
     if (currentTab === 'food') {
       renderDiningView(listContainer);
       return;
@@ -4168,7 +4247,74 @@ let activeCourseFilter = 'ALL';
 
     const data = await ensureTodaysDiningMenus();
     renderActiveHall(data);
-  } function renderAnnouncementsView(listContainer, hiddenCourses) {
+  }
+
+  // --- GENERAL TAB: syllabus + quick resource links, one card per
+  // currently-active course. Pulled straight from cachedCourseMap, which is
+  // rebuilt from Canvas's live, term-filtered course list every reload —
+  // so as courses come and go each semester, this tab follows automatically
+  // with no manual updates needed. ---
+  function renderGeneralView(listContainer, hiddenCourses) {
+    listContainer.innerHTML = '';
+
+    let courseKeys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k));
+
+    if (activeCourseFilter !== 'ALL') {
+      courseKeys = courseKeys.filter(k => k === activeCourseFilter);
+    }
+    if (searchQuery) {
+      courseKeys = courseKeys.filter(k => {
+        const c = cachedCourseMap[k];
+        return k.toLowerCase().includes(searchQuery) || (c.name || '').toLowerCase().includes(searchQuery);
+      });
+    }
+
+    // Only courses we actually have a Canvas id (and therefore real
+    // resource links) for — custom/manual tasks-only "courses" don't apply.
+    courseKeys = courseKeys.filter(k => cachedCourseMap[k] && cachedCourseMap[k].canvasCourseId);
+    courseKeys.sort((a, b) => (cachedCourseMap[a].name || a).localeCompare(cachedCourseMap[b].name || b));
+
+    if (courseKeys.length === 0) {
+      listContainer.innerHTML = searchQuery
+      ? `<div class="mod-empty-msg">No classes match "${escapeHTML(searchQuery)}"</div>`
+      : '<div class="mod-empty-msg">📚 No active classes found this term.</div>';
+      return;
+    }
+
+    courseKeys.forEach(key => {
+      const course = cachedCourseMap[key];
+      const res = course.resources || {};
+      const coursePalette = getCourseColors(key, course.canvasCourseId);
+
+      const card = document.createElement('div');
+      card.className = 'mod-task-card general-resource-card';
+      card.style.setProperty('--task-course-accent', coursePalette.accent);
+      card.style.setProperty('--task-course-glow', coursePalette.glow);
+      card.style.setProperty('--task-course-soft', coursePalette.soft);
+
+      const syllabusTitle = res.hasSyllabusContent ? 'Open Syllabus' : 'Open Syllabus (looks empty on Canvas, but check anyway)';
+
+      card.innerHTML = `
+      <div class="task-body">
+        <div class="task-title-row">
+          <span class="course-tag-chip">${escapeHTML(key)}</span>
+          <span class="mod-task-title general-course-name" title="${escapeHTML(course.name || key)}">${escapeHTML(course.name || key)}</span>
+        </div>
+        <div class="resource-links-row">
+          <a href="${res.syllabusUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill ${res.hasSyllabusContent ? '' : 'is-empty'}" title="${escapeHTML(syllabusTitle)}">📄 Syllabus</a>
+          <a href="${res.modulesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Modules">🗂 Modules</a>
+          <a href="${res.filesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Files">📁 Files</a>
+          <a href="${res.gradesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Grades">📊 Grades</a>
+          <a href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Home">🏠 Home</a>
+        </div>
+      </div>
+      `;
+
+      listContainer.appendChild(card);
+    });
+  }
+
+  function renderAnnouncementsView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 
     let items = (cachedAnnouncements || []).filter(a => !hiddenCourses.includes(a.courseKey));

@@ -891,6 +891,52 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 .download-pill { display: inline-flex !important; align-items: center !important; gap: 3px !important; font-size: 10px !important; font-weight: 700 !important; padding: 0 9px !important; border: none !important; background: transparent !important; color: var(--primary-accent) !important; text-decoration: none !important; white-space: nowrap !important; transition: all 0.15s ease !important; line-height: 1 !important; }
 .download-pill:hover { background: var(--primary-accent) !important; color: #000000 !important; }
 
+/* ==========================================================================
+ *  GENERAL TAB — per-course syllabus & resource links
+ *  ========================================================================== */
+.general-resource-card { align-items: center !important; }
+.general-course-name { cursor: default !important; }
+.general-course-name:hover { color: var(--text-primary) !important; }
+
+.resource-links-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  row-gap: 6px !important;
+  width: 100% !important;
+  margin-top: 2px !important;
+}
+
+.resource-link-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+  background: var(--task-course-soft) !important;
+  border: 1px solid var(--task-course-accent) !important;
+  color: var(--task-course-accent) !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+.resource-link-pill:hover {
+  background: var(--task-course-accent) !important;
+  color: #0b0b0d !important;
+  transform: translateY(-1px) !important;
+}
+.resource-link-pill.is-empty {
+  opacity: 0.55 !important;
+  border-style: dashed !important;
+}
+
+@container yace (max-width: 435px) {
+  .resource-link-pill { font-size: 9.5px !important; padding: 4px 8px !important; }
+}
+
 .badge-tag { font-size: 10px !important; padding: 3px 8px !important; border-radius: 999px !important; font-weight: 700 !important; letter-spacing: 0.2px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
 .badge-tag.today, .badge-tag.tomorrow { background: rgba(255, 69, 58, 0.2) !important; color: #ffb4ae !important; border: 1px solid rgba(255, 69, 58, 0.4) !important; }
 .badge-tag.overdue { background: rgba(255, 69, 58, 0.3) !important; color: #ffb4ae !important; border: 1px solid rgba(255, 69, 58, 0.5) !important; }
