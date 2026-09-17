@@ -28,6 +28,12 @@ min-width: 410px !important; max-width: 460px !important; width: 26vw !important
 max-height: calc(100vh - 48px) !important; overflow-y: auto !important; overflow-x: visible !important;
 z-index: 500 !important; box-sizing: border-box !important;
 transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease !important;
+/* Query context: lets descendants react to the PANEL's own rendered
+ * width (which only ranges ~410–460px) rather than the raw viewport.
+ * This is what actually differs between a large monitor (closer to the
+ * 460px ceiling) and a MacBook (pinned to the 410px floor). */
+container-type: inline-size !important;
+container-name: yace !important;
 }
 #right-side-wrapper::-webkit-scrollbar { width: 0 !important; }
 
@@ -786,24 +792,30 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   align-items: center !important;
   justify-content: space-between !important;
   gap: 6px !important;
+  row-gap: 5px !important;
   width: 100% !important;
   min-width: 0 !important;
+  flex-wrap: wrap !important;
 }
 
 .task-meta-left {
   display: inline-flex !important;
   align-items: center !important;
+  flex-wrap: wrap !important;
+  row-gap: 4px !important;
   gap: 6px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
-  overflow: hidden !important;
 }
 
 .task-meta-right {
   display: inline-flex !important;
   align-items: center !important;
+  flex-wrap: wrap !important;
+  row-gap: 4px !important;
   gap: 4px !important;
-  flex-shrink: 0 !important;
+  flex-shrink: 1 !important;
+  justify-content: flex-end !important;
   margin-left: auto !important;
 }
 
@@ -909,7 +921,7 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 }
 .announcement-card:hover { background: rgba(255, 255, 255, 0.09) !important; transform: translateX(2px) translateY(-2px) !important; border-color: var(--task-course-accent) !important; box-shadow: var(--shadow-card-hover), 0 0 16px var(--task-course-glow) !important; }
 .announcement-card.announcement-unseen { border-left-width: 4px !important; }
-.announcement-top-row { display: flex !important; align-items: center !important; gap: 7px !important; width: 100% !important; }
+.announcement-top-row { display: flex !important; align-items: center !important; flex-wrap: wrap !important; row-gap: 4px !important; gap: 7px !important; width: 100% !important; }
 .announcement-date { margin-left: auto !important; font-size: 11px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; flex-shrink: 0 !important; }
 .announcement-title { display: block !important; font-size: 13.5px !important; font-weight: 600 !important; color: var(--text-primary) !important; text-decoration: none !important; word-break: break-word !important; line-height: 1.35 !important; transition: color 0.15s ease !important; }
 .announcement-title:hover { color: var(--task-course-accent) !important; }
@@ -1293,6 +1305,7 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 .hud-view-btn {
   flex: 1 1 0% !important;
   min-width: 0 !important;
+  max-width: 100% !important;
   height: 28px !important;
   box-sizing: border-box !important;
   background: transparent !important;
@@ -1305,6 +1318,8 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   border-radius: 999px !important;
   cursor: pointer !important;
   white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -1354,7 +1369,42 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   color: var(--primary-accent) !important;
   font-size: 11px !important;
 }
-.hud-add-btn:hover .plus-icon { color: #000000 !important; }/* ==========================================================================
+.hud-add-btn:hover .plus-icon { color: #000000 !important; }
+
+/* ==========================================================================
+ *  RESPONSIVE SCALING — keyed off the PANEL's own rendered width (the
+ *  "yace" container, defined on #right-side-wrapper) rather than the
+ *  viewport. #right-side-wrapper is always ~410–460px wide regardless of
+ *  monitor size, but that ~50px difference is enough for content sized for
+ *  the 460px end (large external monitor) to overflow and visually overlap
+ *  at the 410px floor (a MacBook / any narrower or zoomed-in display).
+ *  These rules progressively reclaim space as the panel shrinks toward
+ *  that floor, and are a graceful upgrade on top of the wrap/ellipsis
+ *  fallbacks above — if a browser doesn't support container queries, the
+ *  layout still wraps safely instead of overlapping, just less tightly.
+ *  ========================================================================== */
+@container yace (max-width: 460px) {
+  .hud-view-btn { font-size: 11.5px !important; letter-spacing: -0.2px !important; }
+  .hud-add-btn { padding: 0 8px !important; }
+}
+
+@container yace (max-width: 435px) {
+  .hud-command-bar { padding: 4px 5px !important; gap: 4px !important; }
+  .hud-view-btn { font-size: 10.5px !important; padding: 0 !important; }
+  .hud-add-btn { padding: 0 7px !important; gap: 0 !important; }
+  .hud-add-btn .btn-text { display: none !important; } /* keep the ＋ icon, drop the "Task" label */
+  .course-tag-chip { max-width: 64px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  .mod-task-title { font-size: 12.5px !important; }
+  #module-tasks-widget { padding: 16px !important; }
+  .mod-task-card { padding: 10px 11px !important; gap: 9px !important; }
+}
+
+@container yace (max-width: 415px) {
+  .hud-view-btn { font-size: 9.5px !important; }
+  .badge-tag.points-chip { display: none !important; } /* least essential info; free width for tabs/pills first */
+}
+
+/* ==========================================================================
  *  HORIZONTAL FADE-MASKED COURSE STRIP
  *  ========================================================================== */
 /* ==========================================================================

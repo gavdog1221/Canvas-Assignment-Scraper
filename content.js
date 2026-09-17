@@ -1382,10 +1382,16 @@ let activeCourseFilter = 'ALL';
       return courseMap;
   }
 
+  // NOTE: intentionally never clearInterval() here. On the Dashboard route,
+  // Canvas's own sidebar ("To Do" / "Coming Up") is a React island that
+  // populates asynchronously and can re-render #right-side's contents from
+  // scratch once its own fetch resolves — wiping out anything injected
+  // earlier, even though #right-side itself keeps the same id. Leaving this
+  // interval running lets us notice the widget is missing and re-inject it,
+  // instead of giving up forever after the first successful injection.
   const checkInterval = setInterval(() => {
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
-      clearInterval(checkInterval);
       document.body.classList.add('with-right-side');
       scrapeCanvasDashboardColors();
       injectWidget(rightSide);
