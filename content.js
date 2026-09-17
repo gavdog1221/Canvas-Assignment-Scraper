@@ -21,8 +21,8 @@
   const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
   let currentTheme = localStorage.getItem(STORAGE_KEY_THEME) || 'cyan';
 
-let currentTab = 'upcoming';
-let activeCourseFilter = 'ALL';
+  let currentTab = 'upcoming';
+  let activeCourseFilter = 'ALL';
   let activeDayFilter = null;
   let assignmentRangeFilter = '2weeks'; // 'today' | 'week' | '2weeks' | 'month' | 'all'
   let searchQuery = '';
@@ -35,6 +35,8 @@ let activeCourseFilter = 'ALL';
   let cachedAnnouncements = [];
   let cachedUnreadInboxCount = 0;
   let isMinimized = localStorage.getItem(STORAGE_KEY_MINIMIZED) === 'true';
+  const STORAGE_KEY_TAKEOVER_MINIMIZED = 'canvas_mod_tasks_takeover_minimized_v1';
+  let isTakeoverMinimized = localStorage.getItem(STORAGE_KEY_TAKEOVER_MINIMIZED) === 'true';
 
   let selectedTaskIndex = -1;
   let cachedDiningMenu = null;
@@ -46,6 +48,7 @@ let activeCourseFilter = 'ALL';
   // the tab, course filter, day filter, or search changes.
   let showAllCompleted = false;
   let showAllOverdue = false;
+  let taskViewMode = 'grid'; // 'grid' | 'kanban' — Command Center Mode toggle for the Due tab
   let lastViewSignature = '';
   let gradesSortMode = 'recent'; // 'recent' | 'highest' | 'lowest'
 
@@ -432,7 +435,7 @@ let activeCourseFilter = 'ALL';
     });
   }
 
-  function openAssignmentModal(templateId = null) {
+  function openAssignmentModal(templateId = null, presetCourseKey = null) {
     const modal = ensureAssignmentModal();
     modal.setAttribute('data-theme', currentTheme);
     editingAssignmentId = templateId;
@@ -505,7 +508,9 @@ let activeCourseFilter = 'ALL';
       modal.querySelector('#am-notes').value = '';
       modal.querySelector('#am-pin-top').checked = false;
 
-      courseSelect.value = existingKeys.length ? existingKeys[0] : '__custom__';
+      courseSelect.value = (presetCourseKey && existingKeys.includes(presetCourseKey))
+      ? presetCourseKey
+      : (existingKeys.length ? existingKeys[0] : '__custom__');
       courseCustom.classList.toggle('am-hidden', courseSelect.value !== '__custom__');
       courseCustom.value = '';
 
@@ -760,6 +765,34 @@ let activeCourseFilter = 'ALL';
             child.remove();
           }
         }
+      });
+    }
+
+    // --- FULL DASHBOARD TAKEOVER: sweep away the native card grid, header,
+    // activity stream, and right-side rail every pass. This is a JS-side
+    // backstop; the CSS (body.yace-takeover ...) does the actual hiding so
+    // it survives Canvas's own React re-renders without a visible flash,
+    // but we also mark these nodes so nothing sneaks back into layout if a
+    // future Canvas markup change slips past the CSS selectors. Elements
+    // are hidden, never removed — safe if the user un-collapses YACE.
+    if (document.body.classList.contains('yace-takeover')) {
+      const contentRoot = document.getElementById('content');
+      if (contentRoot) {
+        Array.from(contentRoot.children).forEach(child => {
+          if (child.id !== 'module-tasks-widget') {
+            child.setAttribute('data-yace-hidden', 'true');
+          }
+        });
+      }
+      const nativeDashboardSelectors = [
+        '#DashboardCard_Container',
+        '.ic-Dashboard-header',
+        '.ic-Dashboard-tabs',
+        '#dashboard-activity',
+        '#right-side-wrapper'
+      ];
+      document.querySelectorAll(nativeDashboardSelectors.join(',')).forEach(el => {
+        el.setAttribute('data-yace-hidden', 'true');
       });
     }
   }
@@ -1428,14 +1461,47 @@ let activeCourseFilter = 'ALL';
       return courseMap;
   }
 
-  // NOTE: intentionally never clearInterval() here. On the Dashboard route,
-  // Canvas's own sidebar ("To Do" / "Coming Up") is a React island that
-  // populates asynchronously and can re-render #right-side's contents from
-  // scratch once its own fetch resolves — wiping out anything injected
-  // earlier, even though #right-side itself keeps the same id. Leaving this
-  // interval running lets us notice the widget is missing and re-inject it,
+  // --- DASHBOARD ROUTE DETECTION ---
+  // True on Canvas's actual dashboard/home page (the card-grid page), false
+  // on individual course pages, assignment pages, etc. On the dashboard,
+  // YACE takes over the whole page in place of the native card grid; on
+  // every other page it still just docks into the right-hand sidebar.
+  function isDashboardRoute() {
+    return !!(
+      document.getElementById('DashboardCard_Container') ||
+      document.querySelector('.ic-Dashboard-header') ||
+      document.querySelector('.ic-Dashboard-tabs') ||
+      document.body.classList.contains('dashboard')
+    );
+  }
+
+  // NOTE: intentionally never clearInterval() here. Canvas's dashboard is a
+  // React app that re-renders its own containers (card grid, right sidebar)
+  // asynchronously and can wipe out anything injected earlier, even though
+  // the containers themselves keep the same ids. Leaving this interval
+  // running lets us notice the widget is missing (or that Canvas's native
+  // dashboard chrome has re-rendered itself back in) and re-take-over,
   // instead of giving up forever after the first successful injection.
   const checkInterval = setInterval(() => {
+    if (isDashboardRoute()) {
+      const contentRoot = document.getElementById('content');
+      if (!contentRoot) return;
+
+      document.body.classList.remove('with-right-side');
+      document.body.classList.add('yace-dashboard-page');
+      document.body.classList.toggle('yace-takeover', !isTakeoverMinimized);
+
+      scrapeCanvasDashboardColors();
+      if (!document.getElementById('module-tasks-widget')) {
+        injectWidget(contentRoot);
+      }
+      purgeDefaultCanvasElements();
+      return;
+    }
+
+    // Not the dashboard (e.g. a course page) — fall back to the classic
+    // docked sidebar widget inside Canvas's own right-hand rail.
+    document.body.classList.remove('yace-dashboard-page', 'yace-takeover');
     const rightSide = document.getElementById('right-side');
     if (rightSide && !document.getElementById('module-tasks-widget')) {
       document.body.classList.add('with-right-side');
@@ -1468,6 +1534,27 @@ let activeCourseFilter = 'ALL';
   }
 
   function setWidgetMinimized(minimized, skipStorage = false) {
+    const widget = document.getElementById('module-tasks-widget');
+    const inTakeover = !!(widget && widget.parentElement && widget.parentElement.id === 'content');
+
+    if (inTakeover) {
+      // Full dashboard takeover mode: "minimize" temporarily brings back
+      // Canvas's native dashboard instead of floating a docked panel.
+      isTakeoverMinimized = minimized;
+      if (!skipStorage) {
+        localStorage.setItem(STORAGE_KEY_TAKEOVER_MINIMIZED, String(minimized));
+      }
+
+      document.body.classList.toggle('yace-takeover', !minimized);
+      if (minimized) {
+        document.querySelectorAll('[data-yace-hidden="true"]').forEach(el => el.removeAttribute('data-yace-hidden'));
+      }
+
+      const restoreTab = ensureRestoreTab();
+      restoreTab.classList.toggle('is-visible', minimized);
+      return;
+    }
+
     isMinimized = minimized;
     if (!skipStorage) {
       localStorage.setItem(STORAGE_KEY_MINIMIZED, String(minimized));
@@ -1565,10 +1652,20 @@ let activeCourseFilter = 'ALL';
 
     <!-- View Tabs + Add Task Bar -->
     <div class="hud-command-bar">
+    <!-- Command Center Mode only -->
+    <div class="cc-gpa-hero" id="cc-gpa-hero">
+    <span class="cc-gpa-hero-label">Overall GPA</span>
+    <span class="cc-gpa-hero-value" id="cc-gpa-hero-value">—</span>
+    <span class="cc-gpa-hero-sub" id="cc-gpa-hero-sub">No grades posted yet</span>
+    </div>
+    <div class="cc-course-dock" id="cc-course-dock">
+    <span class="cc-course-dock-label">Active Courses</span>
+    </div>
     <div class="hud-view-buttons">
     <button type="button" class="hud-view-btn active" data-tab="upcoming">Due</button>
     <button type="button" class="hud-view-btn" data-tab="overdue">Overdue <span class="hud-tab-badge" id="hud-overdue-badge" style="display:none;"></span><span id="overdue-total-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="completed">Done</button>
+    <button type="button" class="hud-view-btn" data-tab="hub">Hub</button>
     <button type="button" class="hud-view-btn" data-tab="grades">Grades</button>
     <button type="button" class="hud-view-btn" data-tab="general">Info</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
@@ -1580,12 +1677,30 @@ let activeCourseFilter = 'ALL';
 
     <div id="module-tasks-list">
     <div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>
-    </div>    `;
+    </div>
+
+    <!-- Command Center Mode only: analytics & resources rail. Hidden via
+    CSS whenever the widget is docked in Canvas's own right-side rail. -->
+    <div class="cc-right-panel" id="cc-right-panel">
+    <div class="cc-panel-section">
+    <div class="cc-panel-section-title"><span>🍽 Today's Dining</span></div>
+    <div id="cc-dining-highlights"><div class="cc-panel-empty">Loading menus…</div></div>
+    </div>
+    <div class="cc-panel-section">
+    <div class="cc-panel-section-title"><span>🔗 Course Resources</span></div>
+    <div id="cc-course-resources"><div class="cc-panel-empty">No active classes yet.</div></div>
+    </div>
+    <div class="cc-panel-section">
+    <div class="cc-panel-section-title"><span>📣 Recent Announcements</span></div>
+    <div id="cc-recent-announcements"><div class="cc-panel-empty">Nothing new.</div></div>
+    </div>
+    </div>
+    `;
 
     container.prepend(widget);
 
     ensureRestoreTab();
-    setWidgetMinimized(isMinimized, true);
+    setWidgetMinimized(container.id === 'content' ? isTakeoverMinimized : isMinimized, true);
 
     const minimizeBtn = document.getElementById('minimize-widget-btn');
     if (minimizeBtn) {
@@ -1723,47 +1838,47 @@ let activeCourseFilter = 'ALL';
         renderCurrentView();
       });
     });      setInterval(() => {
-        if (document.getElementById('module-tasks-widget')) {
-          updateProgressBar();
-          renderCurrentView();
-        }
-      }, 30000);
-
-      const cachedGradesLocal = loadLocalGradesCache();
-      if (cachedGradesLocal) {
-        cachedGrades = cachedGradesLocal;
-      }
-      cachedCoursePercentages = loadCoursePercentagesCache();
-
-      const cachedAnnouncementsLocal = loadLocalAnnouncementsCache();
-      if (cachedAnnouncementsLocal) {
-        cachedAnnouncements = cachedAnnouncementsLocal;
-      }
-      updateAnnouncementBadge();
-
-      const cached = loadLocalCache();
-      const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
-      const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
-
-      if (cached && Object.keys(cached).length > 0) {
-        cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
-        applyCustomDueDates();
-        autoCompleteSubmittedTasks(cachedCourseMap);
-        mergeCustomTasksIntoCourseMap(cachedCourseMap);
-        renderFilterPills();
-        updateHiddenMenuButton();
+      if (document.getElementById('module-tasks-widget')) {
         updateProgressBar();
-        renderWorkloadStrip();
         renderCurrentView();
-
-        if (!isCacheFresh) {
-          loadTasks(false);
-        }
-      } else {
-        loadTasks(true);
       }
+    }, 30000);
 
-      initKeyboardShortcuts();
+    const cachedGradesLocal = loadLocalGradesCache();
+    if (cachedGradesLocal) {
+      cachedGrades = cachedGradesLocal;
+    }
+    cachedCoursePercentages = loadCoursePercentagesCache();
+
+    const cachedAnnouncementsLocal = loadLocalAnnouncementsCache();
+    if (cachedAnnouncementsLocal) {
+      cachedAnnouncements = cachedAnnouncementsLocal;
+    }
+    updateAnnouncementBadge();
+
+    const cached = loadLocalCache();
+    const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
+    const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
+
+    if (cached && Object.keys(cached).length > 0) {
+      cachedCourseMap = deduplicateCourseMap(cached, cachedGrades);
+      applyCustomDueDates();
+      autoCompleteSubmittedTasks(cachedCourseMap);
+      mergeCustomTasksIntoCourseMap(cachedCourseMap);
+      renderFilterPills();
+      updateHiddenMenuButton();
+      updateProgressBar();
+      renderWorkloadStrip();
+      renderCurrentView();
+
+      if (!isCacheFresh) {
+        loadTasks(false);
+      }
+    } else {
+      loadTasks(true);
+    }
+
+    initKeyboardShortcuts();
   }
 
   // --- KEYBOARD SHORTCUT NAVIGATION CONTROLLER ---
@@ -2763,11 +2878,12 @@ let activeCourseFilter = 'ALL';
             tasks: [],
             resources: {
               hasSyllabusContent: syllabusText.length > 0,
-              syllabusUrl: `${courseBaseUrl}/assignments/syllabus`,
-              modulesUrl: `${courseBaseUrl}/modules`,
-              filesUrl: `${courseBaseUrl}/files`,
-              gradesUrl: `${courseBaseUrl}/grades`,
-              homeUrl: courseBaseUrl
+              syllabusSnippet: syllabusText.slice(0, 240),
+                            syllabusUrl: `${courseBaseUrl}/assignments/syllabus`,
+                            modulesUrl: `${courseBaseUrl}/modules`,
+                            filesUrl: `${courseBaseUrl}/files`,
+                            gradesUrl: `${courseBaseUrl}/grades`,
+                            homeUrl: courseBaseUrl
             }
           };
         }
@@ -3062,7 +3178,183 @@ let activeCourseFilter = 'ALL';
       });
       document.addEventListener('click', () => menu.classList.remove('open'));
     }
-  }  function createTaskCard(task, now, completedMap) {
+
+    // Command Center Mode left-rail/right-panel companions — cheap no-ops
+    // when their containers aren't in the DOM (docked sidebar mode).
+    renderCourseDock();
+    renderGpaHero();
+    renderRightPanel();
+  }
+
+  // --- COMMAND CENTER MODE: LEFT RAIL — active-courses pill-dock ---
+  function renderCourseDock() {
+    const dock = document.getElementById('cc-course-dock');
+    if (!dock) return;
+    dock.querySelectorAll('.cc-course-pill').forEach(el => el.remove());
+
+    const hiddenCourses = getHiddenCourses();
+    const keys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k)).sort();
+
+    if (keys.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'cc-panel-empty';
+      empty.innerText = 'No active classes yet.';
+      dock.appendChild(empty);
+      return;
+    }
+
+    keys.forEach(k => {
+      const palette = getCourseColors(k, cachedCourseMap[k] && cachedCourseMap[k].canvasCourseId);
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = `cc-course-pill ${activeCourseFilter === k ? 'active' : ''}`;
+      pill.style.setProperty('--course-accent', palette.accent);
+      pill.style.setProperty('--course-soft', palette.soft);
+      pill.innerHTML = `<span class="cc-pill-dot" style="background:${palette.accent}; color:${palette.accent};"></span><span>${escapeHTML(k)}</span>`;
+      pill.addEventListener('click', () => {
+        activeCourseFilter = activeCourseFilter === k ? 'ALL' : k;
+        renderFilterPills();
+        renderCurrentView();
+      });
+      dock.appendChild(pill);
+    });
+  }
+
+  // --- COMMAND CENTER MODE: LEFT RAIL — GPA hero card ---
+  function renderGpaHero() {
+    const valueEl = document.getElementById('cc-gpa-hero-value');
+    const subEl = document.getElementById('cc-gpa-hero-sub');
+    if (!valueEl || !subEl) return;
+
+    const hiddenCourses = getHiddenCourses();
+    const coursePcts = computeCoursePercentagesWithWhatIf(hiddenCourses);
+    const gpaPoints = Object.values(coursePcts).filter(p => p !== null && !isNaN(p)).map(percentageToGpa).map(i => i.gpa);
+
+    if (gpaPoints.length === 0) {
+      valueEl.textContent = '—';
+      subEl.textContent = 'No grades posted yet';
+      return;
+    }
+
+    const avg = (gpaPoints.reduce((a, b) => a + b, 0) / gpaPoints.length).toFixed(2);
+    const hasWhatIfActive = Object.keys(whatIfScores).length > 0;
+    valueEl.textContent = avg;
+    subEl.textContent = `${gpaPoints.length} graded course${gpaPoints.length === 1 ? '' : 's'}${hasWhatIfActive ? ' · What-If' : ''}`;
+  }
+
+  // --- COMMAND CENTER MODE: RIGHT PANEL — dining, resources, announcements ---
+  async function renderRightPanel() {
+    const panel = document.getElementById('cc-right-panel');
+    if (!panel) return; // not mounted (docked sidebar mode) — nothing to do
+
+    renderRightPanelResources();
+    renderRightPanelAnnouncements();
+    await renderRightPanelDining();
+  }
+
+  function renderRightPanelResources() {
+    const el = document.getElementById('cc-course-resources');
+    if (!el) return;
+    el.innerHTML = '';
+
+    const hiddenCourses = getHiddenCourses();
+    const keys = Object.keys(cachedCourseMap)
+    .filter(k => !hiddenCourses.includes(k) && cachedCourseMap[k].canvasCourseId)
+    .sort((a, b) => (cachedCourseMap[a].name || a).localeCompare(cachedCourseMap[b].name || b));
+
+    if (keys.length === 0) {
+      el.innerHTML = '<div class="cc-panel-empty">No active classes yet.</div>';
+      return;
+    }
+
+    keys.forEach(k => {
+      const course = cachedCourseMap[k];
+      const res = course.resources || {};
+      const palette = getCourseColors(k, course.canvasCourseId);
+      const block = document.createElement('div');
+      block.className = 'cc-resource-course-block';
+      block.style.setProperty('--course-accent', palette.accent);
+      block.innerHTML = `
+      <div class="cc-resource-course-name">${escapeHTML(k)}</div>
+      <div class="cc-resource-links">
+      <a href="${res.syllabusUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Syllabus">📄</a>
+      <a href="${res.modulesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Modules">🗂</a>
+      <a href="${res.filesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Files">📁</a>
+      <a href="${res.gradesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Grades">📊</a>
+      </div>
+      `;
+      el.appendChild(block);
+    });
+  }
+
+  function renderRightPanelAnnouncements() {
+    const el = document.getElementById('cc-recent-announcements');
+    if (!el) return;
+    el.innerHTML = '';
+
+    const hiddenCourses = getHiddenCourses();
+    const items = (cachedAnnouncements || []).filter(a => !hiddenCourses.includes(a.courseKey)).slice(0, 5);
+
+    if (items.length === 0) {
+      el.innerHTML = '<div class="cc-panel-empty">Nothing new.</div>';
+      return;
+    }
+
+    items.forEach(item => {
+      const dateStr = item.postedAt ? item.postedAt.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+      const row = document.createElement('div');
+      row.className = 'cc-announce-mini';
+      row.innerHTML = `
+      <a class="cc-announce-mini-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${escapeHTML(item.title)}</a>
+      <span class="cc-announce-mini-meta">${escapeHTML(item.courseKey)}${dateStr ? ' · ' + escapeHTML(dateStr) : ''}</span>
+      `;
+      el.appendChild(row);
+    });
+  }
+
+  async function renderRightPanelDining() {
+    const el = document.getElementById('cc-dining-highlights');
+    if (!el) return;
+
+    try {
+      const data = await ensureTodaysDiningMenus();
+      el.innerHTML = '';
+
+      const halls = [{ num: 80, label: 'HoCo' }, { num: 30, label: 'Philly' }];
+      let any = false;
+
+      halls.forEach(hall => {
+        const meals = (data && data[hall.num]) ? data[hall.num] : [];
+        // Prefer the meal closest to "now" (falls back to the first meal
+        // posted today) so the highlight is actually relevant right now.
+        const nowHour = new Date().getHours();
+        let meal = meals.find(m => /lunch/i.test(m.meal)) && nowHour >= 10 && nowHour < 14
+        ? meals.find(m => /lunch/i.test(m.meal))
+        : (meals.find(m => /dinner/i.test(m.meal)) && nowHour >= 16 ? meals.find(m => /dinner/i.test(m.meal)) : meals[0]);
+        if (!meal) return;
+
+        const firstDish = (meal.categories || []).flatMap(c => c.items || [])[0];
+        if (!firstDish) return;
+
+        any = true;
+        const row = document.createElement('div');
+        row.className = 'cc-dining-highlight-item';
+        row.innerHTML = `
+        <span class="cc-dining-highlight-hall">${escapeHTML(hall.label)} · ${escapeHTML(meal.meal)}</span>
+        <span class="cc-dining-highlight-dish" title="${escapeHTML(firstDish.name)}">${escapeHTML(firstDish.name)}</span>
+        `;
+        el.appendChild(row);
+      });
+
+      if (!any) {
+        el.innerHTML = '<div class="cc-panel-empty">No menus posted today.</div>';
+      }
+    } catch (e) {
+      el.innerHTML = '<div class="cc-panel-empty">Could not load menus.</div>';
+    }
+  }
+
+  function createTaskCard(task, now, completedMap) {
     const isDone = !!completedMap[task.id];
     const isStarred = isTaskStarred(task.id);
     const card = document.createElement('div');
@@ -3761,6 +4053,76 @@ let activeCourseFilter = 'ALL';
     return card;
   }
 
+  // --- KANBAN / 7-DAY CALENDAR VIEW (Command Center Mode toggle on the
+  // Due tab) — buckets the already-filtered task list into Mon–Sun style
+  // day columns starting today, plus an overflow "Later" column for
+  // anything past the 7-day horizon (or undated). ---
+  function renderKanbanBoard(tasks, now, completedMap) {
+    const board = document.createElement('div');
+    board.className = 'kanban-board';
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      days.push({
+        dateKey: localDateKey(d),
+                dayLabel: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'long' }),
+                dateLabel: d.toLocaleDateString([], { month: 'short', day: 'numeric' }),
+                isToday: i === 0,
+                tasks: []
+      });
+    }
+    const later = { dateKey: null, dayLabel: 'Later / No Date', dateLabel: '', isToday: false, tasks: [] };
+
+    tasks.forEach(t => {
+      const ed = effectiveDueDate(t);
+      if (!ed) { later.tasks.push(t); return; }
+      const key = localDateKey(ed);
+      const bucket = days.find(d => d.dateKey === key);
+      if (bucket) bucket.tasks.push(t); else later.tasks.push(t);
+    });
+
+      [...days, later].forEach(col => {
+        const colEl = document.createElement('div');
+        colEl.className = `kanban-column ${col.isToday ? 'is-today' : ''}`;
+        const header = document.createElement('div');
+        header.className = 'kanban-col-header';
+        header.innerHTML = `<span class="kanban-col-day">${escapeHTML(col.dayLabel)}</span><span class="kanban-col-date">${escapeHTML(col.dateLabel)}${col.tasks.length ? ` · ${col.tasks.length}` : ''}</span>`;
+        colEl.appendChild(header);
+
+        if (col.tasks.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'kanban-empty-col';
+          empty.innerText = '—';
+          colEl.appendChild(empty);
+        } else {
+          col.tasks.forEach(task => {
+            const palette = getCourseColors(task.courseKey, task.canvasCourseId);
+            const isDone = !!completedMap[task.id];
+            const ed = effectiveDueDate(task);
+            const timeLabel = ed ? ed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+
+            const card = document.createElement('div');
+            card.className = `kanban-card ${isDone ? 'is-done' : ''}`;
+            card.style.setProperty('--task-course-accent', palette.accent);
+            card.title = task.title;
+            card.innerHTML = `
+            <span class="kanban-card-title">${escapeHTML(task.title)}</span>
+            <span class="kanban-card-meta"><span>${escapeHTML(task.courseKey || '')}</span><span>${escapeHTML(timeLabel)}</span></span>
+            `;
+            card.addEventListener('click', () => {
+              if (task.url) window.open(task.url, '_blank', 'noopener,noreferrer');
+            });
+              colEl.appendChild(card);
+          });
+        }
+
+        board.appendChild(colEl);
+      });
+
+      return board;
+  }
+
   function renderCurrentView() {
     const listContainer = document.getElementById('module-tasks-list');
     listContainer.innerHTML = '';
@@ -3815,6 +4177,11 @@ let activeCourseFilter = 'ALL';
 
     if (currentTab === 'general') {
       renderGeneralView(listContainer, hiddenCourses);
+      return;
+    }
+
+    if (currentTab === 'hub') {
+      renderCourseHubView(listContainer, hiddenCourses);
       return;
     }
 
@@ -3949,9 +4316,30 @@ let activeCourseFilter = 'ALL';
       }, starredMap));
 
       renderedCount = allFilteredTasks.length;
-      allFilteredTasks.forEach(task => {
-        listContainer.appendChild(createTaskCard(task, now, completedMap));
-      });
+
+      if (currentTab === 'upcoming') {
+        const toggleRow = document.createElement('div');
+        toggleRow.className = 'cc-view-toggle';
+        toggleRow.innerHTML = `
+        <button type="button" class="cc-view-toggle-btn ${taskViewMode === 'grid' ? 'active' : ''}" data-mode="grid">Grid</button>
+        <button type="button" class="cc-view-toggle-btn ${taskViewMode === 'kanban' ? 'active' : ''}" data-mode="kanban">7-Day Kanban</button>
+        `;
+        toggleRow.querySelectorAll('.cc-view-toggle-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            taskViewMode = btn.getAttribute('data-mode');
+            renderCurrentView();
+          });
+        });
+        listContainer.appendChild(toggleRow);
+      }
+
+      if (currentTab === 'upcoming' && taskViewMode === 'kanban' && allFilteredTasks.length > 0) {
+        listContainer.appendChild(renderKanbanBoard(allFilteredTasks, now, completedMap));
+      } else {
+        allFilteredTasks.forEach(task => {
+          listContainer.appendChild(createTaskCard(task, now, completedMap));
+        });
+      }
     }
 
     if (renderedCount === 0 && showBigEmptyState) {
@@ -4009,6 +4397,13 @@ let activeCourseFilter = 'ALL';
     return map[clean] || clean;
   }
   async function renderDiningView(listContainer) {
+    // Command Center Mode has the room to show every meal, at both halls,
+    // side-by-side at once — no need to force a single active hall/meal
+    // pick the way the compact docked-sidebar view has to.
+    if (document.body.classList.contains('yace-takeover')) {
+      return renderBigDiningDashboard(listContainer);
+    }
+
     if (activeDiningHall !== 80 && activeDiningHall !== 30) {
       activeDiningHall = 80;
     }
@@ -4249,6 +4644,102 @@ let activeCourseFilter = 'ALL';
     renderActiveHall(data);
   }
 
+  // --- COMMAND CENTER MODE: BIG DINING DASHBOARD — Breakfast/Lunch/Dinner
+  // rendered concurrently, HoCo and Philly side-by-side, full station
+  // catalogs with dietary badges. Replaces the single-hall/single-meal
+  // compact view only while the widget is in full-screen takeover mode. ---
+  const DIETARY_BADGE_LABELS = { vgn: 'VGN', veg: 'VEG', gf: 'GF', halal: 'HALAL' };
+
+  async function renderBigDiningDashboard(listContainer) {
+    listContainer.innerHTML = '<div class="mod-empty-msg">Loading today\'s menus for HoCo & Philly...</div>';
+
+    let data;
+    try {
+      data = await ensureTodaysDiningMenus();
+    } catch (e) {
+      listContainer.innerHTML = '<div class="mod-empty-msg">Could not reach dining menus right now.</div>';
+      return;
+    }
+
+    const halls = [
+      { num: 80, label: 'Holloway Commons (HoCo)' },
+                                    { num: 30, label: 'Philbrook (Philly)' }
+    ];
+    const mealOrder = ['breakfast', 'lunch', 'dinner'];
+
+    const shell = document.createElement('div');
+    shell.className = 'big-dining-shell';
+
+    const hallsWrap = document.createElement('div');
+    hallsWrap.className = 'big-dining-halls';
+
+    let anyMenuAtAll = false;
+
+    for (const hall of halls) {
+      const meals = (data && data[hall.num]) ? data[hall.num] : [];
+      const hallBlock = document.createElement('div');
+      hallBlock.className = 'big-dining-hall-block';
+
+      const statusInfo = await getDiningHallStatus(hall.num, meals);
+      hallBlock.innerHTML = `
+      <div class="big-dining-hall-header">
+      <span class="big-dining-hall-name">${escapeHTML(hall.label)}</span>
+      <span class="dining-status-banner ${statusInfo.isOpen ? 'is-open' : 'is-closed'}" style="padding:4px 10px;"><span class="status-indicator-dot"></span><span class="status-indicator-text">${escapeHTML(statusInfo.label)}</span></span>
+      </div>
+      `;
+
+      const mealsGrid = document.createElement('div');
+      mealsGrid.className = 'big-dining-meals-grid';
+
+      // Sort today's posted meals into Breakfast/Lunch/Dinner columns
+      // regardless of what order FoodPro happened to list them in.
+      mealOrder.forEach(mealKey => {
+        const meal = meals.find(m => (m.meal || '').toLowerCase().includes(mealKey));
+        const col = document.createElement('div');
+        col.className = 'big-dining-meal-col';
+
+        if (!meal) {
+          col.innerHTML = `<div class="big-dining-meal-name">${mealKey}</div><div class="dining-empty-sub">Not posted today.</div>`;
+          mealsGrid.appendChild(col);
+          return;
+        }
+
+        anyMenuAtAll = true;
+        const visibleCats = (meal.categories || []).filter(c => c.items && c.items.length > 0);
+        const stationsHtml = visibleCats.map(cat => `
+        <div class="big-dining-station">
+        <div class="big-dining-station-name">${escapeHTML(cleanStationLabel(cat.name))}</div>
+        ${cat.items.map(item => `
+          <div class="big-dining-dish-row">
+          <span>${escapeHTML(item.name)}</span>
+          ${(item.traits || []).map(t => `<span class="big-dining-badge">${escapeHTML(DIETARY_BADGE_LABELS[t] || t.toUpperCase())}</span>`).join('')}
+          </div>
+          `).join('')}
+          </div>
+          `).join('');
+
+          col.innerHTML = `
+          <div class="big-dining-meal-name">${escapeHTML(meal.meal)}${meal.hours ? ` <span style="opacity:0.6;font-weight:600;">(${escapeHTML(meal.hours)})</span>` : ''}</div>
+          ${stationsHtml || '<div class="dining-empty-sub">No items available.</div>'}
+          `;
+          mealsGrid.appendChild(col);
+      });
+
+      hallBlock.appendChild(mealsGrid);
+      hallsWrap.appendChild(hallBlock);
+    }
+
+    shell.appendChild(hallsWrap);
+    listContainer.innerHTML = '';
+
+    if (!anyMenuAtAll) {
+      listContainer.innerHTML = '<div class="mod-empty-msg">No menus posted for either dining hall today.</div>';
+      return;
+    }
+
+    listContainer.appendChild(shell);
+  }
+
   // --- GENERAL TAB: syllabus + quick resource links, one card per
   // currently-active course. Pulled straight from cachedCourseMap, which is
   // rebuilt from Canvas's live, term-filtered course list every reload —
@@ -4296,22 +4787,156 @@ let activeCourseFilter = 'ALL';
 
       card.innerHTML = `
       <div class="task-body">
-        <div class="task-title-row">
-          <span class="course-tag-chip">${escapeHTML(key)}</span>
-          <span class="mod-task-title general-course-name" title="${escapeHTML(course.name || key)}">${escapeHTML(course.name || key)}</span>
-        </div>
-        <div class="resource-links-row">
-          <a href="${res.syllabusUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill ${res.hasSyllabusContent ? '' : 'is-empty'}" title="${escapeHTML(syllabusTitle)}">📄 Syllabus</a>
-          <a href="${res.modulesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Modules">🗂 Modules</a>
-          <a href="${res.filesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Files">📁 Files</a>
-          <a href="${res.gradesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Grades">📊 Grades</a>
-          <a href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Home">🏠 Home</a>
-        </div>
+      <div class="task-title-row">
+      <span class="course-tag-chip">${escapeHTML(key)}</span>
+      <span class="mod-task-title general-course-name" title="${escapeHTML(course.name || key)}">${escapeHTML(course.name || key)}</span>
+      </div>
+      <div class="resource-links-row">
+      <a href="${res.syllabusUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill ${res.hasSyllabusContent ? '' : 'is-empty'}" title="${escapeHTML(syllabusTitle)}">📄 Syllabus</a>
+      <a href="${res.modulesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Modules">🗂 Modules</a>
+      <a href="${res.filesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Files">📁 Files</a>
+      <a href="${res.gradesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Grades">📊 Grades</a>
+      <a href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Course Home">🏠 Home</a>
+      </div>
       </div>
       `;
 
       listContainer.appendChild(card);
     });
+  }
+
+  // --- COURSE HUB ("Big Class View") — a comprehensive, large-format
+  // panel per enrolled class: current grade, next 3 upcoming assignments,
+  // syllabus snippet, direct resource links, and quick actions. ---
+  function renderCourseHubView(listContainer, hiddenCourses) {
+    listContainer.innerHTML = '';
+    listContainer.className = '';
+
+    let courseKeys = Object.keys(cachedCourseMap).filter(k => !hiddenCourses.includes(k) && cachedCourseMap[k].canvasCourseId);
+    if (activeCourseFilter !== 'ALL') {
+      courseKeys = courseKeys.filter(k => k === activeCourseFilter);
+    }
+    if (searchQuery) {
+      courseKeys = courseKeys.filter(k => {
+        const c = cachedCourseMap[k];
+        return k.toLowerCase().includes(searchQuery) || (c.name || '').toLowerCase().includes(searchQuery);
+      });
+    }
+    courseKeys.sort((a, b) => (cachedCourseMap[a].name || a).localeCompare(cachedCourseMap[b].name || b));
+
+    if (courseKeys.length === 0) {
+      listContainer.innerHTML = searchQuery
+      ? `<div class="mod-empty-msg">No classes match "${escapeHTML(searchQuery)}"</div>`
+      : '<div class="mod-empty-msg">📚 No active classes found this term.</div>';
+      return;
+    }
+
+    const now = new Date();
+    const completedMap = getCompletedTasks();
+    const coursePcts = computeCoursePercentagesWithWhatIf(hiddenCourses);
+
+    const grid = document.createElement('div');
+    grid.className = 'course-hub-grid';
+
+    courseKeys.forEach(key => {
+      const course = cachedCourseMap[key];
+      const res = course.resources || {};
+      const palette = getCourseColors(key, course.canvasCourseId);
+      const pct = coursePcts[key];
+      const hasGrade = pct !== null && pct !== undefined && !isNaN(pct);
+      const info = hasGrade ? percentageToGpa(pct) : null;
+      const barPct = hasGrade ? Math.max(0, Math.min(100, pct)) : 0;
+
+      const upcoming = (course.tasks || [])
+      .filter(t => !completedMap[t.id])
+      .filter(t => { const ed = effectiveDueDate(t); return ed && ed >= now; })
+      .sort((a, b) => effectiveDueDate(a) - effectiveDueDate(b))
+      .slice(0, 3);
+
+      const card = document.createElement('div');
+      card.className = 'course-hub-card';
+      card.style.setProperty('--course-accent', palette.accent);
+      card.style.setProperty('--course-glow', palette.glow);
+      card.style.setProperty('--course-soft', palette.soft);
+
+      const upcomingHtml = upcoming.length > 0
+      ? upcoming.map(t => {
+        const ed = effectiveDueDate(t);
+        const dateLabel = ed ? ed.toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+        const ptsLabel = (t.points !== null && t.points !== undefined) ? `${t.points} pts` : '';
+        const link = t.gradescopeUploadUrl || t.url || '#';
+        return `
+        <a class="chc-upcoming-row" href="${link}" target="_blank" rel="noopener noreferrer">
+        <span class="chc-upcoming-title" title="${escapeHTML(t.title)}">${escapeHTML(t.title)}</span>
+        <span class="chc-upcoming-meta">${escapeHTML(dateLabel)}${ptsLabel ? ' · ' + escapeHTML(ptsLabel) : ''}</span>
+        </a>`;
+      }).join('')
+      : '<div class="cc-panel-empty">Nothing upcoming — all caught up.</div>';
+
+      const syllabusHtml = res.hasSyllabusContent && res.syllabusSnippet
+      ? `<div class="chc-syllabus-snippet">${escapeHTML(res.syllabusSnippet)}${res.syllabusSnippet.length >= 240 ? '…' : ''}</div>`
+      : '<div class="chc-syllabus-snippet cc-panel-empty">No syllabus content posted yet.</div>';
+
+      card.innerHTML = `
+      <div class="chc-top-row">
+      <div>
+      <div class="chc-code">${escapeHTML(key)}</div>
+      <div class="chc-name">${escapeHTML(course.name || key)}</div>
+      </div>
+      <div class="chc-grade-wrap">
+      <div class="chc-grade-pct">${hasGrade ? pct.toFixed(1) + '%' : '—'}</div>
+      <div class="chc-grade-letter">${hasGrade ? info.letter : 'No grade yet'}</div>
+      </div>
+      </div>
+      <div class="chc-bar-bg"><div class="chc-bar-fill" style="width:${barPct}%"></div></div>
+
+      <div>
+      <div class="chc-section-label">Next Up</div>
+      <div class="chc-upcoming-list">${upcomingHtml}</div>
+      </div>
+
+      <div>
+      <div class="chc-section-label">Syllabus</div>
+      ${syllabusHtml}
+      </div>
+
+      <div class="chc-links-row">
+      <a href="${res.syllabusUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Syllabus">📄 Syllabus</a>
+      <a href="${res.modulesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Modules">🗂 Modules</a>
+      <a href="${res.filesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Files">📁 Files</a>
+      <a href="${res.gradesUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Grades">📊 Grades</a>
+      <a href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" class="resource-link-pill" title="Announcements">📣 Announcements</a>
+      </div>
+
+      <div class="chc-actions-row">
+      <button type="button" class="chc-action-btn primary" data-action="add-task">＋ Add Task to this Course</button>
+      <button type="button" class="chc-action-btn" data-action="simulate">⚡ Simulate Grade</button>
+      <button type="button" class="chc-action-btn" data-action="hide">🙈 Hide Course</button>
+      </div>
+      `;
+
+      card.querySelector('[data-action="add-task"]').addEventListener('click', () => openAssignmentModal(null, key));
+      card.querySelector('[data-action="simulate"]').addEventListener('click', () => {
+        activeCourseFilter = key;
+        currentTab = 'grades';
+        const widget = document.getElementById('module-tasks-widget');
+        if (widget) {
+          widget.querySelectorAll('.hud-view-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === 'grades'));
+        }
+        renderFilterPills();
+        renderCurrentView();
+      });
+      card.querySelector('[data-action="hide"]').addEventListener('click', () => {
+        if (confirm(`Hide ${key} from all views? You can unhide it any time from the 👁 menu.`)) {
+          hideCourse(key);
+          renderCourseHubView(listContainer, getHiddenCourses());
+        }
+      });
+
+      grid.appendChild(card);
+    });
+
+    listContainer.appendChild(grid);
   }
 
   function renderAnnouncementsView(listContainer, hiddenCourses) {

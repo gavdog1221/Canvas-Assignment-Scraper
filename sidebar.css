@@ -75,6 +75,398 @@ pointer-events: none !important;
 .ic-Layout-contentMain { margin-right: 0 !important; padding-right: 28px !important; }
 
 /* ==========================================================================
+ *  FULL DASHBOARD TAKEOVER MODE
+ *  On the actual Canvas dashboard (card-grid) page, YACE stops being a
+ *  docked sidebar panel and instead replaces the whole native dashboard —
+ *  header, "Card View / Recent Activity" tabs, the course card grid, and
+ *  the right-hand To Do / Coming Up rail all get hidden, and the widget is
+ *  mounted directly into #content at full page width. Nothing is deleted:
+ *  everything is hidden via CSS (and a matching data-yace-hidden attribute
+ *  as a JS backstop), so it comes right back if the user hits minimize.
+ *  ========================================================================== */
+body.yace-takeover #right-side-wrapper,
+body.yace-takeover #DashboardCard_Container,
+body.yace-takeover .ic-Dashboard-header,
+body.yace-takeover .ic-Dashboard-tabs,
+body.yace-takeover #dashboard-activity,
+body.yace-takeover #content > [data-yace-hidden="true"],
+body.yace-takeover #content > *:not(#module-tasks-widget) {
+  display: none !important;
+}
+
+body.yace-takeover .ic-Layout-columns { display: block !important; }
+
+body.yace-takeover #content {
+  display: block !important;
+  float: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  container-type: inline-size !important;
+  container-name: yace !important;
+}
+
+/* ==========================================================================
+ *  COMMAND CENTER MODE — big-screen dashboard cockpit shell.
+ *  Three real columns: a status/nav rail on the left, the flexible main
+ *  workspace in the middle, and an analytics/resources panel on the
+ *  right. This is a full-bleed replacement for the old "docked panel that
+ *  happens to be full width" layout — width is bounded around 1600–1800px
+ *  and centered, rather than pinned to a narrow rail.
+ *  ========================================================================== */
+body.yace-takeover #module-tasks-widget {
+  position: relative !important;
+  top: auto !important; right: auto !important; left: auto !important;
+  width: calc(100% - 32px) !important;
+  max-width: 1800px !important;
+  min-width: 0 !important;
+  margin: 28px auto 48px auto !important;
+  max-height: none !important;
+
+  /* --- COCKPIT SHELL: header spans the full width; below it, a left
+   * status rail (~280px), a flexible center workspace, and a right
+   * analytics/resources panel (~360px). Everything below is just
+   * re-slotting the SAME elements the widget build already creates plus a
+   * handful of new Command Center-only containers — nothing here changes
+   * what data is fetched or how tasks are modeled. */
+  display: grid !important;
+  grid-template-columns: 280px minmax(0, 1fr) 360px !important;
+  grid-template-rows: auto auto auto auto 1fr !important;
+  column-gap: 24px !important; row-gap: 0 !important;
+  align-items: start !important;
+  font-size: 14px !important;
+}
+
+body.yace-takeover #module-tasks-widget > .header            { grid-column: 1 / 4 !important; grid-row: 1 !important; }
+body.yace-takeover #module-tasks-widget > .workload-strip     { grid-column: 1 !important; grid-row: 2 !important; margin: 14px 0 14px 0 !important; }
+body.yace-takeover #module-tasks-widget > .search-bar-row     { grid-column: 2 !important; grid-row: 3 !important; margin: 0 0 16px 0 !important; }
+body.yace-takeover #module-tasks-widget > .progress-container { grid-column: 2 !important; grid-row: 4 !important; margin: 0 0 18px 0 !important; }
+body.yace-takeover #module-tasks-widget > .hud-command-bar    { grid-column: 1 !important; grid-row: 3 / 6 !important; }
+body.yace-takeover #module-tasks-widget > #module-tasks-list  { grid-column: 2 !important; grid-row: 5 !important; }
+body.yace-takeover #module-tasks-widget > .cc-right-panel     { grid-column: 3 !important; grid-row: 2 / 6 !important; }
+
+/* The popover no longer sits in normal document flow between .header and
+ * .workload-strip — float it under the eye button instead so it doesn't
+ * fight the grid for a cell of its own. */
+body.yace-takeover .hidden-courses-popover {
+  position: absolute !important;
+  top: 68px !important; right: 24px !important;
+  width: 300px !important; max-width: calc(100vw - 48px) !important;
+  z-index: 50 !important;
+  margin: 0 !important;
+}
+
+/* --- LEFT STATUS / NAV RAIL ---
+ * Holds (top to bottom): the active-courses pill-dock, the GPA hero card,
+ * the workload density strip (already grid-placed above it), the view
+ * switches, and the add-task button pinned to the bottom. The dock and
+ * hero are injected as the first two children of .hud-command-bar in
+ * Command Center Mode only — see renderCourseDock()/renderGpaHero(). */
+body.yace-takeover .hud-command-bar {
+  display: flex !important; flex-direction: column !important;
+  align-items: stretch !important; justify-content: flex-start !important;
+  gap: 14px !important;
+  height: auto !important;
+  padding: 16px 12px !important;
+  margin: 0 !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  border-radius: 20px !important;
+  position: sticky !important; top: 0 !important;
+  max-height: calc(100vh - 140px) !important;
+  overflow-y: auto !important;
+}
+body.yace-takeover .hud-view-buttons::before {
+  content: "Views" !important; display: block !important;
+  font-size: 10.5px !important; font-weight: 700 !important; letter-spacing: 0.6px !important;
+  text-transform: uppercase !important; color: var(--text-tertiary) !important;
+  padding: 0 4px 8px 4px !important;
+}
+body.yace-takeover .hud-view-buttons {
+  display: flex !important; flex-direction: column !important; gap: 4px !important;
+  width: 100% !important; height: auto !important;
+}
+body.yace-takeover .hud-view-btn {
+  display: flex !important; align-items: center !important; gap: 10px !important;
+  justify-content: flex-start !important;
+  flex: 0 0 auto !important;
+  width: 100% !important; max-width: 100% !important; height: 46px !important;
+  padding: 0 14px !important; font-size: 14px !important;
+  border-radius: 14px !important; text-align: left !important;
+}
+body.yace-takeover .hud-view-btn::before {
+  font-size: 16px !important; line-height: 1 !important; opacity: 0.9 !important;
+}
+body.yace-takeover .hud-view-btn[data-tab="upcoming"]::before { content: "📌"; }
+body.yace-takeover .hud-view-btn[data-tab="overdue"]::before { content: "⏰"; }
+body.yace-takeover .hud-view-btn[data-tab="completed"]::before { content: "✅"; }
+body.yace-takeover .hud-view-btn[data-tab="hub"]::before { content: "🏫"; }
+body.yace-takeover .hud-view-btn[data-tab="grades"]::before { content: "📊"; }
+body.yace-takeover .hud-view-btn[data-tab="general"]::before { content: "🗂"; }
+body.yace-takeover .hud-view-btn[data-tab="announcements"]::before { content: "📣"; }
+body.yace-takeover .hud-view-btn[data-tab="food"]::before { content: "🍽"; }
+body.yace-takeover .hud-add-btn {
+  width: 100% !important; height: 44px !important; justify-content: center !important;
+  margin-top: auto !important; flex: 0 0 auto !important; font-size: 14px !important;
+}
+
+/* Active-courses pill-dock (left rail) */
+.cc-course-dock { display: none; width: 100%; flex: 0 0 auto; }
+body.yace-takeover .cc-course-dock {
+  display: flex !important; flex-direction: column !important; gap: 6px !important; width: 100% !important;
+}
+.cc-course-dock-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--text-tertiary); padding: 0 4px 2px 4px;
+}
+.cc-course-pill {
+  display: flex !important; align-items: center !important; gap: 8px !important;
+  width: 100% !important; padding: 8px 10px !important; border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.04) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-secondary) !important; font-size: 12.5px !important; font-weight: 600 !important;
+  cursor: pointer !important; text-align: left !important; white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+.cc-course-pill:hover { background: rgba(255, 255, 255, 0.08) !important; color: var(--text-primary) !important; }
+.cc-course-pill.active {
+  background: var(--course-soft, var(--accent-soft)) !important;
+  border-color: var(--course-accent, var(--primary-accent)) !important;
+  color: var(--text-primary) !important;
+}
+.cc-pill-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 6px currentColor; }
+
+/* GPA hero mini-card (left rail) */
+.cc-gpa-hero { display: none; }
+body.yace-takeover .cc-gpa-hero {
+  display: flex !important; flex-direction: column !important; gap: 4px !important;
+  width: 100% !important; padding: 14px 16px !important; border-radius: 16px !important;
+  background: linear-gradient(160deg, var(--accent-soft), rgba(255,255,255,0.03)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.cc-gpa-hero-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-tertiary); }
+.cc-gpa-hero-value { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); line-height: 1.1; }
+.cc-gpa-hero-sub { font-size: 11.5px; color: var(--text-tertiary); font-weight: 600; }
+
+/* --- RIGHT ANALYTICS & RESOURCES PANEL --- */
+.cc-right-panel { display: none; }
+body.yace-takeover .cc-right-panel {
+  display: flex !important; flex-direction: column !important; gap: 16px !important;
+  width: 100% !important;
+  position: sticky !important; top: 0 !important;
+  max-height: calc(100vh - 60px) !important; overflow-y: auto !important;
+  padding-right: 2px !important;
+}
+.cc-panel-section {
+  background: rgba(255, 255, 255, 0.035) !important; border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 18px !important; padding: 14px 16px !important;
+}
+.cc-panel-section-title {
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  font-size: 12.5px !important; font-weight: 800 !important; letter-spacing: 0.3px !important;
+  color: var(--text-primary) !important; margin-bottom: 10px !important;
+}
+.cc-panel-section-title .cc-panel-link { font-size: 11px; font-weight: 700; color: var(--primary-accent); cursor: pointer; text-decoration: none; }
+.cc-panel-empty { font-size: 12px; color: var(--text-tertiary); padding: 4px 0; }
+
+.cc-dining-highlight-row { display: flex; flex-direction: column; gap: 8px; }
+.cc-dining-highlight-item {
+  display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important;
+  padding: 8px 10px !important; border-radius: 12px !important; background: rgba(255,255,255,0.03) !important;
+  font-size: 12px !important;
+}
+.cc-dining-highlight-hall { font-weight: 700; color: var(--text-primary); flex: 0 0 auto; }
+.cc-dining-highlight-dish { color: var(--text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+
+.cc-resource-course-block { margin-bottom: 10px; }
+.cc-resource-course-block:last-child { margin-bottom: 0; }
+.cc-resource-course-name { font-size: 12px; font-weight: 700; color: var(--course-accent, var(--text-primary)); margin-bottom: 6px; }
+.cc-resource-links { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.cc-announce-mini { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.cc-announce-mini:last-child { border-bottom: none; }
+.cc-announce-mini-title { font-size: 12px; font-weight: 700; color: var(--text-primary); display: block; text-decoration: none; }
+.cc-announce-mini-meta { font-size: 10.5px; color: var(--text-tertiary); font-weight: 600; }
+
+/* --- MAIN WORKSPACE: task/resource cards flow into a real multi-column
+ * grid instead of one long single-file list. Only kicks in for views made
+ * of .mod-task-card items (Due/Overdue/Done) — Hub, Grades, News, and Food
+ * build their own internal layouts and are left untouched. */
+body.yace-takeover #module-tasks-list:has(.mod-task-card) {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)) !important;
+  gap: 14px !important;
+  align-items: start !important;
+}
+body.yace-takeover .mod-task-card { margin-bottom: 0 !important; }
+
+/* Bigger surfaces read better with a bit more breathing room and larger
+ * type — scaling density up from compact-sidebar sizes toward normal
+ * desktop sizes. */
+body.yace-takeover #module-tasks-widget { padding: 28px 32px !important; }
+body.yace-takeover .header .title { font-size: 22px !important; }
+body.yace-takeover .mod-task-title { font-size: 15px !important; }
+body.yace-takeover .mod-task-card { padding: 16px !important; }
+body.yace-takeover .course-tag-chip { font-size: 11px !important; padding: 4px 9px !important; }
+body.yace-takeover .whatif-heading,
+body.yace-takeover .grades-heading { font-size: 16px !important; }
+body.yace-takeover .gpa-value { font-size: 30px !important; }
+body.yace-takeover .course-grades-grid,
+body.yace-takeover .dining-rows-stack { gap: 16px !important; }
+body.yace-takeover .hud-add-btn .btn-text,
+body.yace-takeover .icon-btn { font-size: 14px !important; }
+
+/* View-mode toggle (Grid / Kanban) shown above the Due list */
+.cc-view-toggle { display: none; }
+body.yace-takeover .cc-view-toggle {
+  display: inline-flex !important; align-items: center !important; gap: 2px !important;
+  background: rgba(255,255,255,0.05) !important; border-radius: 12px !important; padding: 3px !important;
+  margin-left: auto !important;
+}
+.cc-view-toggle-btn {
+  border: none !important; background: transparent !important; color: var(--text-tertiary) !important;
+  font-size: 12px !important; font-weight: 700 !important; padding: 6px 12px !important; border-radius: 9px !important;
+  cursor: pointer !important;
+}
+.cc-view-toggle-btn.active { background: var(--primary-accent) !important; color: #fff !important; }
+
+/* --- Kanban board (7-day columns) --- */
+.kanban-board {
+  display: grid !important; grid-template-columns: repeat(7, minmax(180px, 1fr)) !important;
+  gap: 12px !important; align-items: start !important; overflow-x: auto !important;
+}
+.kanban-column {
+  background: rgba(255,255,255,0.03) !important; border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 16px !important; padding: 10px !important; min-height: 120px !important;
+  display: flex !important; flex-direction: column !important; gap: 8px !important;
+}
+.kanban-column.is-today { border-color: var(--primary-accent) !important; background: var(--accent-soft) !important; }
+.kanban-col-header { display: flex; flex-direction: column; gap: 2px; padding: 2px 4px 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 2px; }
+.kanban-col-day { font-size: 12px; font-weight: 800; color: var(--text-primary); }
+.kanban-col-date { font-size: 10.5px; color: var(--text-tertiary); font-weight: 600; }
+.kanban-card {
+  background: rgba(255,255,255,0.05) !important; border-left: 3px solid var(--task-course-accent, var(--primary-accent)) !important;
+  border-radius: 10px !important; padding: 8px 10px !important; cursor: pointer !important;
+}
+.kanban-card.is-done { opacity: 0.5 !important; text-decoration: line-through !important; }
+.kanban-card-title { font-size: 12px; font-weight: 700; color: var(--text-primary); display: block; margin-bottom: 3px; }
+.kanban-card-meta { font-size: 10.5px; color: var(--text-tertiary); font-weight: 600; display: flex; justify-content: space-between; gap: 6px; }
+.kanban-empty-col { font-size: 10.5px; color: var(--text-tertiary); text-align: center; padding: 10px 0; opacity: 0.6; }
+@container yace (max-width: 1200px) {
+  .kanban-board { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+}
+
+/* --- Course Hub ("Big Class View") --- */
+.course-hub-grid {
+  display: grid !important; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)) !important;
+  gap: 18px !important; align-items: start !important;
+}
+.course-hub-card {
+  background: linear-gradient(165deg, var(--course-soft, var(--accent-soft)) 0%, rgba(20,20,26,0.4) 55%) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-left: 4px solid var(--course-accent, var(--primary-accent)) !important;
+  border-radius: 20px !important; padding: 18px 20px !important;
+  box-shadow: 0 0 0 1px transparent, 0 20px 40px -20px var(--course-glow, var(--accent-glow)) !important;
+  display: flex !important; flex-direction: column !important; gap: 14px !important;
+}
+.chc-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.chc-name { font-size: 16px; font-weight: 800; color: var(--text-primary); line-height: 1.25; }
+.chc-code { font-size: 11.5px; font-weight: 700; color: var(--course-accent, var(--primary-accent)); }
+.chc-grade-wrap { text-align: right; flex: 0 0 auto; }
+.chc-grade-pct { font-size: 22px; font-weight: 800; color: var(--text-primary); line-height: 1; }
+.chc-grade-letter { font-size: 12px; font-weight: 700; color: var(--text-tertiary); }
+.chc-bar-bg { width: 100%; height: 8px; border-radius: 5px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.chc-bar-fill { height: 100%; border-radius: 5px; background: var(--course-accent, var(--primary-accent)); }
+.chc-section-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+.chc-upcoming-list { display: flex; flex-direction: column; gap: 6px; }
+.chc-upcoming-row {
+  display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important;
+  padding: 8px 10px !important; border-radius: 10px !important; background: rgba(255,255,255,0.04) !important;
+  font-size: 12.5px !important; text-decoration: none !important; color: var(--text-primary) !important;
+}
+.chc-upcoming-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.chc-upcoming-meta { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--text-tertiary); }
+.chc-syllabus-snippet { font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-height: 3.2em; overflow: hidden; }
+.chc-links-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chc-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.chc-action-btn {
+  border: 1px solid rgba(255,255,255,0.14) !important; background: rgba(255,255,255,0.05) !important;
+  color: var(--text-primary) !important; font-size: 11.5px !important; font-weight: 700 !important;
+  padding: 7px 12px !important; border-radius: 10px !important; cursor: pointer !important;
+}
+.chc-action-btn:hover { background: rgba(255,255,255,0.1) !important; }
+.chc-action-btn.primary { background: var(--course-accent, var(--primary-accent)) !important; color: #fff !important; border-color: transparent !important; }
+
+/* --- Expanded What-If simulator: multi-column on wide screens --- */
+body.yace-takeover .whatif-matrix-card { padding: 20px !important; }
+body.yace-takeover .whatif-items-list {
+  display: grid !important; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  gap: 8px !important;
+}
+
+/* --- Big dining dashboard: HoCo & Philly side-by-side, all 3 meals at once --- */
+.big-dining-shell { display: flex; flex-direction: column; gap: 22px; }
+.big-dining-halls { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 22px; }
+.big-dining-hall-block {
+  border: 1px solid rgba(255,255,255,0.09) !important; border-radius: 20px !important; padding: 16px 18px !important;
+  background: rgba(255,255,255,0.03) !important;
+}
+.big-dining-hall-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.big-dining-hall-name { font-size: 16px; font-weight: 800; color: var(--text-primary); }
+.big-dining-meals-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@container yace (max-width: 900px) {
+  .big-dining-meals-grid { grid-template-columns: 1fr; }
+}
+.big-dining-meal-col { background: rgba(255,255,255,0.025); border-radius: 14px; padding: 10px 12px; min-height: 80px; }
+.big-dining-meal-name { font-size: 12.5px; font-weight: 800; color: var(--primary-accent); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+.big-dining-station { margin-bottom: 8px; }
+.big-dining-station-name { font-size: 10.5px; font-weight: 700; color: var(--text-tertiary); margin-bottom: 3px; }
+.big-dining-dish-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); padding: 2px 0; }
+.big-dining-badge { font-size: 8.5px; font-weight: 800; padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,0.1); color: var(--text-tertiary); }
+
+/* Narrower viewports: collapse back to a single stacked column so the
+ * rail and analytics panel don't squeeze the workspace into nothing. */
+@container yace (max-width: 1300px) {
+  body.yace-takeover #module-tasks-widget {
+    grid-template-columns: 260px minmax(0, 1fr) !important;
+  }
+  body.yace-takeover #module-tasks-widget > .cc-right-panel {
+    grid-column: 1 / 3 !important; grid-row: 6 !important;
+    position: static !important; max-height: none !important;
+    flex-direction: row !important; flex-wrap: wrap !important;
+  }
+  body.yace-takeover .cc-right-panel > .cc-panel-section { flex: 1 1 260px !important; }
+}
+@container yace (max-width: 860px) {
+  body.yace-takeover #module-tasks-widget {
+    grid-template-columns: 1fr !important;
+  }
+  body.yace-takeover #module-tasks-widget > .header            { grid-column: 1 !important; grid-row: 1 !important; }
+  body.yace-takeover #module-tasks-widget > .workload-strip     { grid-column: 1 !important; grid-row: 2 !important; }
+  body.yace-takeover #module-tasks-widget > .hud-command-bar    { grid-column: 1 !important; grid-row: 3 !important; }
+  body.yace-takeover #module-tasks-widget > .search-bar-row     { grid-column: 1 !important; grid-row: 4 !important; }
+  body.yace-takeover #module-tasks-widget > .progress-container { grid-column: 1 !important; grid-row: 5 !important; }
+  body.yace-takeover #module-tasks-widget > #module-tasks-list  { grid-column: 1 !important; grid-row: 6 !important; }
+  body.yace-takeover #module-tasks-widget > .cc-right-panel     { grid-column: 1 !important; grid-row: 7 !important; }
+  body.yace-takeover .hud-command-bar {
+    flex-direction: row !important; flex-wrap: wrap !important; position: static !important;
+    padding: 0 0 16px 0 !important; max-height: none !important;
+  }
+  body.yace-takeover .hud-view-buttons { flex-direction: row !important; flex-wrap: wrap !important; }
+  body.yace-takeover .hud-view-buttons::before { width: 100% !important; padding-bottom: 4px !important; }
+  body.yace-takeover .hud-view-btn { width: auto !important; flex: 1 1 auto !important; }
+  body.yace-takeover .cc-course-dock,
+  body.yace-takeover .cc-gpa-hero { width: auto !important; flex: 1 1 200px !important; }
+  .kanban-board { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+}
+
+/* The minimize arrow, in takeover mode, brings the native Canvas
+ * dashboard back rather than sliding a docked panel off-screen — no
+ * transform needed here, #right-side-wrapper's own collapse rule doesn't
+ * apply since the widget no longer lives inside it. */
+body.yace-dashboard-page .yace-restore-tab { z-index: 2147483000 !important; }
+
+/* ==========================================================================
  *  LIQUID GLASS PALETTES (theme variants recolor the tint only — the
  *  frosted-glass surface treatment itself stays constant)
  *  ========================================================================== */
@@ -1154,8 +1546,8 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 .custom-pie-slice:hover span {
   transform: scale(1.2) !important;
 }/* ==========================================================================
- *  CUSTOM ASSIGNMENT MAKER: MODAL
- *  ========================================================================== */
+*  CUSTOM ASSIGNMENT MAKER: MODAL
+*  ========================================================================== */
 #yace-assignment-modal { --primary-accent: #0a84ff; --secondary-accent: #64d2ff; --accent-glow: rgba(10, 132, 255, 0.35); --accent-soft: rgba(10, 132, 255, 0.16); }
 #yace-assignment-modal[data-theme="synthwave"] { --primary-accent: #bf5af2; --secondary-accent: #ff375f; --accent-glow: rgba(191, 90, 242, 0.38); --accent-soft: rgba(191, 90, 242, 0.16); }
 #yace-assignment-modal[data-theme="emerald"] { --primary-accent: #30d158; --secondary-accent: #63e6e0; --accent-glow: rgba(48, 209, 88, 0.38); --accent-soft: rgba(48, 209, 88, 0.16); }
