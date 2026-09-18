@@ -1,6 +1,5 @@
 import { state } from '../state.js';
 import { deleteAssignmentFromModal, ensureAssignmentModal, openAssignmentModal } from '../components/assignment-modal.js';
-import { launchConfetti } from '../components/confetti.js';
 import { openPdfModal } from '../components/pdf-modal.js';
 import { getCompletedTasks, setTaskCompleted } from '../storage/completed-tasks.js';
 import { applyCustomDueDates, effectiveDueDate, setCustomDueDate } from '../storage/custom-due-dates.js';
@@ -443,39 +442,6 @@ export function createTaskCard(task, now, completedMap) {
         updateProgressBar();
 
         if (willBeDone) {
-          const boxRect = checkbox.getBoundingClientRect();
-          launchConfetti(boxRect.left + boxRect.width / 2, boxRect.top + boxRect.height / 2);
-
-          const completedNow = getCompletedTasks();
-          const hidden = getHiddenCourses();
-          const { endOfWeek } = getWeekBounds();
-          let totalActiveWeek = 0;
-          let doneActiveWeek = 0;
-
-          // Mirrors the widened window in updateProgressBar() so the "all
-          // done this week" confetti fires using the same set of tasks the
-          // bar itself is counting.
-          Object.entries(state.cachedCourseMap).forEach(([k, c]) => {
-            if (!hidden.includes(k)) {
-              (c.tasks || []).forEach(item => {
-                const ed = effectiveDueDate(item);
-                const isDone = !!completedNow[item.id];
-                if (!ed || ed > endOfWeek) return;
-                if (!isDone && (endOfWeek.getTime() - ed.getTime()) > 28 * 24 * 60 * 60 * 1000) return;
-
-                totalActiveWeek++;
-                if (isDone) doneActiveWeek++;
-              });
-            }
-          });
-
-          if (totalActiveWeek > 0 && doneActiveWeek >= totalActiveWeek) {
-            setTimeout(() => {
-              launchConfetti(window.innerWidth * 0.3, window.innerHeight * 0.4);
-              launchConfetti(window.innerWidth * 0.7, window.innerHeight * 0.4);
-            }, 250);
-          }
-
           if (state.currentTab !== 'completed') {
             card.classList.add('dismissing');
             setTimeout(() => {

@@ -53,12 +53,16 @@ export function renderGradesView(listContainer, hiddenCourses) {
     const courseCountLabel = gpaPoints.length > 0
     ? `Based on ${gpaPoints.length} graded course${gpaPoints.length === 1 ? '' : 's'}`
     : 'No grades posted yet';
+    const gpaRingPct = gpaPoints.length > 0 ? Math.max(0, Math.min(100, (parseFloat(averageGpa) / 4) * 100)) : 0;
     gpaCard.innerHTML = `
     <div class="gpa-info-left">
     <span class="gpa-label">Current GPA${hasWhatIfActive ? ' <span class="gpa-whatif-flag">What-If</span>' : ''}</span>
     <span class="gpa-sub">${courseCountLabel}</span>
     </div>
-    <div class="gpa-value">${averageGpa}</div>
+    <div class="gpa-ring-wrap">
+    <div class="gpa-ring" style="--gpa-pct:${gpaRingPct}"></div>
+    <div class="gpa-ring-value">${averageGpa}</div>
+    </div>
     `;
     listContainer.appendChild(gpaCard);
 
@@ -328,7 +332,7 @@ export function createGradeCard(grade) {
 
     const check = document.createElement('span');
     check.className = 'grade-check';
-    check.innerText = '✓';
+    check.innerText = pct !== null ? percentageToGpa(pct).letter : '✓';
 
     const body = document.createElement('div');
     body.className = 'grade-body';
