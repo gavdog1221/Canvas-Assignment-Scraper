@@ -2008,3 +2008,119 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   color: #eccbfb !important;
   border: 1px solid rgba(191, 90, 242, 0.45) !important;
 }
+/* --- Registration tab --- */
+.reg-panel {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reg-intro p {
+  margin: 6px 0 0;
+  opacity: 0.75;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reg-field label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.reg-field-hint {
+  font-size: 11px;
+  opacity: 0.55;
+  line-height: 1.4;
+}
+
+.reg-field input,
+.reg-crn-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: inherit;
+  font-size: 13px;
+}
+
+.reg-crn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reg-crn-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reg-crn-row .reg-crn-input {
+  flex: 1;
+}
+
+.reg-remove-crn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.reg-remove-crn:hover {
+  opacity: 1;
+}
+
+.reg-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reg-primary-btn,
+.reg-secondary-btn {
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.reg-primary-btn {
+  background: rgba(10, 132, 255, 0.25);
+  color: #fff;
+}
+
+.reg-secondary-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+}
+
+.reg-status {
+  font-size: 12px;
+}
+
+.reg-status-ok {
+  color: #30d158;
+}
+
+.reg-status-error {
+  color: #ff375f;
+}
+
+.reg-note {
+  margin: 0;
+  font-size: 11.5px;
+  opacity: 0.55;
+  line-height: 1.5;
+}

@@ -11,6 +11,7 @@ import { getWeekBounds, localDateKey } from '../utils/dates.js';
 import { escapeHTML } from '../utils/text.js';
 import { renderAnnouncementsView } from '../views/announcements-view.js';
 import { renderDiningView } from '../views/dining-view.js';
+import { renderRegistrationView } from '../views/registration-view.js';
 import { renderGeneralView } from '../views/general-view.js';
 import { renderGradesView } from '../views/grades-view.js';
 
@@ -593,6 +594,11 @@ export function renderCurrentView() {
 
     if (state.currentTab === 'food') {
       renderDiningView(listContainer);
+      return;
+    }
+
+    if (state.currentTab === 'registration') {
+      renderRegistrationView(listContainer);
       return;
     }
     let allFilteredTasks = [];
