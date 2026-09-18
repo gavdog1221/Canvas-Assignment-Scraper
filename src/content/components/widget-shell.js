@@ -159,6 +159,7 @@ export function injectWidget(container) {
     <button type="button" class="hud-view-btn" data-tab="general">Info</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="food">Food</button>
+    <button type="button" class="hud-view-btn" data-tab="registration">Reg</button>
     </div>    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>

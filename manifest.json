@@ -8,7 +8,9 @@
     "https://www.gradescope.com/*",
     "https://unh.instructure.com/*",
     "*://foodpro.unh.edu/*",
-    "https://www.unh.edu/*"
+    "https://www.unh.edu/*",
+    "https://webcat.unh.edu/*",
+    "storage"
   ],
   "background": {
     "scripts": [
@@ -28,6 +30,18 @@
       ],
       "css": [
         "sidebar.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://webcat.unh.edu/StudentRegistrationSsb/*"
+      ],
+      "js": [
+        "dist/registration.js"
+      ],
+      "css": [
+        "registration.css"
       ],
       "run_at": "document_idle"
     }
