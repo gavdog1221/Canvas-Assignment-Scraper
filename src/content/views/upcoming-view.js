@@ -11,6 +11,7 @@ import { escapeHTML } from '../utils/text.js';
 import { renderAnnouncementsView } from '../views/announcements-view.js';
 import { renderDiningView } from '../views/dining-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
+import { renderKanbanView } from '../views/kanban-view.js';
 import { renderGeneralView } from '../views/general-view.js';
 import { renderGradesView } from '../views/grades-view.js';
 
@@ -565,6 +566,11 @@ export function renderCurrentView() {
 
     if (state.currentTab === 'registration') {
       renderRegistrationView(listContainer);
+      return;
+    }
+
+    if (state.currentTab === 'upcoming' && state.isFullscreen) {
+      renderKanbanView(listContainer);
       return;
     }
     let allFilteredTasks = [];

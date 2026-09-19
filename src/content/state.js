@@ -31,6 +31,7 @@ export const state = {
   cachedUnreadInboxCount: 0,
 
   isMinimized: localStorage.getItem(STORAGE_KEY_MINIMIZED) === 'true',
+  isFullscreen: false, // not persisted -- always starts back in sidebar mode on page load
 
   selectedTaskIndex: -1,
   cachedDiningMenu: null,

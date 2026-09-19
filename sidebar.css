@@ -151,6 +151,42 @@ position: relative !important;
 overflow: visible !important;
 }#module-tasks-widget * { box-sizing: border-box !important; }
 
+/* ==========================================================================
+ *  FULL-SCREEN MODE — toggled via the ⛶ header button
+ *  ========================================================================== */
+body.yace-fullscreen-active { overflow: hidden !important; }
+
+#module-tasks-widget.is-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important; height: 100vh !important;
+  max-width: none !important; max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  z-index: 2147483000 !important;
+  display: flex !important; flex-direction: column !important;
+  overflow: hidden !important;
+  animation: yaceFullscreenIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+#module-tasks-widget.is-fullscreen::after { border-radius: 0 !important; }
+#module-tasks-widget.is-fullscreen::before { left: 0 !important; right: 0 !important; border-radius: 0 !important; }
+
+@keyframes yaceFullscreenIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#module-tasks-widget.is-fullscreen #module-tasks-list {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 /* Thin specular highlight along the top edge, like light catching curved glass */
 #module-tasks-widget::before {
 content: "" !important; position: absolute !important; top: 0 !important; left: 8% !important; right: 8% !important;
@@ -887,9 +923,81 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 /* ==========================================================================
  *  GENERAL TAB — per-course syllabus & resource links
  *  ========================================================================== */
-.general-resource-card { align-items: center !important; }
+.general-resource-card { --tier-color: #98989f; --tier-glow: rgba(152, 152, 159, 0.25); }
+.general-resource-card.tier-a { --tier-color: #30d158; --tier-glow: rgba(48, 209, 88, 0.35); }
+.general-resource-card.tier-b { --tier-color: #64d2ff; --tier-glow: rgba(100, 210, 255, 0.35); }
+.general-resource-card.tier-c { --tier-color: #ffd60a; --tier-glow: rgba(255, 214, 10, 0.35); }
+.general-resource-card.tier-d { --tier-color: #ff9f0a; --tier-glow: rgba(255, 159, 10, 0.35); }
+.general-resource-card.tier-f { --tier-color: #ff453a; --tier-glow: rgba(255, 69, 58, 0.35); }
 .general-course-name { cursor: default !important; }
 .general-course-name:hover { color: var(--text-primary) !important; }
+
+.gci-badge {
+  margin-left: auto !important; flex-shrink: 0 !important;
+  font-size: 10px !important; font-weight: 800 !important;
+  color: var(--tier-color) !important;
+  background: color-mix(in srgb, var(--tier-color) 16%, transparent) !important;
+  border: 1px solid var(--tier-color) !important;
+  border-radius: 999px !important; padding: 3px 9px !important;
+  white-space: nowrap !important;
+}
+
+.gci-stat-row {
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  gap: 10px !important; flex-wrap: wrap !important;
+  width: 100% !important;
+}
+.gci-stat { display: flex !important; flex-direction: column !important; gap: 1px !important; min-width: 0 !important; }
+.gci-stat-label { font-size: 9px !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: 0.4px !important; color: var(--text-tertiary) !important; }
+.gci-stat-value { font-size: 11px !important; font-weight: 650 !important; color: var(--text-secondary) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; max-width: 100% !important; }
+.gci-next-due { flex: 1 !important; min-width: 0 !important; }
+.gci-stat-empty .gci-stat-value { color: var(--text-tertiary) !important; font-weight: 500 !important; }
+
+.gci-counts { flex-direction: row !important; flex-shrink: 0 !important; gap: 5px !important; }
+.gci-count-pill {
+  font-size: 9.5px !important; font-weight: 700 !important;
+  color: var(--text-tertiary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 999px !important; padding: 2px 8px !important; white-space: nowrap !important;
+}
+.gci-count-pill.is-overdue { color: var(--danger) !important; background: var(--danger-soft) !important; }
+
+.gci-syllabus-excerpt {
+  margin: 0 !important;
+  font-size: 10.5px !important; line-height: 1.5 !important;
+  color: var(--text-secondary) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-left: 2px solid rgba(255, 255, 255, 0.12) !important;
+  padding: 6px 9px !important; border-radius: 0 8px 8px 0 !important;
+  display: -webkit-box !important; -webkit-line-clamp: 2 !important; -webkit-box-orient: vertical !important; overflow: hidden !important;
+}
+.gci-syllabus-excerpt.gci-syllabus-empty { color: var(--text-tertiary) !important; font-style: italic !important; }
+
+/* Placeholder shell for a future Rate My Professor integration — no
+ * network calls happen here yet, this is layout scaffolding only. */
+.rmp-panel {
+  width: 100% !important;
+  border: 1px dashed rgba(255, 255, 255, 0.16) !important;
+  border-radius: 12px !important;
+  padding: 9px 11px !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+  display: flex !important; flex-direction: column !important; gap: 6px !important;
+}
+.rmp-panel-header { display: flex !important; align-items: center !important; gap: 8px !important; }
+.rmp-panel-title { font-size: 10.5px !important; font-weight: 700 !important; color: var(--text-secondary) !important; }
+.rmp-panel-badge {
+  margin-left: auto !important;
+  font-size: 8.5px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.3px !important;
+  color: var(--text-tertiary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 999px !important; padding: 2px 7px !important;
+}
+.rmp-panel-body { display: flex !important; gap: 14px !important; }
+.rmp-stat { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 1px !important; flex: 1 !important; }
+.rmp-stat-value { font-size: 15px !important; font-weight: 800 !important; color: var(--text-tertiary) !important; font-family: ui-monospace, monospace !important; }
+.rmp-stat-label { font-size: 8.5px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; text-align: center !important; }
+.rmp-panel-note { margin: 0 !important; font-size: 9.5px !important; color: var(--text-tertiary) !important; font-style: italic !important; text-align: center !important; }
+
 
 .resource-links-row {
   display: flex !important;
@@ -2133,3 +2241,81 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   opacity: 0.55;
   line-height: 1.5;
 }
+
+/* ==========================================================================
+ *  KANBAN / CALENDAR BOARD (full-screen Due tab)
+ *  ========================================================================== */
+.kanban-board {
+  display: flex !important;
+  gap: 12px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  padding: 4px 2px 10px !important;
+}
+.kanban-column {
+  flex: 0 0 220px !important;
+  width: 220px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+.kanban-column.is-today { border-color: var(--primary-accent) !important; box-shadow: 0 0 0 1px var(--primary-accent), 0 0 16px var(--accent-glow) !important; }
+.kanban-column.is-overdue { border-color: var(--danger) !important; }
+.kanban-column.is-undated { border-color: rgba(255, 255, 255, 0.14) !important; }
+
+.kanban-col-header {
+  display: flex !important; align-items: baseline !important; gap: 6px !important;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  flex-shrink: 0 !important;
+}
+.kanban-col-label { font-size: 12px !important; font-weight: 800 !important; color: var(--text-primary) !important; }
+.kanban-col-sublabel { font-size: 10px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; }
+.kanban-column.is-overdue .kanban-col-label { color: var(--danger) !important; }
+.kanban-col-count {
+  margin-left: auto !important;
+  font-size: 10px !important; font-weight: 800 !important;
+  color: var(--text-tertiary) !important;
+  background: rgba(0, 0, 0, 0.25) !important;
+  border-radius: 999px !important; padding: 1px 7px !important;
+}
+
+.kanban-col-body {
+  flex: 1 !important; min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 8px !important;
+  display: flex !important; flex-direction: column !important; gap: 6px !important;
+}
+.kanban-col-empty { font-size: 10.5px !important; color: var(--text-tertiary) !important; padding: 10px 4px !important; text-align: center !important; }
+
+.kanban-card {
+  display: flex !important; align-items: flex-start !important; gap: 8px !important;
+  background: var(--card-bg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-left: 3px solid var(--course-accent, var(--primary-accent)) !important;
+  border-radius: 12px !important;
+  padding: 8px 9px !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease !important;
+}
+.kanban-card:hover { background: rgba(255, 255, 255, 0.07) !important; transform: translateY(-1px) !important; box-shadow: 0 4px 14px var(--course-glow, var(--accent-glow)) !important; }
+.kanban-card.is-done { opacity: 0.45 !important; }
+.kanban-card.is-done .kanban-card-title { text-decoration: line-through !important; }
+
+.kanban-card-checkbox { flex-shrink: 0 !important; margin-top: 2px !important; cursor: pointer !important; }
+.kanban-card-checkbox input { width: 15px !important; height: 15px !important; accent-color: var(--course-accent, var(--primary-accent)) !important; cursor: pointer !important; }
+
+.kanban-card-body { display: flex !important; flex-direction: column !important; gap: 4px !important; min-width: 0 !important; }
+.kanban-card-title { font-size: 11.5px !important; font-weight: 650 !important; color: var(--text-primary) !important; line-height: 1.35 !important; }
+.kanban-card-meta { display: flex !important; align-items: center !important; gap: 6px !important; flex-wrap: wrap !important; }
+.kanban-card-course { font-size: 9.5px !important; font-weight: 700 !important; color: var(--course-accent, var(--text-secondary)) !important; }
+.kanban-card-time { font-size: 9.5px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; font-family: ui-monospace, monospace !important; }
+.kanban-card-pts { font-size: 9.5px !important; font-weight: 700 !important; color: var(--text-tertiary) !important; }
+
+.kanban-board::-webkit-scrollbar, .kanban-col-body::-webkit-scrollbar { height: 6px !important; width: 6px !important; }
+.kanban-board::-webkit-scrollbar-thumb, .kanban-col-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; border-radius: 99px !important; }

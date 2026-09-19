@@ -202,6 +202,9 @@ export async function loadTasks(showLoadingUI = true) {
             tasks: [],
             resources: {
               hasSyllabusContent: syllabusText.length > 0,
+              syllabusExcerpt: syllabusText.length > 0
+                ? (syllabusText.length > 220 ? syllabusText.slice(0, 220).trim() + '…' : syllabusText)
+                : '',
               syllabusUrl: `${courseBaseUrl}/assignments/syllabus`,
               modulesUrl: `${courseBaseUrl}/modules`,
               filesUrl: `${courseBaseUrl}/files`,

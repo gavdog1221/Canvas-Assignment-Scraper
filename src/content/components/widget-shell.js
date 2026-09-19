@@ -38,6 +38,48 @@ export function purgeDefaultCanvasElements() {
     }
   }
 
+export function setWidgetFullscreen(isFullscreen) {
+    state.isFullscreen = isFullscreen;
+
+    const widget = document.getElementById('module-tasks-widget');
+    if (!widget) return;
+
+    // #right-side-wrapper sets `container-type: inline-size` for container
+    // queries elsewhere in this stylesheet. Like `transform` or `filter`,
+    // that makes the wrapper a containing block for any `position: fixed`
+    // descendant -- so a "fullscreen" widget left nested inside it would
+    // stay pinned to that small ~450px box instead of the real viewport.
+    // Moving the widget to be a direct child of <body> while fullscreen
+    // sidesteps that; a placeholder marks where to put it back afterward.
+    if (isFullscreen) {
+      let placeholder = document.getElementById('yace-widget-placeholder');
+      if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.id = 'yace-widget-placeholder';
+        placeholder.style.display = 'none';
+        widget.parentNode.insertBefore(placeholder, widget);
+      }
+      document.body.appendChild(widget);
+    } else {
+      const placeholder = document.getElementById('yace-widget-placeholder');
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.insertBefore(widget, placeholder);
+        placeholder.remove();
+      }
+    }
+
+    widget.classList.toggle('is-fullscreen', isFullscreen);
+    document.body.classList.toggle('yace-fullscreen-active', isFullscreen);
+
+    const btn = document.getElementById('toggle-fullscreen-btn');
+    if (btn) {
+      btn.textContent = isFullscreen ? '⤡' : '⛶';
+      btn.title = isFullscreen ? 'Exit full screen' : 'Expand to full screen';
+    }
+
+    renderCurrentView();
+  }
+
 export function ensureRestoreTab() {
     let tab = document.getElementById('yace-restore-tab');
     if (!tab) {
@@ -98,6 +140,7 @@ export function injectWidget(container) {
     </div>
 
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
+    <button class="icon-btn" id="toggle-fullscreen-btn" title="Expand to full screen">⛶</button>
     <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
     </div>    </div>
 
@@ -196,6 +239,7 @@ export function injectWidget(container) {
     });
 
     document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
+    document.getElementById('toggle-fullscreen-btn').addEventListener('click', () => setWidgetFullscreen(!state.isFullscreen));
     document.getElementById('add-custom-task-btn').addEventListener('click', () => openAssignmentModal());
     const courseScrollWrap = widget.querySelector('.course-scroll-wrap');
     if (courseScrollWrap) {
