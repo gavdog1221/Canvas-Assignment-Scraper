@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { STORAGE_KEY_CACHE_TIME, STORAGE_KEY_MINIMIZED, STORAGE_KEY_THEME } from '../constants.js';
+import { STORAGE_KEY_CACHE_TIME, STORAGE_KEY_MINIMIZED, STORAGE_KEY_THEME, THEMES } from '../constants.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
 import { openShortcutsModal } from '../components/shortcuts-modal.js';
 import { initKeyboardShortcuts } from '../handlers/keyboard-shortcuts.js';
@@ -130,12 +130,18 @@ export function injectWidget(container) {
 
     <!-- Theme Swatch Palette Dock -->
     <div class="theme-dock-wrap" id="theme-dock-wrap">
-    <button type="button" class="icon-btn theme-dock-trigger" id="theme-dock-trigger" title="Switch Theme Tint">🎨</button>
-    <div class="theme-dock-flyout">
-    <button type="button" class="theme-gem-btn ${state.currentTheme === 'cyan' ? 'active' : ''}" data-theme="cyan" title="Liquid Blue" style="--gem-color: #0a84ff;"></button>
-    <button type="button" class="theme-gem-btn ${state.currentTheme === 'synthwave' ? 'active' : ''}" data-theme="synthwave" title="Orchid Glass" style="--gem-color: #bf5af2;"></button>
-    <button type="button" class="theme-gem-btn ${state.currentTheme === 'emerald' ? 'active' : ''}" data-theme="emerald" title="Mint Glass" style="--gem-color: #30d158;"></button>
-    <button type="button" class="theme-gem-btn ${state.currentTheme === 'stealth' ? 'active' : ''}" data-theme="stealth" title="Graphite Glass" style="--gem-color: #e5e5ea;"></button>
+    <button type="button" class="icon-btn theme-dock-trigger" id="theme-dock-trigger" title="Switch Theme" aria-haspopup="listbox" aria-expanded="false">
+    <span class="theme-trigger-swatch" id="theme-trigger-swatch" style="--gem-color: ${THEMES.find(t => t.id === state.currentTheme)?.color || THEMES[0].color};"></span>
+    <span class="theme-trigger-caret">▾</span>
+    </button>
+    <div class="theme-dock-flyout" id="theme-dock-flyout" role="listbox">
+    ${THEMES.map(t => `
+      <button type="button" class="theme-option-btn ${state.currentTheme === t.id ? 'active' : ''}" data-theme="${t.id}" role="option" aria-selected="${state.currentTheme === t.id}">
+      <span class="theme-option-swatch" style="--gem-color: ${t.color};"></span>
+      <span class="theme-option-label">${escapeHTML(t.label)}</span>
+      <span class="theme-option-check">✓</span>
+      </button>
+    `).join('')}
     </div>
     </div>
 
@@ -286,15 +292,17 @@ export function injectWidget(container) {
     if (themeDockTrigger && themeDockWrap) {
       themeDockTrigger.addEventListener('click', (e) => {
         e.stopPropagation();
-        themeDockWrap.classList.toggle('is-open');
+        const nowOpen = themeDockWrap.classList.toggle('is-open');
+        themeDockTrigger.setAttribute('aria-expanded', String(nowOpen));
       });
 
       document.addEventListener('click', () => {
         themeDockWrap.classList.remove('is-open');
+        themeDockTrigger.setAttribute('aria-expanded', 'false');
       });
     }
 
-    widget.querySelectorAll('.theme-gem-btn').forEach(btn => {
+    widget.querySelectorAll('.theme-option-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const selectedTheme = btn.getAttribute('data-theme');
@@ -307,11 +315,20 @@ export function injectWidget(container) {
         const modal = document.getElementById('yace-assignment-modal');
         if (modal) modal.setAttribute('data-theme', state.currentTheme);
 
-        widget.querySelectorAll('.theme-gem-btn').forEach(b => b.classList.remove('active'));
+        widget.querySelectorAll('.theme-option-btn').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
         btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+
+        const themeMeta = THEMES.find(t => t.id === selectedTheme);
+        const swatch = document.getElementById('theme-trigger-swatch');
+        if (swatch && themeMeta) swatch.style.setProperty('--gem-color', themeMeta.color);
 
         // Close dock once picked
         if (themeDockWrap) themeDockWrap.classList.remove('is-open');
+        if (themeDockTrigger) themeDockTrigger.setAttribute('aria-expanded', 'false');
       });
     });
 

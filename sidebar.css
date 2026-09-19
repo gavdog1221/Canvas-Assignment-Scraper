@@ -125,6 +125,30 @@ pointer-events: none !important;
 --accent-soft: rgba(229, 229, 234, 0.1);
 --card-bg: rgba(255, 255, 255, 0.04);
 }
+#module-tasks-widget[data-theme="sunset"] {
+--primary-accent: #ff9f0a;         /* Amber Glass */
+--secondary-accent: #ffd60a;
+--accent-glow: rgba(255, 159, 10, 0.38);
+--accent-soft: rgba(255, 159, 10, 0.16);
+}
+#module-tasks-widget[data-theme="crimson"] {
+--primary-accent: #ff375f;         /* Rose Glass */
+--secondary-accent: #ff6482;
+--accent-glow: rgba(255, 55, 95, 0.38);
+--accent-soft: rgba(255, 55, 95, 0.16);
+}
+#module-tasks-widget[data-theme="indigo"] {
+--primary-accent: #5e5ce6;         /* Indigo Glass */
+--secondary-accent: #bf5af2;
+--accent-glow: rgba(94, 92, 230, 0.38);
+--accent-soft: rgba(94, 92, 230, 0.16);
+}
+#module-tasks-widget[data-theme="teal"] {
+--primary-accent: #40c8e0;         /* Teal Glass */
+--secondary-accent: #64d2ff;
+--accent-glow: rgba(64, 200, 224, 0.38);
+--accent-soft: rgba(64, 200, 224, 0.16);
+}
 
 /* ==========================================================================
  *  MAIN HUB CONTAINER — Frosted Aurora Obsidian Glass
@@ -211,9 +235,10 @@ mix-blend-mode: overlay !important;
  *  ========================================================================== */
 #module-tasks-widget .header {
 display: flex !important; justify-content: space-between !important; align-items: center !important;
+flex-wrap: wrap !important; row-gap: 8px !important;
 padding-bottom: 16px !important; margin-bottom: 4px !important;
 border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-position: relative !important; z-index: 3 !important;
+position: relative !important; z-index: 200 !important;
 }
 #module-tasks-widget .title-row { display: flex !important; align-items: center !important; gap: 9px !important; }
 #module-tasks-widget .title {
@@ -227,7 +252,7 @@ background: radial-gradient(circle at 35% 30%, #fff, var(--primary-accent) 60%) 
 box-shadow: 0 0 10px var(--accent-glow) !important;
 }
 
-.widget-controls { display: flex !important; gap: 6px !important; }
+.widget-controls { display: flex !important; flex-wrap: wrap !important; justify-content: flex-end !important; gap: 6px !important; }
 
 .icon-btn {
   background: rgba(255, 255, 255, 0.08) !important;
@@ -263,68 +288,107 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   align-items: center !important;
 }
 
-.theme-dock-flyout {
-  position: absolute !important;
-  top: 50% !important;
-  right: 100% !important;
-  transform: translateY(-50%) scale(0.8) !important;
-  margin-right: 6px !important;
-  display: flex !important;
+.theme-dock-trigger {
+  display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
-  background: rgba(18, 18, 22, 0.95) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  padding: 4px 7px !important;
-  border-radius: 999px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
-  z-index: 100 !important;
+  gap: 5px !important;
+  padding: 6px 9px !important;
 }
 
-/* Invisible hover-bridge preventing accidental close across the 6px gap */
-.theme-dock-flyout::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  left: 100% !important;
-  width: 14px !important;
-}
-
-/* Open state triggers either via click (.is-open) OR steady hover */
-.theme-dock-wrap.is-open .theme-dock-flyout,
-.theme-dock-wrap:hover .theme-dock-flyout,
-.theme-dock-flyout:hover {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  transform: translateY(-50%) scale(1) !important;
-}
-.theme-gem-btn {
-  width: 17px !important;
-  height: 17px !important;
+.theme-trigger-swatch {
+  width: 13px !important; height: 13px !important;
   border-radius: 50% !important;
   background: var(--gem-color) !important;
-  border: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 0 6px var(--gem-color), inset 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+  flex-shrink: 0 !important;
+  transition: background 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.theme-trigger-caret {
+  font-size: 9px !important;
+  color: var(--text-tertiary) !important;
+  transition: transform 0.2s ease !important;
+}
+.theme-dock-wrap.is-open .theme-trigger-caret { transform: rotate(180deg) !important; }
+
+.theme-dock-flyout {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  left: 0 !important;
+  width: 190px !important;
+  max-height: 320px !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  background: rgba(20, 20, 25, 0.97) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  padding: 6px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(-6px) scale(0.97) !important;
+  transform-origin: top left !important;
+  transition: opacity 0.16s ease, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  z-index: 9999 !important;
+}
+
+.theme-dock-wrap.is-open .theme-dock-flyout {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0) scale(1) !important;
+}
+
+.theme-option-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  width: 100% !important;
+  padding: 7px 9px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
   cursor: pointer !important;
-  padding: 0 !important;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+  text-align: left !important;
+  transition: background 0.14s ease !important;
+}
+
+.theme-option-btn:hover { background: rgba(255, 255, 255, 0.07) !important; }
+
+.theme-option-btn.active {
+  background: color-mix(in srgb, var(--gem-color) 16%, transparent) !important;
+  border-color: color-mix(in srgb, var(--gem-color) 45%, transparent) !important;
+}
+
+.theme-option-swatch {
+  width: 18px !important; height: 18px !important;
+  border-radius: 50% !important;
+  background: var(--gem-color) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 0 8px var(--gem-color) !important;
   flex-shrink: 0 !important;
 }
 
-.theme-gem-btn:hover {
-  transform: scale(1.3) !important;
-  box-shadow: 0 0 10px var(--gem-color) !important;
-  border-color: #ffffff !important;
+.theme-option-label {
+  flex: 1 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
 }
+.theme-option-btn.active .theme-option-label { color: var(--text-primary) !important; }
 
-.theme-gem-btn.active {
-  border-color: #ffffff !important;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 10px var(--gem-color) !important;
-  transform: scale(1.15) !important;
+.theme-option-check {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  color: var(--gem-color) !important;
+  opacity: 0 !important;
+  flex-shrink: 0 !important;
 }
+.theme-option-btn.active .theme-option-check { opacity: 1 !important; }
+
 .eye-badge {
   position: absolute !important; top: -3px !important; right: -3px !important; width: 7px !important; height: 7px !important;
   border-radius: 50% !important; background: var(--primary-accent) !important;
@@ -1261,6 +1325,10 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
 #yace-assignment-modal[data-theme="synthwave"] { --primary-accent: #bf5af2; --secondary-accent: #ff375f; --accent-glow: rgba(191, 90, 242, 0.38); --accent-soft: rgba(191, 90, 242, 0.16); }
 #yace-assignment-modal[data-theme="emerald"] { --primary-accent: #30d158; --secondary-accent: #63e6e0; --accent-glow: rgba(48, 209, 88, 0.38); --accent-soft: rgba(48, 209, 88, 0.16); }
 #yace-assignment-modal[data-theme="stealth"] { --primary-accent: #e5e5ea; --secondary-accent: #98989f; --accent-glow: rgba(229, 229, 234, 0.25); --accent-soft: rgba(229, 229, 234, 0.1); }
+#yace-assignment-modal[data-theme="sunset"] { --primary-accent: #ff9f0a; --secondary-accent: #ffd60a; --accent-glow: rgba(255, 159, 10, 0.38); --accent-soft: rgba(255, 159, 10, 0.16); }
+#yace-assignment-modal[data-theme="crimson"] { --primary-accent: #ff375f; --secondary-accent: #ff6482; --accent-glow: rgba(255, 55, 95, 0.38); --accent-soft: rgba(255, 55, 95, 0.16); }
+#yace-assignment-modal[data-theme="indigo"] { --primary-accent: #5e5ce6; --secondary-accent: #bf5af2; --accent-glow: rgba(94, 92, 230, 0.38); --accent-soft: rgba(94, 92, 230, 0.16); }
+#yace-assignment-modal[data-theme="teal"] { --primary-accent: #40c8e0; --secondary-accent: #64d2ff; --accent-glow: rgba(64, 200, 224, 0.38); --accent-soft: rgba(64, 200, 224, 0.16); }
 
 .assignment-dialog { width: 92vw !important; max-width: 480px !important; height: auto !important; max-height: 88vh !important; }
 .assignment-modal-body { flex: 1 1 auto !important; min-height: 0 !important; padding: 18px 22px 22px !important; overflow-y: auto !important; display: flex !important; flex-direction: column !important; gap: 4px !important; background: transparent !important; }
@@ -1448,28 +1516,30 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   backdrop-filter: blur(14px) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   padding: 4px 6px !important;
-  border-radius: 999px !important;
+  border-radius: 19px !important;
   margin-bottom: 8px !important;
   position: relative !important;
   z-index: 10 !important;
-  height: 38px !important;
+  min-height: 38px !important;
   box-sizing: border-box !important;
 }
 
 .hud-view-buttons {
   display: flex !important;
+  flex-wrap: wrap !important;
   align-items: center !important;
   gap: 2px !important;
+  row-gap: 3px !important;
   flex: 1 1 auto !important;
   min-width: 0 !important;
-  height: 100% !important;
+  padding: 2px 0 !important;
 }
 
 .hud-view-btn {
-  flex: 1 1 0% !important;
-  min-width: 0 !important;
+  flex: 1 1 21% !important;
+  min-width: 58px !important;
   max-width: 100% !important;
-  height: 28px !important;
+  height: 26px !important;
   box-sizing: border-box !important;
   background: transparent !important;
   border: 1px solid transparent !important;

@@ -22,7 +22,16 @@ export const STORAGE_KEY_CUSTOM_DUE = 'canvas_mod_tasks_custom_due_v1';
 
 export const CUSTOM_COLOR_PRESETS = ['#0a84ff', '#ff375f', '#30d158', '#ff9f0a', '#bf5af2', '#ff2d55', '#ffd60a', '#64d2ff'];
 
-export const THEMES = ['cyan', 'synthwave', 'emerald', 'stealth'];
+export const THEMES = [
+  { id: 'cyan', label: 'Liquid Blue', color: '#0a84ff' },
+  { id: 'synthwave', label: 'Orchid Glass', color: '#bf5af2' },
+  { id: 'emerald', label: 'Mint Glass', color: '#30d158' },
+  { id: 'stealth', label: 'Graphite Glass', color: '#e5e5ea' },
+  { id: 'sunset', label: 'Amber Glass', color: '#ff9f0a' },
+  { id: 'crimson', label: 'Rose Glass', color: '#ff375f' },
+  { id: 'indigo', label: 'Indigo Glass', color: '#5e5ce6' },
+  { id: 'teal', label: 'Teal Glass', color: '#40c8e0' },
+];
 
 export const FALLBACK_PALETTES = [
   { accent: '#0a84ff', glow: 'rgba(10, 132, 255, 0.4)', soft: 'rgba(10, 132, 255, 0.16)' },

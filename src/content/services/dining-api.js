@@ -162,6 +162,19 @@ export async function fetchLiveDiningHours() {
   }
 
 export async function getDiningHallStatus(hallNum, meals) {
+    const now = new Date();
+    const dayIdx = now.getDay(); // 0 = Sun, 6 = Sat
+
+    // Philbrook (hall 30) doesn't open at all on weekends. That's a fixed
+    // fact, so it's checked before anything else rather than relying on
+    // the live-scraped hours page (or the generic time-only fallback
+    // further down) to catch it -- if that scrape ever fails or doesn't
+    // parse Saturday/Sunday cleanly, this is the floor that keeps Philly
+    // from showing as open when it isn't.
+    if (hallNum === 30 && (dayIdx === 0 || dayIdx === 6)) {
+      return { isOpen: false, label: 'Closed for the weekend' };
+    }
+
     const hoursData = await fetchLiveDiningHours();
     const live = hoursData ? hoursData[hallNum] : null;
 
@@ -170,7 +183,6 @@ export async function getDiningHallStatus(hallNum, meals) {
         return { isOpen: false, label: 'Closed Today' };
       }
 
-      const now = new Date();
       const curMinutes = now.getHours() * 60 + now.getMinutes();
 
       if (live.openMin && live.closeMin) {
@@ -193,7 +205,6 @@ export async function getDiningHallStatus(hallNum, meals) {
     }
 
     // Secondary fallback based on current time
-    const now = new Date();
     const curMinutes = now.getHours() * 60 + now.getMinutes();
     const openMin = 435; // 7:15 AM
     const closeMin = 1260; // 9:00 PM

@@ -5,13 +5,12 @@ export function renderRegistrationView(container) {
   container.innerHTML = `
     <div class="reg-panel">
       <div class="reg-intro">
-        <strong>Registration helper</strong>
+        <strong>WebCat Registration Auto-Complete</strong>
         <p>
           Save your RAC code, term, and CRNs here. When you open the actual
           registration pages on <code>webcat.unh.edu</code> yourself, a small
-          panel fills these into the page's fields for you. It never clicks
-          Continue, Add to Summary, or Register for Classes &mdash; those
-          stay your own clicks, same as registering normally.
+          panel fills these into the page's fields for you.
+          Note: You still need to click <code>continue</code> after RAC, and then <code>register</code> after CRNs.
         </p>
       </div>
 
