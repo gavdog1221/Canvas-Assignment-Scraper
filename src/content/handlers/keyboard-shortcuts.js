@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
 import { closePdfModal } from '../components/pdf-modal.js';
-import { setWidgetFullscreen } from '../components/widget-shell.js';
+import { closeCampusToolsModal, isCampusToolsModalOpen } from '../components/campus-tools-modal.js';
 
 export function initKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
@@ -17,8 +17,8 @@ export function initKeyboardShortcuts() {
       const anyModalOpen = document.querySelector('.doc-preview-modal.is-open');
 
       if (e.key === 'Escape') {
-        if (state.isFullscreen) {
-          setWidgetFullscreen(false);
+        if (isCampusToolsModalOpen()) {
+          closeCampusToolsModal();
           return;
         }
         closePdfModal();

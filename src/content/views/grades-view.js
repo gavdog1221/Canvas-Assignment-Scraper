@@ -17,15 +17,6 @@ export function updateGradeChangeBadge() {
 export function renderGradesView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
 
-    let grades = (state.cachedGrades || []).filter(g => !hiddenCourses.includes(g.courseKey));
-
-    if (state.activeCourseFilter !== 'ALL') {
-      grades = grades.filter(g => g.courseKey === state.activeCourseFilter);
-    }
-    if (state.searchQuery) {
-      grades = grades.filter(g => g.title.toLowerCase().includes(state.searchQuery));
-    }
-
     const coursePcts = computeCoursePercentagesWithWhatIf(hiddenCourses);
     const gpaPoints = [];
     const courseCardsData = [];
@@ -288,53 +279,9 @@ export function renderGradesView(listContainer, hiddenCourses) {
       listContainer.appendChild(matrixCard);
     }
 
-    // Feedback List
-    const heading = document.createElement('div');
-    heading.className = 'grades-heading-row';
-    heading.innerHTML = `
-    <span class="grades-heading">Recent Feedback${grades.length ? ` (${grades.length})` : ''}</span>
-    <div class="grades-sort-toggle" role="group">
-    <button type="button" class="grades-sort-btn ${state.gradesSortMode === 'recent' ? 'active' : ''}" data-sort="recent">Recent</button>
-    <button type="button" class="grades-sort-btn ${state.gradesSortMode === 'highest' ? 'active' : ''}" data-sort="highest">Highest</button>
-    <button type="button" class="grades-sort-btn ${state.gradesSortMode === 'lowest' ? 'active' : ''}" data-sort="lowest">Lowest</button>
-    </div>
-    `;
-    listContainer.appendChild(heading);
-
-    heading.querySelectorAll('.grades-sort-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.gradesSortMode = btn.getAttribute('data-sort');
-        renderGradesView(listContainer, hiddenCourses);
-      });
-    });
-
-    if (grades.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'mod-empty-msg';
-      empty.innerText = 'No recent feedback submissions yet.';
-      listContainer.appendChild(empty);
-      return;
-    }
-
-    const scoredPct = (g) => {
-      if (g.score === null || g.score === undefined || !g.pointsPossible) return null;
-      return (g.score / g.pointsPossible) * 100;
-    };
-
-    const sortedGrades = [...grades];
-    if (state.gradesSortMode === 'highest' || state.gradesSortMode === 'lowest') {
-      sortedGrades.sort((a, b) => {
-        const pctA = scoredPct(a);
-        const pctB = scoredPct(b);
-        if (pctA === null && pctB === null) return 0;
-        if (pctA === null) return 1;
-        if (pctB === null) return -1;
-        return state.gradesSortMode === 'highest' ? pctB - pctA : pctA - pctB;
-      });
-    }
-    // 'recent' keeps the incoming order, which is already newest-graded-first.
-
-    sortedGrades.forEach(g => listContainer.appendChild(createGradeCard(g)));
+    // The per-submission "Recent Feedback" list now lives only in the
+    // bottom-left Recent Grades dashboard panel, so this right-hand Grades
+    // panel keeps just the GPA ring, course summaries and the What-If matrix.
   }
 
 export function createGradeCard(grade) {

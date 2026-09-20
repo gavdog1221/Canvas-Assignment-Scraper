@@ -1,7 +1,8 @@
 import { state } from '../state.js';
-import { STORAGE_KEY_CACHE_TIME, STORAGE_KEY_MINIMIZED, STORAGE_KEY_THEME, THEMES } from '../constants.js';
+import { STORAGE_KEY_CACHE_TIME, STORAGE_KEY_THEME, THEMES } from '../constants.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
 import { openShortcutsModal } from '../components/shortcuts-modal.js';
+import { toggleCampusToolsModal } from '../components/campus-tools-modal.js';
 import { initKeyboardShortcuts } from '../handlers/keyboard-shortcuts.js';
 import { deduplicateCourseMap, loadTasks } from '../services/task-loader.js';
 import { loadCoursePercentagesCache, loadLocalAnnouncementsCache, loadLocalCache, loadLocalGradesCache } from '../storage/caches.js';
@@ -13,6 +14,7 @@ import { scrapeCanvasDashboardColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
+import { refreshDashboardView } from '../views/dashboard-view.js';
 
 export function purgeDefaultCanvasElements() {
     const selectors = [
@@ -38,74 +40,31 @@ export function purgeDefaultCanvasElements() {
     }
   }
 
-export function setWidgetFullscreen(isFullscreen) {
-    state.isFullscreen = isFullscreen;
+// The widget has no sidebar or minimize-to-edge mode anymore: fullscreen is
+// the only thing. This relocates the widget to <body> (the
+// #right-side-wrapper `container-type` would otherwise make it a containing
+// block for the `position: fixed` fullscreen shell, pinning it to that small
+// box), applies the fullscreen shell class, and performs the first render.
+// A hidden placeholder marks the original injection point.
+export function setWidgetFullscreen() {
+    state.isFullscreen = true;
 
     const widget = document.getElementById('module-tasks-widget');
     if (!widget) return;
 
-    // #right-side-wrapper sets `container-type: inline-size` for container
-    // queries elsewhere in this stylesheet. Like `transform` or `filter`,
-    // that makes the wrapper a containing block for any `position: fixed`
-    // descendant -- so a "fullscreen" widget left nested inside it would
-    // stay pinned to that small ~450px box instead of the real viewport.
-    // Moving the widget to be a direct child of <body> while fullscreen
-    // sidesteps that; a placeholder marks where to put it back afterward.
-    if (isFullscreen) {
-      let placeholder = document.getElementById('yace-widget-placeholder');
-      if (!placeholder) {
-        placeholder = document.createElement('div');
-        placeholder.id = 'yace-widget-placeholder';
-        placeholder.style.display = 'none';
-        widget.parentNode.insertBefore(placeholder, widget);
-      }
-      document.body.appendChild(widget);
-    } else {
-      const placeholder = document.getElementById('yace-widget-placeholder');
-      if (placeholder && placeholder.parentNode) {
-        placeholder.parentNode.insertBefore(widget, placeholder);
-        placeholder.remove();
-      }
+    let placeholder = document.getElementById('yace-widget-placeholder');
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.id = 'yace-widget-placeholder';
+      placeholder.style.display = 'none';
+      widget.parentNode.insertBefore(placeholder, widget);
     }
+    document.body.appendChild(widget);
 
-    widget.classList.toggle('is-fullscreen', isFullscreen);
-    document.body.classList.toggle('yace-fullscreen-active', isFullscreen);
-
-    const btn = document.getElementById('toggle-fullscreen-btn');
-    if (btn) {
-      btn.textContent = isFullscreen ? '⤡' : '⛶';
-      btn.title = isFullscreen ? 'Exit full screen' : 'Expand to full screen';
-    }
+    widget.classList.add('is-fullscreen');
+    document.body.classList.add('yace-fullscreen-active');
 
     renderCurrentView();
-  }
-
-export function ensureRestoreTab() {
-    let tab = document.getElementById('yace-restore-tab');
-    if (!tab) {
-      tab = document.createElement('button');
-      tab.id = 'yace-restore-tab';
-      tab.type = 'button';
-      tab.className = 'yace-restore-tab';
-      tab.title = 'Restore YACE';
-      tab.innerHTML = '<span>◀</span>';
-      document.body.appendChild(tab);
-      tab.addEventListener('click', () => setWidgetMinimized(false));
-    }
-    return tab;
-  }
-
-export function setWidgetMinimized(minimized, skipStorage = false) {
-    state.isMinimized = minimized;
-    if (!skipStorage) {
-      localStorage.setItem(STORAGE_KEY_MINIMIZED, String(minimized));
-    }
-
-    const wrapper = document.getElementById('right-side-wrapper');
-    const restoreTab = ensureRestoreTab();
-
-    if (wrapper) wrapper.classList.toggle('yace-collapsed', minimized);
-    restoreTab.classList.toggle('is-visible', minimized);
   }
 
 export function injectWidget(container) {
@@ -119,13 +78,15 @@ export function injectWidget(container) {
     widget.id = 'module-tasks-widget';
     widget.setAttribute('data-theme', state.currentTheme);
     widget.innerHTML = `
-    <button class="icon-btn minimize-btn" id="minimize-widget-btn" title="Minimize to the edge">▶</button>
     <div class="header">
     <div class="title-row">
     <span class="title">YACE</span>
     <span class="widget-current-date">${todayFormatted}</span>
     </div>
     <div class="widget-controls">
+    <button class="icon-btn campus-tools-btn" id="open-campus-tools-btn" title="Campus Tools: Food menus & WebCat Registration" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🍽</span><span class="campus-tools-label">Campus&nbsp;&amp;&nbsp;Tools</span>
+    </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
     <!-- Theme Swatch Palette Dock -->
@@ -146,7 +107,6 @@ export function injectWidget(container) {
     </div>
 
     <button class="icon-btn eye-btn" id="toggle-hidden-courses-btn" title="View Hidden Classes">👁<span class="eye-badge" id="eye-badge" style="display:none;"></span></button>
-    <button class="icon-btn" id="toggle-fullscreen-btn" title="Expand to full screen">⛶</button>
     <button class="icon-btn" id="refresh-mod-tasks" title="Reload Everything">↻</button>
     </div>    </div>
 
@@ -207,8 +167,6 @@ export function injectWidget(container) {
     <button type="button" class="hud-view-btn" data-tab="grades">Grades <span class="hud-tab-badge grades-change-badge" id="grades-change-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="general">Info</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
-    <button type="button" class="hud-view-btn" data-tab="food">Food</button>
-    <button type="button" class="hud-view-btn" data-tab="registration">Reg</button>
     </div>    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>
@@ -220,16 +178,12 @@ export function injectWidget(container) {
 
     container.prepend(widget);
 
-    ensureRestoreTab();
-    setWidgetMinimized(state.isMinimized, true);
-
-    const minimizeBtn = document.getElementById('minimize-widget-btn');
-    if (minimizeBtn) {
-      minimizeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        setWidgetMinimized(true);
-      });
-    }
+    // Fullscreen is the only mode now: the sidebar and the minimize-to-edge
+    // states are gone. Relocate the widget to <body> (the #right-side-wrapper
+    // container-type would otherwise trap position:fixed) and apply the
+    // fullscreen shell immediately; setWidgetFullscreen() also kicks the
+    // first render.
+    setWidgetFullscreen();
 
     widget.addEventListener('mousemove', (e) => {
       const rect = widget.getBoundingClientRect();
@@ -245,7 +199,7 @@ export function injectWidget(container) {
     });
 
     document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
-    document.getElementById('toggle-fullscreen-btn').addEventListener('click', () => setWidgetFullscreen(!state.isFullscreen));
+    document.getElementById('open-campus-tools-btn').addEventListener('click', () => toggleCampusToolsModal());
     document.getElementById('add-custom-task-btn').addEventListener('click', () => openAssignmentModal());
     const courseScrollWrap = widget.querySelector('.course-scroll-wrap');
     if (courseScrollWrap) {
@@ -373,7 +327,7 @@ export function injectWidget(container) {
     });      setInterval(() => {
         if (document.getElementById('module-tasks-widget')) {
           updateProgressBar();
-          renderCurrentView();
+          refreshDashboardView();
         }
       }, 30000);
 

@@ -9,8 +9,6 @@ import { getCourseColors, parseColorToRgba } from '../utils/colors.js';
 import { getWeekBounds, localDateKey } from '../utils/dates.js';
 import { escapeHTML } from '../utils/text.js';
 import { renderAnnouncementsView } from '../views/announcements-view.js';
-import { renderDiningView } from '../views/dining-view.js';
-import { renderRegistrationView } from '../views/registration-view.js';
 import { renderDashboardView } from '../views/dashboard-view.js';
 import { renderGeneralView } from '../views/general-view.js';
 import { renderGradesView, updateGradeChangeBadge } from '../views/grades-view.js';
@@ -504,6 +502,17 @@ export function createTaskCard(task, now, completedMap) {
 
 export function renderCurrentView() {
     const listContainer = document.getElementById('module-tasks-list');
+
+    // Fullscreen relocates the weekday ribbon + search bar into the top of
+    // the center Assignments panel, i.e. INSIDE #module-tasks-list, so the
+    // wipe below would detach them and a later getElementById would come up
+    // empty -- the old "click Due/Overdue/Done (or any re-render) and the
+    // pills/search disappear" bug. Capture live node refs BEFORE the wipe
+    // and hand them to renderDashboardView so the SAME elements are
+    // re-mounted on every rebuild instead of being lost.
+    const fsStrip = state.isFullscreen ? document.getElementById('workload-strip-container') : null;
+    const fsSearchRow = state.isFullscreen ? document.querySelector('#module-tasks-widget .search-bar-row') : null;
+
     listContainer.innerHTML = '';
     state.selectedTaskIndex = -1;
     updateGradeChangeBadge();
@@ -547,9 +556,10 @@ export function renderCurrentView() {
     }
 
     // Full screen shows every tab at once (see dashboard-view.js) instead of
-    // the single active tab.
+    // the single active tab. Pass the pre-wipe ribbon/search node refs so
+    // those controls survive the rebuild.
     if (state.isFullscreen) {
-      renderDashboardView(listContainer);
+      renderDashboardView(listContainer, fsStrip, fsSearchRow);
       return;
     }
 
@@ -565,16 +575,6 @@ export function renderCurrentView() {
 
     if (state.currentTab === 'general') {
       renderGeneralView(listContainer, hiddenCourses);
-      return;
-    }
-
-    if (state.currentTab === 'food') {
-      renderDiningView(listContainer);
-      return;
-    }
-
-    if (state.currentTab === 'registration') {
-      renderRegistrationView(listContainer);
       return;
     }
 

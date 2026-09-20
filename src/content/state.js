@@ -7,7 +7,6 @@
 
 import {
   STORAGE_KEY_THEME,
-  STORAGE_KEY_MINIMIZED,
   STORAGE_KEY_WHATIF,
   STORAGE_KEY_DOM_COLORS,
 } from './constants.js';
@@ -31,8 +30,14 @@ export const state = {
   cachedAnnouncements: [],
   cachedUnreadInboxCount: 0,
 
-  isMinimized: localStorage.getItem(STORAGE_KEY_MINIMIZED) === 'true',
-  isFullscreen: false, // not persisted -- always starts back in sidebar mode on page load
+  // The widget no longer has a sidebar or minimize-to-edge mode: the
+  // fullscreen dashboard is the only thing. Kept as a flag because
+  // renderCurrentView / setWidgetFullscreen still branch on it.
+  isFullscreen: true,
+  // Dedicated popup/drawer state for the Campus & Tools overlay (Food + WebCat
+  // Reg). Toggling it must never touch the dashboard: the search bar, weekday
+  // pills and active filters stay mounted above ASSIGNMENTS regardless.
+  isDrawerOpen: false,
 
   selectedTaskIndex: -1,
   cachedDiningMenu: null,
