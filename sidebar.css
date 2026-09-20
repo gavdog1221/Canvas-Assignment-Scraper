@@ -147,6 +147,17 @@ overflow: visible !important;
  *  ========================================================================== */
 body.yace-fullscreen-active { overflow: hidden !important; }
 
+/* Hide the original Canvas dashboard content when YACE is fullscreen */
+body.yace-fullscreen-active #content,
+body.yace-fullscreen-active .ic-Layout-contentMain,
+body.yace-fullscreen-active .dashboard,
+body.yace-fullscreen-active #main,
+body.yace-fullscreen-active .ic-Layout-content,
+body.yace-fullscreen-active .ic-DashboardCard__container,
+body.yace-fullscreen-active .ic-Layout-contentMain > *:not(#module-tasks-widget) {
+  display: none !important;
+}
+
 #module-tasks-widget.is-fullscreen {
   position: fixed !important;
   inset: 0 !important;
