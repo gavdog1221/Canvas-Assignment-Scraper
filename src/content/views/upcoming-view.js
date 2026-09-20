@@ -13,7 +13,7 @@ import { renderDiningView } from '../views/dining-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
 import { renderKanbanView } from '../views/kanban-view.js';
 import { renderGeneralView } from '../views/general-view.js';
-import { renderGradesView } from '../views/grades-view.js';
+import { renderGradesView, updateGradeChangeBadge } from '../views/grades-view.js';
 
 export function renderWorkloadStrip() {
     const container = document.getElementById('workload-strip-container');
@@ -506,6 +506,7 @@ export function renderCurrentView() {
     const listContainer = document.getElementById('module-tasks-list');
     listContainer.innerHTML = '';
     state.selectedTaskIndex = -1;
+    updateGradeChangeBadge();
 
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();

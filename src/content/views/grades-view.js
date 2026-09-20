@@ -1,9 +1,18 @@
 import { state } from '../state.js';
 import { saveWhatIfScores } from '../storage/caches.js';
 import { getCourseColors } from '../utils/colors.js';
+import { computeCourseProjection } from '../utils/grade-projections.js';
 import { computeCoursePercentagesWithWhatIf, formatScoreNum, gradeTierClass, percentageToGpa } from '../utils/grades.js';
 import { escapeHTML } from '../utils/text.js';
 import { renderFilterPills } from '../views/upcoming-view.js';
+
+export function updateGradeChangeBadge() {
+    const badge = document.getElementById('grades-change-badge');
+    if (!badge) return;
+    const count = (state.gradeChangeAlerts || []).length;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    badge.innerText = count;
+  }
 
 export function renderGradesView(listContainer, hiddenCourses) {
     listContainer.innerHTML = '';
@@ -66,6 +75,35 @@ export function renderGradesView(listContainer, hiddenCourses) {
     `;
     listContainer.appendChild(gpaCard);
 
+    // Grade-change alerts: new/changed scores since the last scan. Dismissible.
+    if ((state.gradeChangeAlerts || []).length > 0) {
+      const changeCard = document.createElement('div');
+      changeCard.className = 'grade-changes-card';
+      changeCard.innerHTML = `
+      <div class="grade-changes-header">
+      <span class="grade-changes-title">🔔 Grade updates</span>
+      <button type="button" class="grade-changes-dismiss" id="grade-changes-dismiss" title="Dismiss">Dismiss</button>
+      </div>
+      ${state.gradeChangeAlerts.map(a => `
+        <div class="grade-change-row">
+        <span class="grade-change-course" title="${escapeHTML(a.courseName || a.courseKey)}">${escapeHTML(a.courseKey)}</span>
+        <span class="grade-change-title">${escapeHTML(a.title)}</span>
+        <span class="grade-change-delta">${a.isNew
+          ? `posted ${formatScoreNum(a.score)}${a.pct !== null ? ` · ${a.pct.toFixed(0)}%` : ''}`
+          : `${formatScoreNum(a.oldScore)} → ${formatScoreNum(a.score)}${a.pct !== null ? ` (${(a.oldPct || 0).toFixed(0)}% → ${a.pct.toFixed(0)}%)` : ''}`}</span>
+        </div>`).join('')}
+      `;
+      const dismissBtn = changeCard.querySelector('#grade-changes-dismiss');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+          state.gradeChangeAlerts = [];
+          updateGradeChangeBadge();
+          renderGradesView(listContainer, hiddenCourses);
+        });
+      }
+      listContainer.appendChild(changeCard);
+    }
+
     // Course Summary Cards — clickable to filter the feedback list & the
     // what-if matrix down to just that course (mirrors the course pills).
     if (courseCardsData.length > 0) {
@@ -84,6 +122,10 @@ export function renderGradesView(listContainer, hiddenCourses) {
         cCard.style.setProperty('--course-soft', coursePalette.soft);
         if (item.hasGrade) {
           const barPct = Math.max(0, Math.min(100, item.pct));
+          const proj = computeCourseProjection(item.courseKey);
+          const needLine = proj && proj.needed.length > 0
+          ? `Need ${proj.needed[0].pct}% on remaining for ${proj.needed[0].letter}`
+          : '';
           cCard.innerHTML = `
           <div class="cg-top-row">
           <span class="cg-name">${escapeHTML(item.courseKey)}</span>
@@ -93,6 +135,7 @@ export function renderGradesView(listContainer, hiddenCourses) {
           </div>
           </div>
           <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:${barPct}%"></div></div>
+          ${needLine ? `<div class="cg-need-line" title="Score ~${needLine.replace('Need ', '')} on everything still ungraded">${needLine}</div>` : ''}
           `;
         } else {
           cCard.innerHTML = `
@@ -146,7 +189,9 @@ export function renderGradesView(listContainer, hiddenCourses) {
         groupEl.className = 'whatif-course-group';
 
         const curPct = coursePcts[cKey];
-        const pctLabel = curPct !== null ? `${curPct.toFixed(1)}% (${percentageToGpa(curPct).letter})` : 'No grades yet';
+        const projection = computeCourseProjection(cKey);
+        const weightedHint = projection && projection.weighted && projection.weightedPct != null ? ' · syllabus-weighted' : '';
+        const pctLabel = curPct !== null ? `${curPct.toFixed(1)}% (${percentageToGpa(curPct).letter})${weightedHint}` : 'No grades yet';
 
         const cHeader = document.createElement('div');
         cHeader.className = 'whatif-course-header';
@@ -155,6 +200,29 @@ export function renderGradesView(listContainer, hiddenCourses) {
         <span class="whatif-projected-badge">Projected: ${pctLabel}</span>
         `;
         groupEl.appendChild(cHeader);
+
+        // Syllabus grade weights + "need on remaining" projection for this
+        // course. Weights come from parseGradeWeights() in task-loader; the
+        // need list is computed by grade-projections.js.
+        if (projection) {
+          let blockHtml = '';
+          if (Array.isArray(projection.weights) && projection.weights.length > 0) {
+            blockHtml += `<div class="gci-weights-row">${projection.weights.map(w => `<span class="gci-weight-chip" title="Syllabus weight">${escapeHTML(w.label)} ${w.pct}%</span>`).join('')}</div>`;
+          }
+          if (projection.needed.length > 0) {
+            blockHtml += `<div class="whatif-need-line">Need on remaining: ${projection.needed.map(n => `<span class="whatif-need-chip" title="~${n.pct}% on remaining work for a ${n.letter}">${n.letter} ${n.pct}%</span>`).join('')}</div>`;
+          } else if (projection.graded && projection.hasRemaining) {
+            blockHtml += `<div class="whatif-need-line">🚀 Remaining work already secured for every tier.</div>`;
+          } else if (!projection.graded) {
+            blockHtml += `<div class="whatif-need-line">No graded work yet — nothing to project.</div>`;
+          }
+          if (blockHtml) {
+            const projEl = document.createElement('div');
+            projEl.className = 'whatif-projection-block';
+            projEl.innerHTML = blockHtml;
+            groupEl.appendChild(projEl);
+          }
+        }
 
         const listEl = document.createElement('div');
         listEl.className = 'whatif-items-list';

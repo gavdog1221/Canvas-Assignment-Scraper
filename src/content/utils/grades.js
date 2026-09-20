@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { computeWeightedCoursePct } from '../utils/grade-projections.js';
 
 export function percentageToGpa(pct) {
     if (pct >= 93) return { gpa: 4.0, letter: 'A' };
@@ -53,6 +54,15 @@ export function computeCoursePercentagesWithWhatIf(hiddenCourses) {
     const result = {};
 
     activeKeys.forEach(cKey => {
+      // When the syllabus spells out a grade breakdown, weight categories by
+      // those percentages instead of assuming every point counts equally.
+      // Falls back to the equal-points sum when unusable.
+      const weighted = computeWeightedCoursePct(cKey);
+      if (weighted !== null) {
+        result[cKey] = weighted;
+        return;
+      }
+
       const totals = courseTotals[cKey];
       if (totals && totals.possible > 0) {
         result[cKey] = Math.round((totals.earned / totals.possible) * 1000) / 10;

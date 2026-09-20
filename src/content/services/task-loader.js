@@ -4,11 +4,13 @@ import { hideReloadProgress, showReloadProgress } from '../components/reload-pro
 import { purgeDefaultCanvasElements, updateHiddenMenuButton } from '../components/widget-shell.js';
 import { fetchCanvasAnnouncements, fetchCanvasGrades, fetchGradescopeData, getCsrfToken } from '../services/canvas-api.js';
 import { saveCoursePercentagesCache, saveLocalAnnouncementsCache, saveLocalCache, saveLocalGradesCache } from '../storage/caches.js';
+import { buildGradeSnapshot, computeGradeChanges, loadGradeSnapshot, saveGradeSnapshot } from '../storage/grade-alerts.js';
 import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
 import { mergeCustomTasksIntoCourseMap } from '../storage/custom-assignments.js';
 import { applyCustomDueDates } from '../storage/custom-due-dates.js';
 import { isCourseInActiveTermWindow, isCurrentSemesterCourse, localDateKey } from '../utils/dates.js';
-import { extractCoreAssignmentToken, generateTaskId, normalizeCourseCode, parseAndCleanTitle } from '../utils/text.js';
+import { extractCoreAssignmentToken, findSyllabusPdfUrl, generateTaskId, normalizeCourseCode, parseAndCleanTitle, parseGradeWeights, parseOfficeHours, parseSyllabusInstructors } from '../utils/text.js';
+import { extractPdfText } from '../utils/pdf.js';
 import { updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 
@@ -195,13 +197,20 @@ export async function loadTasks(showLoadingUI = true) {
         const courseKey = normalizeCourseCode(rawCourseName);
         if (!unifiedCourseMap[courseKey]) {
           const courseBaseUrl = `${origin}/courses/${c.id}`;
-          const syllabusText = (c.syllabus_body || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          const syllabusHtml = c.syllabus_body || '';
+          const syllabusText = syllabusHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          const syllabusInstructors = parseSyllabusInstructors(syllabusText);
           unifiedCourseMap[courseKey] = {
             name: rawCourseName,
             canvasCourseId: c.id,
             tasks: [],
             resources: {
               hasSyllabusContent: syllabusText.length > 0,
+              professors: syllabusInstructors,
+              professorName: syllabusInstructors[0] || '',
+              syllabusPdfUrl: findSyllabusPdfUrl(syllabusHtml, origin),
+              gradeWeights: parseGradeWeights(syllabusText),
+              officeHours: parseOfficeHours(syllabusText),
               syllabusExcerpt: syllabusText.length > 0
                 ? (syllabusText.length > 220 ? syllabusText.slice(0, 220).trim() + '…' : syllabusText)
                 : '',
@@ -234,6 +243,7 @@ export async function loadTasks(showLoadingUI = true) {
       for (const course of activeCourses) {
         const rawCourseName = courseNameById[course.id];
         const courseKey = normalizeCourseCode(rawCourseName);
+        const modulePdfCandidates = [];
 
         stepIndex++;
         if (showLoadingUI) {
@@ -269,6 +279,17 @@ export async function loadTasks(showLoadingUI = true) {
                     downloadUrl = item.url;
                   }
 
+                  // Remember syllabus-ish PDFs so the instructor fallback chain
+                  // can try the ones professors actually post in Modules.
+                  if (downloadUrl && modulePdfCandidates.length < 3) {
+                    const titleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)|first\s+day|intro/i.test(item.title || '');
+                    const moduleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)/i.test(mod.name || '');
+                    const isPlainPdf = /\.pdf(\s|$)/i.test(item.title || '');
+                    if (titleIsSyllabus || moduleIsSyllabus || isPlainPdf) {
+                      modulePdfCandidates.push({ url: downloadUrl, priority: (titleIsSyllabus || moduleIsSyllabus) ? 0 : 1 });
+                    }
+                  }
+
                   if (dueDate || isHwFolder) {
                     unifiedCourseMap[courseKey].tasks.push({
                       id: generateTaskId(courseKey, item.title),
@@ -295,6 +316,12 @@ export async function loadTasks(showLoadingUI = true) {
           }
         } catch (e) {
           console.warn(`Modules scan error for ${rawCourseName}`, e);
+        }
+
+        // Remember syllabus-ish PDFs so the instructor fallback can try them.
+        modulePdfCandidates.sort((a, b) => a.priority - b.priority);
+        if (unifiedCourseMap[courseKey].resources) {
+          unifiedCourseMap[courseKey].resources.modulePdfUrls = modulePdfCandidates.slice(0, 2).map(c => c.url);
         }
 
         // 2. Full Assignments Tab Scan with Submission Status
@@ -357,6 +384,11 @@ export async function loadTasks(showLoadingUI = true) {
         } catch (e) {
           console.warn(`Assignments scan error for ${rawCourseName}`, e);
         }
+
+        // Instructor fallback for courses whose syllabus didn't name anyone:
+        // teacher enrollments -> syllabus-tab PDF -> Modules PDF(s). No-op
+        // when the inline syllabus already produced a name.
+        await enrichCourseInstructor(unifiedCourseMap[courseKey], course, headers);
       }
 
       if (showLoadingUI) {
@@ -394,6 +426,13 @@ export async function loadTasks(showLoadingUI = true) {
 
       state.cachedGrades = allGrades;
       saveLocalGradesCache(allGrades);
+
+      // Grade-change alerts: diff this scan against the last snapshot so
+      // newly posted / changed grades bubble up in the Grades tab. The first
+      // scan after an update just establishes a baseline.
+      const gradeSnapshot = loadGradeSnapshot();
+      state.gradeChangeAlerts = gradeSnapshot ? computeGradeChanges(gradeSnapshot, allGrades) : [];
+      saveGradeSnapshot(buildGradeSnapshot(allGrades));
 
       const derivedPcts = { ...officialCoursePercentages };
       const gradeTotalsByCourse = {};
@@ -441,6 +480,87 @@ export async function loadTasks(showLoadingUI = true) {
       hideReloadProgress();
       if (!state.cachedCourseMap || Object.keys(state.cachedCourseMap).length === 0) {
         listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; border-color: rgba(248, 113, 113, 0.4);">Error scanning courses.</div>`;
+      }
+    }
+  }
+
+/* ---------------------------------------------------------------------------
+ * Instructor name fallback chain
+ *
+ * Some syllabi never name the professor inline: the syllabus tab is just a
+ * link to a PDF, or the syllabus PDF lives in Modules. These helpers chase
+ * the remaining sources in order of reliability, and only when the inline
+ * syllabus text yielded no names:
+ *   1. Canvas teacher enrollments for the course (authoritative, no parsing)
+ *   2. the syllabus-tab PDF, when the syllabus body links one
+ *   3. syllabus-ish PDFs collected from the Modules scan
+ * ------------------------------------------------------------------------- */
+
+async function fetchTeacherNames(canvasCourseId, headers) {
+    try {
+      const res = await fetch(`${origin}/api/v1/courses/${canvasCourseId}/enrollments?type[]=TeacherEnrollment&per_page=50`, {
+        credentials: 'include',
+        headers: headers
+      });
+      if (!res.ok) return [];
+      const list = await res.json();
+      return (Array.isArray(list) ? list : [])
+        .filter(e => e.type === 'TeacherEnrollment' && e.user && e.user.name)
+        .map(e => String(e.user.name).trim())
+        .filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  }
+
+async function fetchPdfInstructorNames(url) {
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) return [];
+      const buf = await res.arrayBuffer();
+      const text = await extractPdfText(buf);
+      return parseSyllabusInstructors(text);
+    } catch (e) {
+      return [];
+    }
+  }
+
+function setCourseProfessors(res, names) {
+    const clean = (names || []).filter(Boolean);
+    if (!clean.length) return;
+    res.professors = clean;
+    res.professorName = clean[0];
+  }
+
+async function enrichCourseInstructor(courseEntry, canvasCourse, headers) {
+    const res = (courseEntry && courseEntry.resources) || {};
+    if (Array.isArray(res.professors) && res.professors.length) return;
+
+    // 1. Canvas teacher enrollments — authoritative.
+    if (canvasCourse && canvasCourse.id) {
+      const teachers = await fetchTeacherNames(canvasCourse.id, headers);
+      if (teachers.length) {
+        setCourseProfessors(res, teachers);
+        return;
+      }
+    }
+
+    // 2. Syllabus-tab PDF.
+    if (res.syllabusPdfUrl) {
+      const names = await fetchPdfInstructorNames(res.syllabusPdfUrl);
+      if (names.length) {
+        setCourseProfessors(res, names);
+        return;
+      }
+    }
+
+    // 3. Syllabus-ish PDFs posted in Modules.
+    const moduleUrls = Array.isArray(res.modulePdfUrls) ? res.modulePdfUrls : [];
+    for (const url of moduleUrls) {
+      const names = await fetchPdfInstructorNames(url);
+      if (names.length) {
+        setCourseProfessors(res, names);
+        return;
       }
     }
   }
