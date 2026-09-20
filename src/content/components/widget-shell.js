@@ -324,10 +324,32 @@ export function injectWidget(container) {
         }
         renderCurrentView();
       });
-    });      setInterval(() => {
+    });      // Throttle bookkeeping for the 30s poll: the assignments-list
+      // rebuild is capped at once per 5 minutes, and a background rescan
+      // started by the poll must not stack with a previous one.
+      let lastListRefresh = 0;
+      let backgroundScanInFlight = false;
+      setInterval(() => {
         if (document.getElementById('module-tasks-widget')) {
           updateProgressBar();
-          refreshDashboardView();
+          // Rebuilding the assignments list every 30s stacked duplicate
+          // cards, so it's throttled to once per 5 minutes (same window as
+          // the cache freshness check below).
+          const now = Date.now();
+          if (now - lastListRefresh >= 5 * 60 * 1000) {
+            lastListRefresh = now;
+            refreshDashboardView();
+          }
+          // When the 5-minute cache window lapses, kick a background rescan
+          // of just the mandatory data (assignments + grades) — never
+          // announcements. Guarded so two poll ticks can't stack scans.
+          const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
+          if (now - lastCacheTime >= 5 * 60 * 1000 && !backgroundScanInFlight) {
+            backgroundScanInFlight = true;
+            loadTasks(false, { refreshAnnouncements: false }).finally(() => {
+              backgroundScanInFlight = false;
+            });
+          }
         }
       }, 30000);
 
@@ -345,7 +367,7 @@ export function injectWidget(container) {
 
       const cached = loadLocalCache();
       const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
-      const isCacheFresh = (Date.now() - lastCacheTime) < (15 * 60 * 1000);
+      const isCacheFresh = (Date.now() - lastCacheTime) < (5 * 60 * 1000);
 
       if (cached && Object.keys(cached).length > 0) {
         state.cachedCourseMap = deduplicateCourseMap(cached, state.cachedGrades);
@@ -359,7 +381,7 @@ export function injectWidget(container) {
         renderCurrentView();
 
         if (!isCacheFresh) {
-          loadTasks(false);
+          loadTasks(false, { refreshAnnouncements: false });
         }
       } else {
         loadTasks(true);

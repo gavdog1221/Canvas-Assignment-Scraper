@@ -128,7 +128,7 @@ export function mergeGradeSources(canvasGrades, gsGrades) {
     return merged;
   }
 
-export async function loadTasks(showLoadingUI = true) {
+export async function loadTasks(showLoadingUI = true, opts = {}) {
     const listContainer = document.getElementById('module-tasks-list');
     if (showLoadingUI && (!state.cachedCourseMap || Object.keys(state.cachedCourseMap).length === 0)) {
       listContainer.innerHTML = '<div class="mod-empty-msg">Scanning Canvas Modules, Assignments & Gradescope...</div>';
@@ -235,7 +235,9 @@ export async function loadTasks(showLoadingUI = true) {
         }
       });
 
-      const announcementsPromise = fetchCanvasAnnouncements(headers, activeCourses, courseNameById);
+      const announcementsPromise = (opts.refreshAnnouncements !== false)
+        ? fetchCanvasAnnouncements(headers, activeCourses, courseNameById)
+        : Promise.resolve(state.cachedAnnouncements || []);
 
       const totalSteps = Math.max(activeCourses.length, 1);
       let stepIndex = 0;
@@ -395,9 +397,11 @@ export async function loadTasks(showLoadingUI = true) {
         showReloadProgress('Synchronizing Gradescope...', 80);
       }
 
-      const newAnnouncements = await announcementsPromise;
-      state.cachedAnnouncements = newAnnouncements;
-      saveLocalAnnouncementsCache(newAnnouncements);
+      if (opts.refreshAnnouncements !== false) {
+        const newAnnouncements = await announcementsPromise;
+        state.cachedAnnouncements = newAnnouncements;
+        saveLocalAnnouncementsCache(newAnnouncements);
+      }
       updateAnnouncementBadge();
 
       const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;

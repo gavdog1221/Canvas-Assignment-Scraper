@@ -2802,11 +2802,14 @@ body.yace-fullscreen-active .doc-preview-modal { z-index: 2147483647 !important;
 }
 
 /* Hidden-courses popover floats over the grid when opened in fullscreen
-   instead of becoming an anonymous grid row (which would push the layout). */
+   instead of becoming an anonymous grid row (which would push the layout).
+   The base rule's `margin: 12px 0` would shove it 12px below its top anchor,
+   so it's zeroed here like the reload-progress overlay above it. */
 #module-tasks-widget.is-fullscreen .hidden-courses-popover {
   position: absolute !important;
   top: 58px !important; left: 14px !important; right: 14px !important;
   z-index: 9999 !important;
+  margin: 0 !important;
 }
 
 /* The transient reload-progress banner is injected right after .header;

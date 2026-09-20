@@ -588,6 +588,10 @@ export function renderCurrentView() {
 // unrelated tab (e.g. a corner view) falls back to Due semantics.
 export function renderTaskList(container) {
     const listContainer = container;
+    // Clear before rebuilding: the 30s poll calls this on the fullscreen
+    // Assignments panel and tab switches rebuild #module-tasks-list, so
+    // appending without clearing stacked duplicate cards on every tick.
+    listContainer.innerHTML = '';
     const completedMap = getCompletedTasks();
     const hiddenCourses = getHiddenCourses();
     const starredMap = getStarredTasks();
