@@ -1326,11 +1326,20 @@ body.yace-fullscreen-active .doc-preview-modal { z-index: 2147483647 !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 26px !important;
   box-shadow: var(--shadow-panel) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important;
 }
+/* True fullscreen (Fullscreen API): fill the entire screen edge-to-edge. */
+.doc-preview-dialog:fullscreen {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  border-radius: 0 !important;
+}
 .shortcuts-dialog { max-width: 480px !important; height: auto !important; max-height: 80vh !important; }
 .doc-preview-header { display: flex !important; justify-content: space-between !important; align-items: center !important; padding: 14px 20px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; background: rgba(255, 255, 255, 0.04) !important; }
 .doc-preview-title { font-size: 13px !important; font-weight: 700 !important; color: var(--text-primary) !important; letter-spacing: -0.1px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; max-width: 60% !important; }
 .doc-preview-actions { display: flex !important; align-items: center !important; gap: 8px !important; }
 .doc-preview-btn-top { text-decoration: none !important; font-size: 11px !important; padding: 6px 12px !important; border-radius: 999px !important; font-weight: 600 !important; background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; color: var(--text-secondary) !important; transition: all 0.2s ease !important; }
+button.doc-preview-btn-top { cursor: pointer !important; line-height: 1.4 !important; font-family: inherit !important; }
 .doc-preview-btn-top:hover { background: var(--primary-accent) !important; color: #000000 !important; border-color: var(--primary-accent) !important; }
 .doc-preview-close { background: transparent !important; border: none !important; color: var(--text-secondary) !important; font-size: 16px !important; cursor: pointer !important; border-radius: 999px !important; padding: 4px 9px !important; }
 .doc-preview-close:hover { color: #ffb4ae !important; background: rgba(255, 69, 58, 0.2) !important; }

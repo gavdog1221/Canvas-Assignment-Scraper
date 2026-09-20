@@ -12,6 +12,7 @@ export function openPdfModal(rawUrl, title, courseId = null, fileId = null) {
       <div class="doc-preview-header">
       <span class="doc-preview-title" id="doc-preview-title">Document Preview</span>
       <div class="doc-preview-actions">
+      <button type="button" class="doc-preview-btn-top" id="doc-preview-fullscreen-btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
       <a class="doc-preview-btn-top" id="doc-preview-open-tab" target="_blank" rel="noopener noreferrer">↗ Open Tab</a>
       <a class="doc-preview-btn-top" id="doc-preview-download-link" download>Download ⤓</a>
       <button type="button" class="doc-preview-close" id="doc-preview-close-btn" title="Close Preview">✕</button>
@@ -25,6 +26,7 @@ export function openPdfModal(rawUrl, title, courseId = null, fileId = null) {
       document.body.appendChild(modal);
 
       const close = () => {
+        if (document.fullscreenElement) document.exitFullscreen();
         modal.classList.remove('is-open');
         const iframe = document.getElementById('doc-preview-iframe');
         if (iframe) iframe.src = '';
@@ -32,6 +34,23 @@ export function openPdfModal(rawUrl, title, courseId = null, fileId = null) {
 
         modal.querySelector('.doc-preview-backdrop').addEventListener('click', close);
         modal.querySelector('#doc-preview-close-btn').addEventListener('click', close);
+
+      const fullscreenBtn = modal.querySelector('#doc-preview-fullscreen-btn');
+      const dialog = modal.querySelector('.doc-preview-dialog');
+      fullscreenBtn.addEventListener('click', () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else if (dialog.requestFullscreen) {
+          dialog.requestFullscreen();
+        }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement === dialog) {
+          fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+        } else {
+          fullscreenBtn.textContent = '⛶ Fullscreen';
+        }
+      });
     }
 
     const titleEl = document.getElementById('doc-preview-title');
@@ -57,6 +76,7 @@ export function openPdfModal(rawUrl, title, courseId = null, fileId = null) {
 export function closePdfModal() {
     const modal = document.getElementById('canvas-doc-preview-modal');
     if (modal && modal.classList.contains('is-open')) {
+      if (document.fullscreenElement) document.exitFullscreen();
       modal.classList.remove('is-open');
       const iframe = document.getElementById('doc-preview-iframe');
       if (iframe) iframe.src = '';
