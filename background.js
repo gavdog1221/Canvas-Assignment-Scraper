@@ -1,4 +1,45 @@
+const RMP_GRAPHQL_URL = 'https://www.ratemyprofessors.com/graphql';
+// University of New Hampshire (all campuses) — RMP global ID (legacyId 1231).
+const RMP_SCHOOL_ID = 'U2Nob29sLTEyMzE=';
+const RMP_TEACHER_QUERY = `query TeacherSearch($query: TeacherSearchQuery!, $first: Int) {
+  newSearch {
+    teachers(query: $query, first: $first) {
+      resultCount
+      edges { node { id legacyId firstName lastName avgRatingRounded avgDifficultyRounded numRatings wouldTakeAgainPercentRounded wouldTakeAgainCount department teacherRatingTags { tagName tagCount } school { id legacyId name } } }
+    }
+  }
+}`;
+
 browser.runtime.onMessage.addListener((request) => {
+    if (request.type === 'FETCH_RMP') {
+        return (async () => {
+            try {
+                const res = await fetch(RMP_GRAPHQL_URL, {
+                    method: 'POST',
+                    credentials: 'omit',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic dGVzdDp0ZXN0',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        query: RMP_TEACHER_QUERY,
+                        variables: {
+                            query: { text: String(request.text || ''), schoolID: RMP_SCHOOL_ID, fallback: true },
+                            first: 10
+                        }
+                    })
+                });
+                if (!res.ok) return { success: false, error: `Rate My Professor returned HTTP ${res.status}` };
+                const json = await res.json();
+                const edges = (((json.data || {}).newSearch || {}).teachers || {}).edges || [];
+                return { success: true, teachers: edges.map(e => e.node) };
+            } catch (e) {
+                return { success: false, error: String((e && e.message) || e) };
+            }
+        })();
+    }
+
     if (request.type === 'FETCH_DINING_HOURS') {
         return (async () => {
             try {

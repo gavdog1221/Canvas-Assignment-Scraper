@@ -26,6 +26,7 @@ export const state = {
   cachedGrades: [],
   cachedCoursePercentages: {},
   whatIfScores: {},
+  gradeChangeAlerts: [],
   domCourseColors: {},
   cachedAnnouncements: [],
   cachedUnreadInboxCount: 0,
