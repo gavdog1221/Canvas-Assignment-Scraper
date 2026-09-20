@@ -68,11 +68,10 @@ export function setWidgetFullscreen() {
   }
 
 export function injectWidget(container) {
-    const todayFormatted = new Date().toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
+    const nowDate = new Date();
+    const dayNum = nowDate.getDate();
+    const suffix = (dayNum % 10 === 1 && dayNum !== 11) ? 'st' : (dayNum % 10 === 2 && dayNum !== 12) ? 'nd' : (dayNum % 10 === 3 && dayNum !== 13) ? 'rd' : 'th';
+    const todayFormatted = `${nowDate.toLocaleDateString(undefined, { weekday: 'long' })} ${nowDate.toLocaleDateString(undefined, { month: 'long' })} ${dayNum}${suffix}, ${nowDate.getFullYear()}`;
 
     const widget = document.createElement('div');
     widget.id = 'module-tasks-widget';
@@ -81,6 +80,8 @@ export function injectWidget(container) {
     <div class="header">
     <div class="title-row">
     <span class="title">YACE</span>
+    </div>
+    <div class="widget-date-center">
     <span class="widget-current-date">${todayFormatted}</span>
     </div>
     <div class="widget-controls">

@@ -512,6 +512,7 @@ export function renderCurrentView() {
     // re-mounted on every rebuild instead of being lost.
     const fsStrip = state.isFullscreen ? document.getElementById('workload-strip-container') : null;
     const fsSearchRow = state.isFullscreen ? document.querySelector('#module-tasks-widget .search-bar-row') : null;
+    const fsProgress = state.isFullscreen ? document.querySelector('#module-tasks-widget .progress-container') : null;
 
     // Fullscreen owns the grid lifecycle: renderDashboardView captures the
     // mounted scrape panels BEFORE wiping, so rebuilding one list must never
@@ -566,7 +567,7 @@ export function renderCurrentView() {
     // the single active tab. Pass the pre-wipe ribbon/search node refs so
     // those controls survive the rebuild.
     if (state.isFullscreen) {
-      renderDashboardView(listContainer, fsStrip, fsSearchRow);
+      renderDashboardView(listContainer, fsStrip, fsSearchRow, fsProgress);
       return;
     }
 

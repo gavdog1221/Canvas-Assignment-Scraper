@@ -19,7 +19,7 @@ import { getCompletedTasks } from '../storage/completed-tasks.js';
 import { effectiveDueDate } from '../storage/custom-due-dates.js';
 import { getSeenAnnouncements } from '../views/announcements-view.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
-import { renderCurrentView, renderTaskList } from '../views/upcoming-view.js';
+import { renderCurrentView, renderTaskList, updateProgressBar } from '../views/upcoming-view.js';
 import { renderGradesView } from '../views/grades-view.js';
 import { renderRecentGradesView } from '../views/recent-grades-view.js';
 import { renderAnnouncementsView } from '../views/announcements-view.js';
@@ -99,7 +99,7 @@ function getScrapePanel(prevPanels, forceRebuild, klass, title, badgeText, badge
   return fresh.panel;
 }
 
-export function renderDashboardView(listContainer, strip, searchRow) {
+export function renderDashboardView(listContainer, strip, searchRow, progressEl) {
   // The relocated ribbon + search must survive every rebuild (the 30s poll,
   // Due/Overdue/Done clicks, filter changes, checkbox toggles, opening the
   // Campus & Tools drawer...). The refs are captured BEFORE the container
@@ -107,9 +107,28 @@ export function renderDashboardView(listContainer, strip, searchRow) {
   // them in -- and the try/finally below guarantees they are re-mounted even
   // if a panel render throws mid-build, so they can never be orphaned or
   // disappear. Fallbacks re-query, in case a caller omits them (no-op once
-  // the old nodes are detached, but harmless).
+  // the old nodes are detached, but harmless). The week progress bar lives
+  // inline in the Assignments panel header (title · badge · bar) instead of
+  // as its own stacked row above the task list.
   const ribbon = strip || document.getElementById('workload-strip-container');
   const search = searchRow || document.querySelector('#module-tasks-widget .search-bar-row');
+  // Descendant (not child) selector: after the first render the bar lives
+  // inside the Assignments panel, not as a direct widget child. If a previous
+  // build already wiped it, recreate it so the bar can never go missing.
+  let progress = progressEl || document.querySelector('#module-tasks-widget .progress-container');
+  if (!progress) {
+    progress = document.createElement('div');
+    progress.className = 'progress-container';
+    progress.innerHTML = `
+    <div class="progress-meta">
+    <span id="progress-label">0% this week</span>
+    <span id="progress-count">0/0 this week</span>
+    </div>
+    <div class="progress-bar-bg">
+    <div class="progress-bar-fill tier-low" id="progress-bar-fill"></div>
+    </div>
+    `;
+  }
 
   // Capture the mounted scrape panels BEFORE the wipe so getScrapePanel can
   // re-mount them on interactive re-renders instead of rebuilding them.
@@ -134,13 +153,15 @@ export function renderDashboardView(listContainer, strip, searchRow) {
   try {
     // Center stage: Assignments -- the vertical task list (the same list the
     // Due/Overdue/Done tabs render in the sidebar) owns the middle column,
-    // spanning the full panel height. The weekday ribbon and search row (which
-    // live in the shell chrome above the sidebar list) are moved into the top
-    // of this panel, so the center column flow is:
+    // spanning the full panel height. The weekday ribbon and the search row
+    // (which live in the shell chrome above the sidebar list) are moved into
+    // the top of this panel, and the week progress bar is embedded inline in
+    // the panel header, so the center column flow is:
     //   1. compact weekday pills (TODAY / TMRW / ...)
     //   2. search bar (class filter · query · 2W horizon)
-    //   3. ASSIGNMENTS header with Due / Overdue / Done filters + "+ Task"
-    //   4. scrollable card stack
+    //   3. ASSIGNMENTS header with the week progress bar inline
+    //   4. Due / Overdue / Done filters + "+ Task"
+    //   5. scrollable card stack
     const overdueCount = countOverdue();
     const assignments = makePanel('assignments', 'Assignments', overdueCount > 0 ? String(overdueCount) : '', 'is-overdue');
 
@@ -176,6 +197,10 @@ export function renderDashboardView(listContainer, strip, searchRow) {
     toolbar.appendChild(addBtn);
 
     assignments.panel.insertBefore(toolbar, assignments.body);
+    // Week progress rides inline in the ASSIGNMENTS header row (title · badge
+    // · bar), directly above the toolbar + cards — never its own stacked row.
+    if (progress) assignmentsHeader.appendChild(progress);
+    updateProgressBar();
     renderTaskList(assignments.body);
 
     // Left column, top half: News (announcements) -- fills the upper 50% and
@@ -201,19 +226,20 @@ export function renderDashboardView(listContainer, strip, searchRow) {
     grid.append(news, recentGrades, assignments.panel, grades, info);
     listContainer.appendChild(grid);
   } finally {
-    // Belt-and-suspenders for the "permanently mounted" ribbon + search: if a
-    // panel render threw between the clear above and this point, mount the
-    // (partial) grid anyway and re-attach the pills/search so the center
-    // column never loses them.
+    // Belt-and-suspenders for the "permanently mounted" ribbon + search +
+    // progress: if a panel render threw between the clear above and this
+    // point, mount the (partial) grid anyway and re-attach the pills/search/
+    // progress so the center column never loses them.
     if (!grid.isConnected && listContainer.isConnected) {
       listContainer.appendChild(grid);
     }
-    if ((ribbon || search) && grid.isConnected) {
+    if ((ribbon || search || progress) && grid.isConnected) {
       const panel = grid.querySelector('.assignments-panel');
       const header = panel ? panel.querySelector('.fullscreen-panel-header') : null;
       if (panel && header) {
         if (ribbon) panel.insertBefore(ribbon, header);
         if (search) panel.insertBefore(search, header);
+        if (progress) header.appendChild(progress);
       }
     }
   }
