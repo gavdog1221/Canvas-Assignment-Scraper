@@ -11,7 +11,7 @@ import { escapeHTML } from '../utils/text.js';
 import { renderAnnouncementsView } from '../views/announcements-view.js';
 import { renderDiningView } from '../views/dining-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
-import { renderKanbanView } from '../views/kanban-view.js';
+import { renderDashboardView } from '../views/dashboard-view.js';
 import { renderGeneralView } from '../views/general-view.js';
 import { renderGradesView, updateGradeChangeBadge } from '../views/grades-view.js';
 
@@ -545,6 +545,14 @@ export function renderCurrentView() {
       hudOverdueBadge.style.display = totalOverdueCount > 0 ? 'inline-flex' : 'none';
       hudOverdueBadge.innerText = totalOverdueCount;
     }
+
+    // Full screen shows every tab at once (see dashboard-view.js) instead of
+    // the single active tab.
+    if (state.isFullscreen) {
+      renderDashboardView(listContainer);
+      return;
+    }
+
     if (state.currentTab === 'grades') {
       renderGradesView(listContainer, hiddenCourses);
       return;
@@ -570,11 +578,25 @@ export function renderCurrentView() {
       return;
     }
 
-    if (state.currentTab === 'upcoming' && state.isFullscreen) {
-      renderKanbanView(listContainer);
-      return;
-    }
+    renderTaskList(listContainer);
+  }
+
+// Renders the vertical task list into any container — used by the sidebar
+// (the tail of renderCurrentView) and by the fullscreen center Assignments
+// panel (dashboard-view.js). The filter/sort/show-more logic is identical for
+// both; only the DOM target differs. The active tab is normalized so an
+// unrelated tab (e.g. a corner view) falls back to Due semantics.
+export function renderTaskList(container) {
+    const listContainer = container;
+    const completedMap = getCompletedTasks();
+    const hiddenCourses = getHiddenCourses();
+    const starredMap = getStarredTasks();
+    const now = new Date();
+    const tab = (state.currentTab === 'completed' || state.currentTab === 'overdue') ? state.currentTab : 'upcoming';
+
     let allFilteredTasks = [];
+    let renderedCount = 0;
+    let showBigEmptyState = true;
 
     Object.keys(state.cachedCourseMap).forEach(courseKey => {
       if (hiddenCourses.includes(courseKey)) return;
@@ -592,7 +614,7 @@ export function renderCurrentView() {
           if (localDateKey(ed) !== state.activeDayFilter) return false;
         }
 
-        if (state.currentTab === 'upcoming' && ed && state.assignmentRangeFilter !== 'all') {
+        if (tab === 'upcoming' && ed && state.assignmentRangeFilter !== 'all') {
           const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
           if (state.assignmentRangeFilter === 'today') {
             if (ed > endOfToday) return false;
@@ -609,21 +631,21 @@ export function renderCurrentView() {
         }
 
         if (state.searchQuery && !t.title.toLowerCase().includes(state.searchQuery)) return false;
-        if (state.currentTab === 'completed') return isDone;
+        if (tab === 'completed') return isDone;
         if (isDone) return false;
-        if (state.currentTab === 'overdue') return isOverdue;
-        if (state.currentTab === 'upcoming') return !isOverdue;
+        if (tab === 'overdue') return isOverdue;
+        if (tab === 'upcoming') return !isOverdue;
         return true;      });
 
         allFilteredTasks.push(...tasks);
     });
 
-    if (state.currentTab === 'completed' || state.currentTab === 'overdue') {
+    if (tab === 'completed' || tab === 'overdue') {
       // Always render Completed/Overdue as a single sorted list scoped to
       // the current week by default — showing every task ever doesn't fix
       // the bloat problem since a single course can rack up dozens of
       // finished or missed items on its own.
-      if (state.currentTab === 'completed') {
+      if (tab === 'completed') {
         // Most recently completed first.
         allFilteredTasks.sort(withStarredFirst((a, b) => (completedMap[b.id] || 0) - (completedMap[a.id] || 0), starredMap));
       } else {
@@ -645,7 +667,7 @@ export function renderCurrentView() {
         return ed && ed >= startOfWeek && ed <= endOfWeek;
       });
 
-      const showAll = state.currentTab === 'completed' ? state.showAllCompleted : state.showAllOverdue;
+      const showAll = tab === 'completed' ? state.showAllCompleted : state.showAllOverdue;
       const visibleTasks = showAll ? allFilteredTasks : thisWeekTasks;
       renderedCount = visibleTasks.length;
 
@@ -655,7 +677,7 @@ export function renderCurrentView() {
         if (visibleTasks.length === 0) {
           const scopedEmpty = document.createElement('div');
           scopedEmpty.className = 'mod-empty-msg';
-          scopedEmpty.innerText = state.currentTab === 'completed'
+          scopedEmpty.innerText = tab === 'completed'
           ? '✨ Nothing completed this week yet.'
           : '🎉 No assignments overdue this week.';
           listContainer.appendChild(scopedEmpty);
@@ -672,7 +694,7 @@ export function renderCurrentView() {
           showMoreBtn.className = 'show-more-tasks-btn';
           showMoreBtn.innerText = `Show all (${hiddenCount} more from earlier)`;
           showMoreBtn.addEventListener('click', () => {
-            if (state.currentTab === 'completed') state.showAllCompleted = true;
+            if (tab === 'completed') state.showAllCompleted = true;
             else state.showAllOverdue = true;
             renderCurrentView();
           });
@@ -683,7 +705,7 @@ export function renderCurrentView() {
           collapseBtn.className = 'show-more-tasks-btn';
           collapseBtn.innerText = 'Show only this week';
           collapseBtn.addEventListener('click', () => {
-            if (state.currentTab === 'completed') state.showAllCompleted = false;
+            if (tab === 'completed') state.showAllCompleted = false;
             else state.showAllOverdue = false;
             renderCurrentView();
           });
@@ -719,9 +741,9 @@ export function renderCurrentView() {
         }
       } else if (state.searchQuery) {
         listContainer.innerHTML = `<div class="mod-empty-msg">No assignments match "${escapeHTML(state.searchQuery)}"</div>`;
-      } else if (state.currentTab === 'overdue') {
+      } else if (tab === 'overdue') {
         listContainer.innerHTML = '<div class="mod-empty-msg">✨ No overdue assignments! You are all caught up.</div>';
-      } else if (state.currentTab === 'completed') {
+      } else if (tab === 'completed') {
         listContainer.innerHTML = '<div class="mod-empty-msg">No completed assignments yet.</div>';
       } else {
         listContainer.innerHTML = '<div class="mod-empty-msg">🎉 All clear! No upcoming tasks due.</div>';
