@@ -1,5 +1,6 @@
 import { escapeHTML } from '../utils/text.js';
 import { getRegistrationData, saveRegistrationData, clearRegistrationData } from '../../shared/registration-storage.js';
+import { computeTimeConflicts, scheduleLabel } from '../../shared/schedule-conflicts.js';
 
 export function renderRegistrationView(container) {
   container.innerHTML = `
@@ -28,7 +29,11 @@ export function renderRegistrationView(container) {
       <div class="reg-field">
         <label>CRNs</label>
         <div id="reg-crn-list" class="reg-crn-list"></div>
-        <button type="button" id="reg-add-crn" class="reg-secondary-btn">+ Add CRN</button>
+        <div class="reg-crn-actions">
+          <button type="button" id="reg-add-crn" class="reg-secondary-btn">+ Add CRN</button>
+          <button type="button" id="reg-preview-btn" class="reg-secondary-btn">🔎 Check CRNs</button>
+        </div>
+        <div id="reg-preview-results" class="reg-preview-results"></div>
       </div>
 
       <div class="reg-actions">
@@ -93,6 +98,80 @@ export function renderRegistrationView(container) {
     crnList.innerHTML = '';
     addCrnRow('');
     flashStatus('Cleared.', true);
+  });
+
+  const previewBtn = container.querySelector('#reg-preview-btn');
+  const previewResults = container.querySelector('#reg-preview-results');
+
+  function renderPreview(sections, conflicts, termCode) {
+    let html = '';
+    if (termCode) {
+      html += `<div class="reg-preview-term">WebCat term code <code>${escapeHTML(termCode)}</code></div>`;
+    }
+    const withSched = (sections || []).filter(s => !s.error && s.days && s.days.length && s.start && s.end);
+    if (conflicts && conflicts.length) {
+      html += `<div class="reg-preview-conflicts">${conflicts.map(c => `
+        <div class="reg-preview-conflict">⚠ <strong>${escapeHTML(c.a.code || ('CRN ' + c.a.crn))}</strong> (${escapeHTML(scheduleLabel(c.a))}) × <strong>${escapeHTML(c.b.code || ('CRN ' + c.b.crn))}</strong> (${escapeHTML(scheduleLabel(c.b))}) — overlaps on ${escapeHTML(c.dayLabel)}</div>`).join('')}</div>`;
+    } else if (withSched.length >= 2) {
+      html += `<div class="reg-preview-conflicts reg-preview-ok">No time conflicts among these CRNs.</div>`;
+    }
+    if (!sections || !sections.length) {
+      html += `<div class="reg-preview-note">Nothing to show yet — enter CRNs and a term above, then hit 🔎 Check CRNs.</div>`;
+    }
+    sections.forEach(section => {
+      if (section.error) {
+        html += `
+          <div class="reg-preview-row reg-preview-error">
+            <div class="reg-preview-code">CRN ${escapeHTML(section.crn)}</div>
+            <div class="reg-preview-meta">${escapeHTML(section.error)}</div>
+          </div>`;
+        return;
+      }
+      const online = !(section.days && section.days.length) && !section.start && !section.end
+        && /online/i.test(section.title || '');
+      const sched = scheduleLabel(section, { online });
+      const place = [section.building, section.room].filter(Boolean).join(' ');
+      const bits = [sched, place, section.credits ? `${section.credits} cr` : ''].filter(Boolean);
+      const size = section.classSize ? `Class size: ${section.classSize}` : '';
+      const reqs = [
+        section.prereqs ? `Prereq: ${section.prereqs}` : '',
+        section.coreqs ? `Coreq: ${section.coreqs}` : '',
+        section.equivalents ? `Equivalent: ${section.equivalents}` : '',
+      ].filter(Boolean);
+      html += `
+        <div class="reg-preview-row">
+          <div class="reg-preview-code">${escapeHTML(section.code || ('CRN ' + section.crn))}</div>
+          <div class="reg-preview-title">${escapeHTML(section.title)}</div>
+          <div class="reg-preview-meta">${escapeHTML(bits.join(' · '))}${section.instructor ? ' · ' + escapeHTML(section.instructor) : ''}</div>
+          ${size ? `<div class="reg-preview-seats">${escapeHTML(size)}</div>` : ''}
+          ${reqs.length ? `<div class="reg-preview-reqs">${reqs.map(r => escapeHTML(r)).join('<br>')}</div>` : ''}
+        </div>`;
+    });
+    previewResults.innerHTML = html;
+  }
+
+  previewBtn.addEventListener('click', async () => {
+    const crns = Array.from(crnList.querySelectorAll('.reg-crn-input')).map(i => i.value.trim()).filter(Boolean);
+    const term = termInput.value.trim();
+    if (!crns.length) {
+      previewResults.innerHTML = '<div class="reg-preview-note">Enter at least one CRN to look up.</div>';
+      return;
+    }
+    previewBtn.disabled = true;
+    previewResults.innerHTML = '<div class="reg-preview-note">Looking up on courses.unh.edu…</div>';
+    let msg;
+    try {
+      msg = await browser.runtime.sendMessage({ type: 'FETCH_WEBCAT_CRN', crns, term });
+    } catch (e) {
+      msg = { success: false, error: String((e && e.message) || e) };
+    }
+    previewBtn.disabled = false;
+    if (!msg || !msg.success) {
+      previewResults.innerHTML = `<div class="reg-preview-note reg-preview-error">Lookup failed: ${escapeHTML((msg && msg.error) || 'unknown error')}</div>`;
+      return;
+    }
+    const conflicts = computeTimeConflicts(msg.sections || []);
+    renderPreview(msg.sections || [], conflicts, msg.termCode);
   });
 
   (async () => {

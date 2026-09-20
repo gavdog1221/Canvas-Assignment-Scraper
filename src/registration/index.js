@@ -2,6 +2,13 @@
 
 import { getRegistrationData } from '../shared/registration-storage.js';
 import { waitForElement, setInputValue } from './dom-utils.js';
+import { computeTimeConflicts, scheduleLabel } from '../shared/schedule-conflicts.js';
+
+function esc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 const STATUS_ID = 'yace-reg-status';
 
@@ -143,7 +150,120 @@ async function fillCrns(data) {
   });
 
   showStatus(`Filled ${Math.min(crns.length, inputs.length)} CRN(s). Click Add to Summary when ready.`, 'ok');
+  showCrnPreview(data); // fire-and-forget preview (never blocks autofill)
   return true;
+}
+
+// --- CRN preview panel (course info + time conflicts, advisory only) ---
+
+const PREVIEW_ID = 'yace-crn-preview';
+let previewShown = false;
+
+function getPreviewPanel() {
+  let panel = document.getElementById(PREVIEW_ID);
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = PREVIEW_ID;
+    panel.className = 'yace-crn-preview';
+    panel.innerHTML = `
+      <div class="yace-pv-head">
+        <span>🔎 CRN preview</span>
+        <button type="button" class="yace-pv-close" aria-label="Dismiss">&times;</button>
+      </div>
+      <div class="yace-pv-body"></div>
+      <div class="yace-pv-conflicts"></div>
+    `;
+    panel.querySelector('.yace-pv-close').addEventListener('click', () => {
+      panel.classList.add('yace-pv-hidden');
+    });
+    document.body.appendChild(panel);
+  }
+  return panel;
+}
+
+function renderSectionRow(section) {
+  if (section.error) {
+    return `
+      <div class="yace-pv-row yace-pv-error">
+        <div class="yace-pv-code">CRN ${esc(section.crn)}</div>
+        <div class="yace-pv-meta">${esc(section.error)}</div>
+      </div>
+    `;
+  }
+  const online = !(section.days && section.days.length) && !section.start && !section.end
+    && /online/i.test(section.title || '');
+  const sched = scheduleLabel(section, { online });
+  const place = [section.building, section.room].filter(Boolean).join(' ');
+  const metaBits = [sched, place, section.credits ? `${section.credits} cr` : ''].filter(Boolean);
+  const size = section.classSize ? `Class size: ${section.classSize}` : '';
+  const reqs = [
+    section.prereqs ? `Prereq: ${section.prereqs}` : '',
+    section.coreqs ? `Coreq: ${section.coreqs}` : '',
+    section.equivalents ? `Equivalent: ${section.equivalents}` : '',
+  ].filter(Boolean);
+  return `
+    <div class="yace-pv-row">
+      <div class="yace-pv-code">${esc(section.code || ('CRN ' + section.crn))} <span class="yace-pv-crn">CRN ${esc(section.crn)}</span></div>
+      <div class="yace-pv-title">${esc(section.title)}</div>
+      <div class="yace-pv-meta">${esc(metaBits.join(' · '))}${section.instructor ? ' · ' + esc(section.instructor) : ''}</div>
+      ${size ? `<div class="yace-pv-seats">${esc(size)}</div>` : ''}
+      ${reqs.length ? `<div class="yace-pv-reqs">${reqs.map(r => esc(r)).join('<br>')}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderPreviewConflicts(panel, sections) {
+  const box = panel.querySelector('.yace-pv-conflicts');
+  const found = sections.filter(s => !s.error);
+  const schedulable = found.filter(s => s.days && s.days.length && s.start && s.end);
+  box.innerHTML = '';
+  if (schedulable.length < 2) return;
+
+  const conflicts = computeTimeConflicts(schedulable);
+  if (conflicts.length) {
+    box.innerHTML = conflicts.map(c => {
+      return `
+        <div class="yace-pv-conflict">
+          ⚠ <strong>${esc(c.a.code || ('CRN ' + c.a.crn))}</strong> (${esc(scheduleLabel(c.a))})
+          × <strong>${esc(c.b.code || ('CRN ' + c.b.crn))}</strong> (${esc(scheduleLabel(c.b))})
+          — overlaps on ${esc(c.dayLabel)}
+        </div>
+      `;
+    }).join('');
+    box.classList.add('yace-pv-conflicts-on');
+  } else {
+    box.innerHTML = '<div class="yace-pv-ok">No time conflicts among these CRNs.</div>';
+  }
+}
+
+async function showCrnPreview(data) {
+  if (previewShown) return;
+  const crns = (data.crns || []).map((c) => c.trim()).filter(Boolean);
+  if (!crns.length) return;
+  previewShown = true;
+
+  const panel = getPreviewPanel();
+  panel.classList.remove('yace-pv-hidden');
+  panel.querySelector('.yace-pv-body').innerHTML = '<div class="yace-pv-note">Looking up CRNs…</div>';
+  panel.querySelector('.yace-pv-conflicts').innerHTML = '';
+
+  // Resolved in the background from the public course catalog
+  // (courses.unh.edu) — no WebCat session or tab required.
+  let msg;
+  try {
+    msg = await browser.runtime.sendMessage({ type: 'FETCH_WEBCAT_CRN', crns, term: data.term });
+  } catch (e) {
+    msg = { success: false, error: String((e && e.message) || e) };
+  }
+  if (!msg || !msg.success) {
+    panel.querySelector('.yace-pv-body').innerHTML =
+      `<div class="yace-pv-note yace-pv-error">${esc((msg && msg.error) || 'Lookup failed.')}</div>`;
+    return;
+  }
+
+  const sections = msg.sections || [];
+  panel.querySelector('.yace-pv-body').innerHTML = sections.map(renderSectionRow).join('');
+  renderPreviewConflicts(panel, sections);
 }
 
 async function tick() {

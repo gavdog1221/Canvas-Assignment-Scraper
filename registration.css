@@ -24,3 +24,137 @@
 .yace-reg-status-info {
   border-color: rgba(10, 132, 255, 0.5);
 }
+
+/* --- CRN preview panel on WebCat --- */
+
+#yace-crn-preview {
+  position: fixed;
+  bottom: 76px;
+  right: 20px;
+  z-index: 999998;
+  width: 340px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e6e8ec;
+  background: #1c1f26;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+#yace-crn-preview.yace-pv-hidden {
+  display: none;
+}
+
+.yace-pv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-weight: 600;
+  background: #262a33;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yace-pv-close {
+  border: 0;
+  background: none;
+  color: #98a2b3;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.yace-pv-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.yace-pv-body {
+  padding: 8px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yace-pv-row {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #262a33;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yace-pv-row.yace-pv-error {
+  border-color: rgba(255, 69, 58, 0.55);
+}
+
+.yace-pv-code {
+  font-weight: 600;
+  color: #7db4ff;
+}
+
+.yace-pv-crn {
+  font-weight: 400;
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.yace-pv-title {
+  margin: 2px 0;
+}
+
+.yace-pv-meta {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.yace-pv-seats {
+  color: #30d958;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.yace-pv-reqs {
+  color: #98a2b3;
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.yace-pv-note {
+  color: #e6e8ec;
+  padding: 6px 2px;
+}
+
+.yace-pv-note.yace-pv-error {
+  color: #ff7b72;
+}
+
+.yace-pv-conflicts {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+  background: #262a33;
+}
+
+.yace-pv-conflicts-on {
+  background: #2b2118;
+}
+
+.yace-pv-conflict {
+  color: #ffb020;
+  margin-bottom: 4px;
+}
+
+.yace-pv-conflict:last-child {
+  margin-bottom: 0;
+}
+
+.yace-pv-ok {
+  color: #30d958;
+}
