@@ -22,6 +22,8 @@ export function hideCourse(courseKey) {
     updateHiddenMenuButton();
     updateProgressBar();
     renderWorkloadStrip();
+    // Hiding a course must refresh every panel that filters by it.
+    state.forceDashboardRebuild = true;
     renderCurrentView();
   }
 
@@ -36,5 +38,7 @@ export function unhideCourse(courseKey) {
     updateHiddenMenuButton();
     updateProgressBar();
     renderWorkloadStrip();
+    // Unhiding a course must refresh every panel that filters by it.
+    state.forceDashboardRebuild = true;
     renderCurrentView();
   }

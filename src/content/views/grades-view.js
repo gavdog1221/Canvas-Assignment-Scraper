@@ -249,6 +249,16 @@ export function renderGradesView(listContainer, hiddenCourses) {
             }
             saveWhatIfScores();
             renderGradesView(listContainer, hiddenCourses);
+            // Re-rendering recreates every input, which would drop focus after
+            // the first keystroke — put the caret back so multi-digit scores
+            // can actually be typed.
+            const refocused = Array.from(listContainer.querySelectorAll('.whatif-matrix-input'))
+              .find(el => el.dataset.taskId === task.id);
+            if (refocused) {
+              refocused.focus();
+              const caret = refocused.value.length;
+              refocused.setSelectionRange(caret, caret);
+            }
           });
 
           const rowResetBtn = row.querySelector('.whatif-row-reset');

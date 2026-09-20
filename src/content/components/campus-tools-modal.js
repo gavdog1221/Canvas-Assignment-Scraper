@@ -17,13 +17,15 @@ import { getHiddenCourses } from '../storage/hidden-courses.js';
 // Which tab shows next time the modal opens ('food' | 'registration' | 'rmp').
 let activeTool = 'food';
 
-// Reflect state.isDrawerOpen on the 🍽 header button so it reads as an
-// open/close toggle, not a one-way "open" button.
+// Reflect state.isDrawerOpen + the active tool on every 🍽/🧑‍🏫/🎓 header
+// button so the one matching the open tab lights up, not a one-way "open".
 function syncCampusToolsBtn() {
-    const btn = document.getElementById('open-campus-tools-btn');
-    if (!btn) return;
-    btn.classList.toggle('is-active', state.isDrawerOpen);
-    btn.setAttribute('aria-expanded', String(state.isDrawerOpen));
+    const isOpen = state.isDrawerOpen;
+    document.querySelectorAll('.campus-tools-btn').forEach(btn => {
+      const tool = btn.getAttribute('data-tool');
+      btn.classList.toggle('is-active', isOpen && tool === activeTool);
+      btn.setAttribute('aria-expanded', String(isOpen));
+    });
   }
 
 // CSS custom properties are defined on #module-tasks-widget only; a modal

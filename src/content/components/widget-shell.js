@@ -84,8 +84,14 @@ export function injectWidget(container) {
     <span class="widget-current-date">${todayFormatted}</span>
     </div>
     <div class="widget-controls">
-    <button class="icon-btn campus-tools-btn" id="open-campus-tools-btn" title="Campus Tools: Food menus & WebCat Registration" aria-haspopup="dialog" aria-expanded="false">
-    <span class="campus-tools-icon">🍽</span><span class="campus-tools-label">Campus&nbsp;&amp;&nbsp;Tools</span>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="food" title="Campus Dining Hall Menus" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🍽</span><span class="campus-tools-label">Food</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="rmp" title="Rate My Professors" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🧑‍🏫</span><span class="campus-tools-label">Prof</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="registration" title="WebCat Registration" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🎓</span><span class="campus-tools-label">Reg</span>
     </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
@@ -199,7 +205,11 @@ export function injectWidget(container) {
     });
 
     document.getElementById('toggle-shortcuts-btn').addEventListener('click', openShortcutsModal);
-    document.getElementById('open-campus-tools-btn').addEventListener('click', () => toggleCampusToolsModal());
+    // Each header tool button deep-links to its own tab in the Campus & Tools
+    // overlay (Food / Professors / WebCat Reg).
+    document.querySelectorAll('.campus-tools-btn').forEach(btn => {
+      btn.addEventListener('click', () => toggleCampusToolsModal(btn.getAttribute('data-tool')));
+    });
     document.getElementById('add-custom-task-btn').addEventListener('click', () => openAssignmentModal());
     const courseScrollWrap = widget.querySelector('.course-scroll-wrap');
     if (courseScrollWrap) {

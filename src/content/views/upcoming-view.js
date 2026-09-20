@@ -513,7 +513,14 @@ export function renderCurrentView() {
     const fsStrip = state.isFullscreen ? document.getElementById('workload-strip-container') : null;
     const fsSearchRow = state.isFullscreen ? document.querySelector('#module-tasks-widget .search-bar-row') : null;
 
-    listContainer.innerHTML = '';
+    // Fullscreen owns the grid lifecycle: renderDashboardView captures the
+    // mounted scrape panels BEFORE wiping, so rebuilding one list must never
+    // force the Grades/News/Info panels to re-render (that used to reset
+    // their scroll + what-if state on every button click). Only wipe here in
+    // the sidebar path where this function IS the renderer.
+    if (!state.isFullscreen) {
+      listContainer.innerHTML = '';
+    }
     state.selectedTaskIndex = -1;
     updateGradeChangeBadge();
 

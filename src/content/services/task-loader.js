@@ -475,6 +475,9 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       updateHiddenMenuButton();
       updateProgressBar();
       renderWorkloadStrip();
+      // Fresh scrape data lands here — force the Grades/News/Info panels to
+      // rebuild instead of being re-mounted stale from the previous render.
+      state.forceDashboardRebuild = true;
       renderCurrentView();
       purgeDefaultCanvasElements();
 

@@ -39,6 +39,12 @@ export const state = {
   // pills and active filters stay mounted above ASSIGNMENTS regardless.
   isDrawerOpen: false,
 
+  // Set right before a render that really changes scrape-derived data
+  // (loadTasks completion, hide/unhide of courses). The fullscreen dashboard
+  // re-mounts the Grades/News/Info panels by default so button clicks never
+  // reset their scroll/what-if state; this flag forces them to rebuild.
+  forceDashboardRebuild: false,
+
   selectedTaskIndex: -1,
   cachedDiningMenu: null,
   activeDiningHall: 80, // 80 = Holloway Commons (HoCo), 30 = Philbrook (Philly), 50 = Stillings

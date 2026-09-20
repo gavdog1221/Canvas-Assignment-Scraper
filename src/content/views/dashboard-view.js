@@ -64,6 +64,41 @@ function makePanel(klass, title, badgeText, badgeClass) {
   return { panel, body };
 }
 
+// Scrape-derived panels (News / Recent Grades / Grades / Info) only change
+// when loadTasks() finishes or when courses are hidden/unhidden — both set
+// state.forceDashboardRebuild. Interactive re-renders (pills, filters, tabs,
+// checkboxes, toggles) rebuild just the Assignments panel and RE-MOUNT the
+// scrape panels as-is, so their scroll position and what-if edits survive
+// every button click. Fresh panels (or forced rebuilds) get renderBody().
+function getScrapePanel(prevPanels, forceRebuild, klass, title, badgeText, badgeClass, renderBody) {
+  if (!forceRebuild) {
+    const prev = prevPanels.get(`${klass}-panel`);
+    if (prev) {
+      const header = prev.querySelector('.fullscreen-panel-header');
+      if (header) {
+        const titleEl = header.querySelector('.fullscreen-panel-title');
+        if (titleEl) titleEl.textContent = title;
+        let badge = header.querySelector('.fullscreen-panel-badge');
+        if (badgeText) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'fullscreen-panel-badge';
+            header.appendChild(badge);
+          }
+          badge.textContent = badgeText;
+          badge.className = `fullscreen-panel-badge ${badgeClass || ''}`;
+        } else if (badge) {
+          badge.remove();
+        }
+      }
+      return prev;
+    }
+  }
+  const fresh = makePanel(klass, title, badgeText, badgeClass);
+  renderBody(fresh.body);
+  return fresh.panel;
+}
+
 export function renderDashboardView(listContainer, strip, searchRow) {
   // The relocated ribbon + search must survive every rebuild (the 30s poll,
   // Due/Overdue/Done clicks, filter changes, checkbox toggles, opening the
@@ -76,7 +111,21 @@ export function renderDashboardView(listContainer, strip, searchRow) {
   const ribbon = strip || document.getElementById('workload-strip-container');
   const search = searchRow || document.querySelector('#module-tasks-widget .search-bar-row');
 
+  // Capture the mounted scrape panels BEFORE the wipe so getScrapePanel can
+  // re-mount them on interactive re-renders instead of rebuilding them.
+  const prevGrid = listContainer.querySelector('.fullscreen-dashboard');
+  const prevPanels = new Map();
+  if (prevGrid) {
+    Array.from(prevGrid.children).forEach((p) => {
+      const cls = Array.from(p.classList).find((c) => c.endsWith('-panel'));
+      if (cls) prevPanels.set(cls, p);
+    });
+  }
+
   listContainer.innerHTML = '';
+
+  const forceRebuild = state.forceDashboardRebuild === true;
+  state.forceDashboardRebuild = false;
 
   const hiddenCourses = getHiddenCourses();
   const grid = document.createElement('div');
@@ -131,23 +180,25 @@ export function renderDashboardView(listContainer, strip, searchRow) {
 
     // Left column, top half: News (announcements) -- fills the upper 50% and
     // scrolls its own body.
-    const news = makePanel('news', 'News', countUnseen() > 0 ? String(countUnseen()) : '', 'is-news');
-    renderAnnouncementsView(news.body, hiddenCourses);
+    const news = getScrapePanel(prevPanels, forceRebuild, 'news', 'News',
+      countUnseen() > 0 ? String(countUnseen()) : '', 'is-news',
+      (body) => renderAnnouncementsView(body, hiddenCourses));
 
     // Left column, bottom half: Recent Grades feed (newest-graded first).
-    const recentGrades = makePanel('recent-grades', 'Recent Grades');
-    renderRecentGradesView(recentGrades.body, hiddenCourses);
+    const recentGrades = getScrapePanel(prevPanels, forceRebuild, 'recent-grades', 'Recent Grades', '', '',
+      (body) => renderRecentGradesView(body, hiddenCourses));
 
     // Right column, top: Grades (GPA / stats).
     const gradeAlertCount = (state.gradeChangeAlerts || []).length;
-    const grades = makePanel('grades', 'Grades', gradeAlertCount > 0 ? String(gradeAlertCount) : '', 'is-grades');
-    renderGradesView(grades.body, hiddenCourses);
+    const grades = getScrapePanel(prevPanels, forceRebuild, 'grades', 'Grades',
+      gradeAlertCount > 0 ? String(gradeAlertCount) : '', 'is-grades',
+      (body) => renderGradesView(body, hiddenCourses));
 
     // Right column, bottom: Info (course links, syllabus, modules).
-    const info = makePanel('info', 'Info');
-    renderGeneralView(info.body, hiddenCourses);
+    const info = getScrapePanel(prevPanels, forceRebuild, 'info', 'Info', '', '',
+      (body) => renderGeneralView(body, hiddenCourses));
 
-    grid.append(news.panel, recentGrades.panel, assignments.panel, grades.panel, info.panel);
+    grid.append(news, recentGrades, assignments.panel, grades, info);
     listContainer.appendChild(grid);
   } finally {
     // Belt-and-suspenders for the "permanently mounted" ribbon + search: if a
