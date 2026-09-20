@@ -33,7 +33,7 @@
       "css": [
         "sidebar.css"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -45,7 +45,7 @@
       "css": [
         "registration.css"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "browser_specific_settings": {
