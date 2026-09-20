@@ -25,6 +25,10 @@ export const state = {
   cachedGrades: [],
   cachedCoursePercentages: {},
   whatIfScores: {},
+  // The What-If simulator renders as a collapsed dropdown by default; the
+  // flag is in-memory only so typing in the matrix mid-session doesn't
+  // collapse it on every re-render, but it resets to collapsed per load.
+  whatIfExpanded: false,
   gradeChangeAlerts: [],
   domCourseColors: {},
   cachedAnnouncements: [],
@@ -65,8 +69,11 @@ export const state = {
     80: null, // HoCo
     30: null, // Philly
   },
+  // Menus peeked for other days (tomorrow, …), keyed by toDateString().
+  diningByDateCache: {},
   cachedOfficialHours: null,
   activeStationFilter: '__DEFAULT__',
+  activeDiningDayOffset: 0, // 0 = today, 1 = tomorrow
 };
 
 try {

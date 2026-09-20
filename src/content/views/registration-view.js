@@ -36,6 +36,21 @@ export function renderRegistrationView(container) {
         <div id="reg-preview-results" class="reg-preview-results"></div>
       </div>
 
+      <div class="reg-field">
+        <label for="reg-course-search-input">Or find a course</label>
+        <div class="reg-course-search-row">
+          <input id="reg-course-search-input" type="text" autocomplete="off" placeholder="e.g. differential equations, math 527, CS 501" />
+          <button type="button" id="reg-course-search-btn" class="reg-secondary-btn">🔎 Search</button>
+        </div>
+        <span class="reg-field-hint">
+          Searches courses.unh.edu by course name or code. Each result lists
+          its prerequisites, co-requisites, and equivalents (like the site's
+          "Equivalent(s)") along with every published section, with a
+          one-click way to add that CRN to your list.
+        </span>
+        <div id="reg-course-results" class="reg-course-results"></div>
+      </div>
+
       <div class="reg-actions">
         <button type="button" id="reg-save-btn" class="reg-primary-btn">Save</button>
         <button type="button" id="reg-clear-btn" class="reg-secondary-btn">Clear saved data</button>
@@ -172,6 +187,193 @@ export function renderRegistrationView(container) {
     }
     const conflicts = computeTimeConflicts(msg.sections || []);
     renderPreview(msg.sections || [], conflicts, msg.termCode);
+  });
+
+  const courseSearchInput = container.querySelector('#reg-course-search-input');
+  const courseSearchBtn = container.querySelector('#reg-course-search-btn');
+  const courseResults = container.querySelector('#reg-course-results');
+
+  // "MATH 527 (03) - Differential Equations with Linear Algebra" ->
+  // { code: "MATH 527", section: "03", name: "Differential Equations ..." }
+  function parseCourseTitle(title) {
+    const m = String(title || '').match(/^([A-Z]{2,5}\s*\d{3}[A-Z]?)\s*\((\d{2})\)\s*-\s*(.+)$/i);
+    if (m) {
+      return { code: m[1].replace(/\s+/g, ' ').toUpperCase(), section: m[2], name: m[3].trim() };
+    }
+    const dash = String(title || '').indexOf(' - ');
+    if (dash > 0) {
+      return { code: String(title).slice(0, dash).trim(), section: '', name: String(title).slice(dash + 3).trim() };
+    }
+    return { code: '', section: '', name: String(title || '').trim() };
+  }
+
+  function addCrnToForm(crn) {
+    const existing = Array.from(crnList.querySelectorAll('.reg-crn-input')).map(i => i.value.trim());
+    if (existing.includes(crn)) {
+      flashStatus(`CRN ${crn} is already in your list.`, false);
+      return;
+    }
+    addCrnRow(crn);
+    flashStatus(`Added CRN ${crn}.`, true);
+  }
+
+  function renderSearchSectionDetail(msg) {
+    if (!msg || !msg.success || !msg.sections || !msg.sections.length) {
+      return `<div class="reg-preview-note reg-preview-error">${escapeHTML((msg && msg.error) || 'Lookup failed.')}</div>`;
+    }
+    const section = msg.sections[0];
+    if (section.error) {
+      return `<div class="reg-preview-note reg-preview-error">${escapeHTML(section.error)}</div>`;
+    }
+    const online = !(section.days && section.days.length) && !section.start && !section.end
+      && /online/i.test(section.title || '');
+    const place = [section.building, section.room].filter(Boolean).join(' ');
+    const bits = [scheduleLabel(section, { online }), place, section.credits ? `${section.credits} cr` : '', section.instructor].filter(Boolean);
+    const reqs = [
+      section.prereqs ? `Prereq: ${section.prereqs}` : '',
+      section.coreqs ? `Coreq: ${section.coreqs}` : '',
+      section.equivalents ? `Equivalent: ${section.equivalents}` : '',
+    ].filter(Boolean);
+    return `
+      <div class="reg-preview-meta">${escapeHTML(bits.join(' · '))}</div>
+      ${section.classSize ? `<div class="reg-preview-seats">Class size: ${section.classSize}</div>` : ''}
+      ${reqs.length ? `<div class="reg-preview-reqs">${reqs.map(r => escapeHTML(r)).join('<br>')}</div>` : ''}
+    `;
+  }
+
+  // Pull prereq / co-req / equivalent info once per course group (from the
+  // newest section — it's identical across that course's sections).
+  async function loadGroupRequirements(gi, group) {
+    const reqsEl = document.getElementById('reg-search-reqs-' + gi);
+    if (!reqsEl || !group.sections.length) return;
+    reqsEl.innerHTML = '<span class="reg-search-req-muted">…</span>';
+    const first = group.sections[0];
+    let msg;
+    try {
+      msg = await browser.runtime.sendMessage({ type: 'FETCH_WEBCAT_CRN', crns: [first.crn], termCode: first.termCode });
+    } catch (e) {
+      msg = { success: false, error: String((e && e.message) || e) };
+    }
+    const section = msg && msg.success && msg.sections && msg.sections[0];
+    if (!section || section.error) {
+      reqsEl.textContent = '';
+      return;
+    }
+    const reqs = [
+      section.prereqs ? `Prereq: ${section.prereqs}` : '',
+      section.coreqs ? `Coreq: ${section.coreqs}` : '',
+      section.equivalents ? `Equivalent: ${section.equivalents}` : '',
+    ].filter(Boolean);
+    reqsEl.innerHTML = reqs.length
+      ? reqs.map(r => `<span class="reg-search-req">${escapeHTML(r)}</span>`).join('')
+      : '<span class="reg-search-req-muted">No prerequisites / co-requisites listed</span>';
+  }
+
+  async function runCourseSearch() {
+    const q = courseSearchInput.value.trim();
+    const term = termInput.value.trim();
+    if (!q) {
+      courseResults.innerHTML = '<div class="reg-preview-note">Enter a course name or code, e.g. "differential equations" or "math 527".</div>';
+      return;
+    }
+    courseSearchBtn.disabled = true;
+    courseResults.innerHTML = '<div class="reg-preview-note">Searching courses.unh.edu…</div>';
+    let msg;
+    try {
+      msg = await browser.runtime.sendMessage({ type: 'FETCH_COURSE_SEARCH', query: q, term });
+    } catch (e) {
+      msg = { success: false, error: String((e && e.message) || e) };
+    }
+    courseSearchBtn.disabled = false;
+    if (!msg || !msg.success) {
+      courseResults.innerHTML = `<div class="reg-preview-note reg-preview-error">Search failed: ${escapeHTML((msg && msg.error) || 'unknown error')}</div>`;
+      return;
+    }
+    const matches = msg.matches || [];
+    if (!matches.length) {
+      courseResults.innerHTML = `<div class="reg-preview-note">No courses match "<strong>${escapeHTML(q)}</strong>"${msg.filtered ? ` for term ${escapeHTML(term)}` : ''}. Try a different name or code.</div>`;
+      return;
+    }
+
+    // Group all returned sections by course code ("MATH 527", "MATH 527H")
+    const groups = new Map();
+    matches.forEach(m => {
+      const parsed = parseCourseTitle(m.title);
+      const key = parsed.code || m.title;
+      if (!groups.has(key)) groups.set(key, { code: parsed.code, name: parsed.name || m.title, sections: [] });
+      groups.get(key).sections.push({ ...m, section: parsed.section });
+    });
+    const groupList = Array.from(groups.values()).slice(0, 6);
+    // Newest term first within each group
+    groupList.forEach(g => g.sections.sort((a, b) => String(b.termCode).localeCompare(String(a.termCode))));
+
+    courseResults.innerHTML = `
+      <div class="reg-preview-term">${escapeHTML(q)} — ${matches.length} section${matches.length === 1 ? '' : 's'}${msg.filtered ? ` in term ${escapeHTML(term)}` : ''}${matches.length > 50 ? ' (first 50 shown)' : ''}. Click a section's <strong>Details</strong> for schedule, prereqs, co-reqs &amp; equivalents.</div>
+    `;
+
+    groupList.forEach((group, gi) => {
+      const sectionRows = group.sections.slice(0, 8).map(s => `
+        <div class="reg-search-section-row">
+          <span class="reg-search-sec">${escapeHTML(s.section ? 'Sec ' + s.section : '')}</span>
+          <span class="reg-search-term">${escapeHTML(s.termLabel || s.termCode)}</span>
+          <span class="reg-search-crn">CRN ${escapeHTML(s.crn)}</span>
+          <span class="reg-search-crnactions">
+            <button type="button" class="reg-secondary-btn reg-search-detail-btn" data-crn="${escapeHTML(s.crn)}" data-term="${escapeHTML(s.termCode)}">Details</button>
+            <button type="button" class="reg-secondary-btn reg-search-add-btn" data-crn="${escapeHTML(s.crn)}">＋ CRN</button>
+          </span>
+        </div>
+      `).join('');
+
+      const extraSections = group.sections.length - 8;
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'reg-search-group';
+      groupDiv.innerHTML = `
+        <div class="reg-search-group-head">
+          <span class="reg-search-code">${escapeHTML(group.code || 'Course')}</span>
+          <span class="reg-search-name">${escapeHTML(group.name)}</span>
+          <span class="reg-search-inline-reqs" id="reg-search-reqs-${gi}"></span>
+        </div>
+        <div class="reg-search-sections">${sectionRows}${extraSections > 0 ? `<div class="reg-search-req-muted">… and ${extraSections} more section${extraSections === 1 ? '' : 's'} for ${escapeHTML(group.code || 'this course')} (shown above are the newest terms).</div>` : ''}</div>
+      `;
+      courseResults.appendChild(groupDiv);
+      loadGroupRequirements(gi, group);
+    });
+  }
+
+  courseSearchBtn.addEventListener('click', runCourseSearch);
+  courseSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runCourseSearch();
+  });
+
+  courseResults.addEventListener('click', async (e) => {
+    const detailBtn = e.target.closest('.reg-search-detail-btn');
+    const addBtn = e.target.closest('.reg-search-add-btn');
+    if (detailBtn) {
+      const crn = detailBtn.getAttribute('data-crn');
+      const termCode = detailBtn.getAttribute('data-term');
+      const row = detailBtn.closest('.reg-search-section-row');
+      let box = row.querySelector('.reg-search-row-detail');
+      if (box && box.classList.contains('is-open')) {
+        box.classList.remove('is-open');
+        return;
+      }
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'reg-search-row-detail';
+        row.appendChild(box);
+      }
+      box.classList.add('is-open');
+      box.innerHTML = '<div class="reg-preview-note">Looking up…</div>';
+      let msg;
+      try {
+        msg = await browser.runtime.sendMessage({ type: 'FETCH_WEBCAT_CRN', crns: [crn], termCode });
+      } catch (err) {
+        msg = { success: false, error: String((err && err.message) || err) };
+      }
+      box.innerHTML = renderSearchSectionDetail(msg);
+    } else if (addBtn) {
+      addCrnToForm(addBtn.getAttribute('data-crn'));
+    }
   });
 
   (async () => {

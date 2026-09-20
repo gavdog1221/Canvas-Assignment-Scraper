@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { ensureTodaysDiningMenus, getDiningHallStatus } from '../services/dining-api.js';
+import { ensureDiningMenusForDate, getDiningHallStatus } from '../services/dining-api.js';
 import { escapeHTML } from '../utils/text.js';
 
 export function isDefaultMainStation(name, hallNum) {
@@ -36,12 +36,21 @@ export async function renderDiningView(listContainer) {
     if (state.activeDiningHall !== 80 && state.activeDiningHall !== 30) {
       state.activeDiningHall = 80;
     }
+    if (state.activeDiningDayOffset !== 1) {
+      state.activeDiningDayOffset = 0;
+    }
 
     listContainer.innerHTML = `
     <div class="dining-header-controls">
+    <div class="dining-left-controls">
     <div class="dining-hall-pills">
     <button type="button" class="dining-pill ${state.activeDiningHall === 80 ? 'active' : ''}" data-hall="80">HoCo</button>
     <button type="button" class="dining-pill ${state.activeDiningHall === 30 ? 'active' : ''}" data-hall="30">Philly</button>
+    </div>
+    <div class="dining-day-pills">
+    <button type="button" class="dining-pill ${state.activeDiningDayOffset === 0 ? 'active' : ''}" data-dayoffset="0">Today</button>
+    <button type="button" class="dining-pill ${state.activeDiningDayOffset === 1 ? 'active' : ''}" data-dayoffset="1">Tomorrow</button>
+    </div>
     </div>
 
     <!-- VisionOS Radial Pie Trigger -->
@@ -55,11 +64,24 @@ export async function renderDiningView(listContainer) {
     </div>
 
     <div id="dining-menu-body">
-    <div class="mod-empty-msg">Loading today's menus...</div>
+    <div class="mod-empty-msg">Loading menus...</div>
     </div>
     `;
 
-    function renderActiveHall(data) {
+    // The data currently on screen (today's cache or another day's peek) and
+    // the day it belongs to. Internal re-renders (station slice, hall pill,
+    // reset) re-draw from these instead of assuming state.diningCache, which
+    // only ever holds today.
+    let activeData = null;
+    let activeDate = null;
+
+    function dateForOffset(offset) {
+      const d = new Date();
+      d.setDate(d.getDate() + offset); // 0 = today, 1 = tomorrow
+      return d;
+    }
+
+    function renderActiveHall(data, dateObj) {
       const menuBody = document.getElementById('dining-menu-body');
       const pieMenu = document.getElementById('dining-radial-menu');
       const pieLabel = document.getElementById('dining-pie-label');
@@ -68,32 +90,40 @@ export async function renderDiningView(listContainer) {
 
       menuBody.innerHTML = '';
       const meals = (data && data[state.activeDiningHall]) ? data[state.activeDiningHall] : [];
+      const isToday = !dateObj || dateObj.toDateString() === new Date().toDateString();
 
       const statusBanner = document.createElement('div');
       statusBanner.className = 'dining-status-banner';
-      statusBanner.innerHTML = `
-      <span class="status-indicator-dot"></span>
-      <span class="status-indicator-text">Checking hours...</span>
-      `;
-      menuBody.appendChild(statusBanner);
+      if (isToday) {
+        statusBanner.innerHTML = `
+        <span class="status-indicator-dot"></span>
+        <span class="status-indicator-text">Checking hours...</span>
+        `;
+        menuBody.appendChild(statusBanner);
 
-      getDiningHallStatus(state.activeDiningHall, meals).then(statusInfo => {
-        statusBanner.className = `dining-status-banner ${statusInfo.isOpen ? 'is-open' : 'is-closed'}`;
-        statusBanner.querySelector('.status-indicator-text').textContent = statusInfo.label;
-      });
+        getDiningHallStatus(state.activeDiningHall, meals).then(statusInfo => {
+          statusBanner.className = `dining-status-banner ${statusInfo.isOpen ? 'is-open' : 'is-closed'}`;
+          statusBanner.querySelector('.status-indicator-text').textContent = statusInfo.label;
+        });
+      } else {
+        // Live open/closed status only means something right now — for any
+        // other day, say which day's menu this actually is instead.
+        statusBanner.innerHTML = `<span class="status-indicator-text">${escapeHTML(dateObj.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))} menu</span>`;
+        menuBody.appendChild(statusBanner);
+      }
 
       if (meals.length === 0) {
         if (pieWrap) pieWrap.style.display = 'none';
         const emptyMsg = document.createElement('div');
         emptyMsg.className = 'mod-empty-msg';
-        emptyMsg.innerText = 'No menu posted today or dining hall is closed.';
+        emptyMsg.innerText = isToday ? 'No menu posted today or dining hall is closed.' : 'No menu posted for that day yet.';
         menuBody.appendChild(emptyMsg);
         return;
       }
 
       if (pieWrap) pieWrap.style.display = 'inline-flex';
 
-      // Scan all unique station names present today
+      // Scan all unique station names present for this day
       const allStationsSet = new Set();
       meals.forEach(m => {
         (m.categories || []).forEach(c => {
@@ -159,7 +189,7 @@ export async function renderDiningView(listContainer) {
             e.stopPropagation();
             state.activeStationFilter = opt.key;
             if (pieWrap) pieWrap.classList.add('is-closed');
-            renderActiveHall(state.diningCache);
+            renderActiveHall(activeData, dateObj);
           });
           pieMenu.appendChild(sliceBtn);
 
@@ -250,7 +280,7 @@ export async function renderDiningView(listContainer) {
         if (resetBtn) {
           resetBtn.addEventListener('click', () => {
             state.activeStationFilter = 'ALL';
-            renderActiveHall(state.diningCache);
+            renderActiveHall(activeData, dateObj);
           });
         }
       } else {
@@ -258,17 +288,33 @@ export async function renderDiningView(listContainer) {
       }
     }
 
-    const pills = listContainer.querySelectorAll('.dining-pill');
+    const pills = listContainer.querySelectorAll('.dining-pill[data-hall]');
     pills.forEach(pill => {
       pill.addEventListener('click', () => {
         pills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         state.activeDiningHall = parseInt(pill.getAttribute('data-hall'), 10);
         state.activeStationFilter = '__DEFAULT__'; // Resets to hall's main dish
-        renderActiveHall(state.diningCache);
+        renderActiveHall(activeData, activeDate);
       });
     });
 
-    const data = await ensureTodaysDiningMenus();
-    renderActiveHall(data);
+    // Today / Tomorrow toggle — FoodPro serves other days via dtdate, so a
+    // peek just re-fetches with tomorrow's date (cached per day on fetch).
+    const dayPills = listContainer.querySelectorAll('.dining-day-pills .dining-pill[data-dayoffset]');
+    dayPills.forEach(pill => {
+      pill.addEventListener('click', async () => {
+        dayPills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        state.activeDiningDayOffset = parseInt(pill.getAttribute('data-dayoffset'), 10);
+        state.activeStationFilter = '__DEFAULT__';
+        activeDate = dateForOffset(state.activeDiningDayOffset);
+        activeData = await ensureDiningMenusForDate(activeDate);
+        renderActiveHall(activeData, activeDate);
+      });
+    });
+
+    activeDate = dateForOffset(state.activeDiningDayOffset);
+    activeData = await ensureDiningMenusForDate(activeDate);
+    renderActiveHall(activeData, activeDate);
   }

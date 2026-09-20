@@ -165,15 +165,24 @@ export function renderGradesView(listContainer, hiddenCourses) {
 
     if (Object.keys(tasksByCourse).length > 0) {
       const matrixCard = document.createElement('div');
-      matrixCard.className = 'whatif-matrix-card';
+      matrixCard.className = state.whatIfExpanded ? 'whatif-matrix-card' : 'whatif-matrix-card is-collapsed';
 
       const topBar = document.createElement('div');
       topBar.className = 'whatif-top-bar';
+      const simCount = Object.keys(state.whatIfScores).length;
       topBar.innerHTML = `
+      <button type="button" class="whatif-toggle" id="whatif-toggle" aria-expanded="${state.whatIfExpanded ? 'true' : 'false'}">
+      <span class="whatif-chevron">▸</span>
       <span class="whatif-heading">⚡ What-If Grade Simulator</span>
+      <span class="whatif-collapsed-note">${hasWhatIfActive ? `· ${simCount} simulation${simCount === 1 ? '' : 's'} active` : '· simulate grades to see the impact'}</span>
+      </button>
       ${hasWhatIfActive ? '<button type="button" class="whatif-clear-all-btn" id="whatif-clear-all-btn">Clear Simulations</button>' : ''}
       `;
       matrixCard.appendChild(topBar);
+
+      const matrixBody = document.createElement('div');
+      matrixBody.className = 'whatif-matrix-body';
+      matrixCard.appendChild(matrixBody);
 
       Object.entries(tasksByCourse).forEach(([cKey, taskList]) => {
         const groupEl = document.createElement('div');
@@ -274,8 +283,16 @@ export function renderGradesView(listContainer, hiddenCourses) {
         });
 
         groupEl.appendChild(listEl);
-        matrixCard.appendChild(groupEl);
+        matrixBody.appendChild(groupEl);
       });
+
+      const toggleBtn = matrixCard.querySelector('#whatif-toggle');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+          state.whatIfExpanded = !state.whatIfExpanded;
+          renderGradesView(listContainer, hiddenCourses);
+        });
+      }
 
       const clearAllBtn = matrixCard.querySelector('#whatif-clear-all-btn');
       if (clearAllBtn) {
