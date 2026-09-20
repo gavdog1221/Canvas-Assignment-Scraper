@@ -240,3 +240,40 @@ export async function ensureTodaysDiningMenus() {
 
     return state.diningCache;
   }
+
+// Same shape as ensureTodaysDiningMenus, but for an arbitrary day (tomorrow,
+// …). Delegates to the today path when asked for "today" so the two share one
+// cache; other days are cached per-date in state.diningByDateCache. FoodPro
+// serves past/future days via the same shortmenu.asp URL — the day is just
+// the dtdate query param.
+export async function ensureDiningMenusForDate(dateObj) {
+    const key = dateObj.toDateString();
+    const todayKey = new Date().toDateString();
+    if (key === todayKey) return ensureTodaysDiningMenus();
+
+    if (state.diningByDateCache[key] &&
+        Array.isArray(state.diningByDateCache[key][80]) &&
+        Array.isArray(state.diningByDateCache[key][30])) {
+      return state.diningByDateCache[key];
+    }
+
+    const dtdate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
+
+    try {
+      const [hocoRes, phillyRes] = await Promise.all([
+        browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 80, locationName: 'Holloway Commons', dtdate }).catch(() => null),
+                                                      browser.runtime.sendMessage({ type: 'FETCH_DINING_MENU', locationNum: 30, locationName: 'Philbrook', dtdate }).catch(() => null)
+      ]);
+
+      state.diningByDateCache[key] = {
+        date: key,
+        80: (hocoRes && hocoRes.success && hocoRes.html) ? parseMenuHtml(hocoRes.html) : [],
+                                    30: (phillyRes && phillyRes.success && phillyRes.html) ? parseMenuHtml(phillyRes.html) : []
+      };
+    } catch (err) {
+      console.warn('[YACE] Dining fetch failure:', err);
+      state.diningByDateCache[key] = { date: key, 80: [], 30: [] };
+    }
+
+    return state.diningByDateCache[key];
+  }

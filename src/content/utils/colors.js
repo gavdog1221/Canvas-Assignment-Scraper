@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { FALLBACK_PALETTES, STORAGE_KEY_DOM_COLORS } from '../constants.js';
+import { STORAGE_KEY_DOM_COLORS } from '../constants.js';
 
 export function scrapeCanvasDashboardColors() {
     const cards = document.querySelectorAll('.ic-DashboardCard, [data-course-id]');
@@ -46,28 +46,17 @@ export function parseColorToRgba(colorStr, alpha) {
     return null;
   }
 
+// Minimalist palette: every course shares one quiet neutral accent, so the
+// dashboard reads monochrome with the glass surfaces doing the work. The
+// rainbow of per-course colors (scraped Canvas card colors / hash-cycled
+// fallbacks) was the loudest part of the old scheme. Per-task custom colors
+// chosen in the custom-assignment maker still override this per task.
+const NEUTRAL_COURSE_PALETTE = {
+    accent: '#cbd2da',
+    glow: 'rgba(203, 210, 218, 0.28)',
+    soft: 'rgba(203, 210, 218, 0.07)'
+  };
+
 export function getCourseColors(courseKey, canvasCourseId = null) {
-    let rawColor = null;
-
-    if (canvasCourseId && state.domCourseColors[String(canvasCourseId)]) {
-      rawColor = state.domCourseColors[String(canvasCourseId)];
-    } else if (state.cachedCourseMap[courseKey]?.canvasCourseId) {
-      const altId = state.cachedCourseMap[courseKey].canvasCourseId;
-      rawColor = state.domCourseColors[String(altId)];
-    }
-
-    if (rawColor) {
-      const glow = parseColorToRgba(rawColor, 0.45) || 'rgba(0, 242, 254, 0.45)';
-      const soft = parseColorToRgba(rawColor, 0.14) || 'rgba(0, 242, 254, 0.14)';
-      return { accent: rawColor, glow: glow, soft: soft };
-    }
-
-    let hash = 0;
-    const str = courseKey || 'GENERAL';
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
-    }
-    const idx = Math.abs(hash) % FALLBACK_PALETTES.length;
-    return FALLBACK_PALETTES[idx];
+    return NEUTRAL_COURSE_PALETTE;
   }

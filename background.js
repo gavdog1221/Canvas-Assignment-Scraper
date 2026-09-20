@@ -70,6 +70,16 @@ function termCodeFromLabel(label) {
     return null;
 }
 
+// "202410" -> "Fall 2024" (season codes match WebCat: fall=10, jan=30,
+// spring=50, summer=70). Used to label course-search results by term.
+function termCodeToLabel(code) {
+    const s = String(code || '');
+    const year = s.slice(0, 4);
+    const seasonMap = { '10': 'Fall', '30': 'January', '50': 'Spring', '70': 'Summer' };
+    const season = seasonMap[s.slice(4)];
+    return year && season ? `${season} ${year}` : (s || '');
+}
+
 const COURSES_BASE = 'https://courses.unh.edu';
 
 function decodeEntities(str) {
@@ -195,8 +205,18 @@ function parseCoursePageHtml(html, crn) {
 
     // Requirement blocks ("MATH 426 or MATH 426H" — spaces and "or"/"and"
     // tokens are meaningful, so keep the raw grouping instead of splitting).
-    section.prereqs = requirementText(html, ['<b>Prerequisite(s):</b>', '<b>Prerequisites:</b>', '<b>Prerequisite:</b>']);
-    section.coreqs = requirementText(html, ['<b>Co-Requisite:</b>', '<b>Co-Requisites:</b>', '<b>Corequisite(s):</b>', '<b>Corequisite:</b>']);
+    // Label variants cover the catalog's inconsistent casing across
+    // departments (Prerequisite(s)/Pre-Requisite, Co-Requisite(s)/Corequisite,
+    // with or without the "s").
+    section.prereqs = requirementText(html, [
+        '<b>Prerequisite(s):</b>', '<b>Prerequisite:</b>', '<b>Prerequisites:</b>',
+        '<b>Pre-Requisite(s):</b>', '<b>Pre-Requisite:</b>', '<b>Pre-Requisites:</b>',
+    ]);
+    section.coreqs = requirementText(html, [
+        '<b>Co-Requisite:</b>', '<b>Co-Requisites:</b>', '<b>Co-Requisite(s):</b>',
+        '<b>Corequisite:</b>', '<b>Corequisites:</b>', '<b>Corequisite(s):</b>',
+        '<b>Co-requisite:</b>', '<b>Co-requisites:</b>', '<b>Co-requisite(s):</b>',
+    ]);
     section.equivalents = requirementText(html, ['<b>Equivalent(s):</b>', '<b>Equivalent:</b>']);
 
     // Times & Locations: rows of Start Date | End Date | Days | Time | Location
@@ -322,8 +342,11 @@ browser.runtime.onMessage.addListener((request) => {
         return (async () => {
             const locationNum = request.locationNum || 80;
             const cleanLocName = encodeURIComponent((request.locationName || 'Holloway Commons').replace(/\+/g, ' '));
-            const now = new Date();
-            const dtdate = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+            // dtdate selects which day FoodPro serves (M/D/YYYY). Defaults to
+            // today; pass request.dtdate to peek at another day's menu — the
+            // site serves tomorrow's (and later) menus from the same URL.
+            const dateObj = request.dtdate ? new Date(request.dtdate) : new Date();
+            const dtdate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
 
             // Try with and without dtdate (FoodPro often returns 404/blank if dtdate format doesn't match its server setting)
             const urls = [
@@ -360,13 +383,18 @@ browser.runtime.onMessage.addListener((request) => {
                 const termLabel = String(request.term || '').trim();
                 const crns = (request.crns || []).map(c => String(c).trim()).filter(Boolean).slice(0, 12);
                 if (!crns.length) return { success: false, error: 'No CRNs to look up.' };
-                const termCode = await getWebCatTermCode(termLabel);
-                const available = await termHasSections(termCode);
-                if (available === false) {
-                    return {
-                        success: false,
-                        error: '\u201C' + termLabel + '\u201D (' + termCode + ') isn\u2019t available in the UNH course catalog yet \u2014 sections for that semester haven\u2019t been published on courses.unh.edu. Check that the saved term is a currently-open semester, then retry.',
-                    };
+                // termCode may arrive straight from a course-search result
+                // (already a UNH term code). When absent, map the saved
+                // label to a term code via WebCat's public term list.
+                const termCode = request.termCode || await getWebCatTermCode(termLabel);
+                if (!request.termCode) {
+                    const available = await termHasSections(termCode);
+                    if (available === false) {
+                        return {
+                            success: false,
+                            error: '\u201C' + termLabel + '\u201D (' + termCode + ') isn\u2019t available in the UNH course catalog yet \u2014 sections for that semester haven\u2019t been published on courses.unh.edu. Check that the saved term is a currently-open semester, then retry.',
+                        };
+                    }
                 }
                 const sections = [];
                 for (const crn of crns) {
@@ -387,6 +415,53 @@ browser.runtime.onMessage.addListener((request) => {
                     sections.push(section);
                 }
                 return { success: true, termLabel, termCode, sections };
+            } catch (e) {
+                return { success: false, error: String((e && e.message) || e) };
+            }
+        })();
+    }
+
+    if (request.type === 'FETCH_COURSE_SEARCH') {
+        // Full-text-ish search of the public catalog's course nodes by name
+        // or code ("differential equations", "math 527", "CS 501"). Taps the
+        // same Drupal JSON:API used elsewhere: CONTAINS on node titles, which
+        // are "<CODE> (<sec>) - <Name>" and match case-insensitively. When a
+        // term is provided it's filtered to that semester; otherwise every
+        // published term comes back so the user sees all options.
+        return (async () => {
+            const query = String(request.query || '').trim();
+            if (!query) return { success: false, error: 'Enter a course name or code to search.' };
+            try {
+                let termCode = null;
+                if (request.term) {
+                    termCode = await getWebCatTermCode(String(request.term).trim()).catch(() => null);
+                }
+                const url = COURSES_BASE + '/jsonapi/node/course?'
+                    + 'filter%5Btitle%5D%5Boperator%5D=CONTAINS'
+                    + '&filter%5Btitle%5D%5Bvalue%5D=' + encodeURIComponent(query)
+                    + (termCode ? '&filter%5Bfield_term_code%5D=' + encodeURIComponent(termCode) : '')
+                    + '&page%5Blimit%5D=50'
+                    + '&fields%5Bnode--course%5D=title,field_crn,field_term_code,path';
+                const res = await fetch(url, { credentials: 'omit', headers: { Accept: 'application/vnd.api+json' } });
+                if (!res.ok) return { success: false, error: 'courses.unh.edu search returned HTTP ' + res.status };
+                const json = await res.json();
+                const nodes = (json && json.data) || [];
+                const matches = [];
+                for (const n of nodes) {
+                    const attrs = (n && n.attributes) || {};
+                    const title = String(attrs.title || '').trim();
+                    const crn = String(attrs.field_crn != null ? attrs.field_crn : '').trim();
+                    if (!title || !crn) continue;
+                    const tCode = String(attrs.field_term_code != null ? attrs.field_term_code : '').trim();
+                    matches.push({
+                        title,
+                        crn,
+                        termCode: tCode,
+                        termLabel: termCodeToLabel(tCode),
+                        path: String(((n && n.path) || {}).alias || '').trim(),
+                    });
+                }
+                return { success: true, matches, termCode, filtered: !!termCode };
             } catch (e) {
                 return { success: false, error: String((e && e.message) || e) };
             }
