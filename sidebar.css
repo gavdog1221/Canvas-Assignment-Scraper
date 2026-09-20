@@ -2482,6 +2482,104 @@ body.yace-fullscreen-active .doc-preview-modal { z-index: 2147483647 !important;
   line-height: 1.5;
 }
 
+.reg-crn-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.reg-preview-results {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reg-preview-term {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+
+.reg-preview-term code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.reg-preview-note {
+  font-size: 12px;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+
+.reg-preview-error {
+  color: #ff453a;
+  opacity: 1;
+}
+
+.reg-preview-conflicts {
+  border: 1px solid rgba(255, 176, 32, 0.55);
+  background: rgba(255, 176, 32, 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reg-preview-conflict {
+  color: #ffb020;
+  line-height: 1.5;
+}
+
+.reg-preview-conflicts.reg-preview-ok {
+  border-color: rgba(48, 209, 88, 0.5);
+  background: rgba(48, 209, 88, 0.08);
+  color: #30d158;
+}
+
+.reg-preview-row {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.reg-preview-row.reg-preview-error {
+  border-color: rgba(255, 69, 58, 0.5);
+}
+
+.reg-preview-code {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #7db4ff;
+}
+
+.reg-preview-title {
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+.reg-preview-meta {
+  font-size: 11.5px;
+  opacity: 0.75;
+  margin-top: 1px;
+}
+
+.reg-preview-seats {
+  font-size: 11.5px;
+  color: #30d158;
+  margin-top: 2px;
+}
+
+.reg-preview-reqs {
+  font-size: 11.5px;
+  opacity: 0.75;
+  font-style: italic;
+  margin-top: 2px;
+}
+
 /* ==========================================================================
  *  KANBAN / CALENDAR BOARD (full-screen Due tab)
  *  ========================================================================== */
