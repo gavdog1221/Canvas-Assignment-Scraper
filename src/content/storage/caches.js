@@ -30,6 +30,21 @@ export function saveLocalCache(courseMap) {
     }
   }
 
+// Switch which grading distribution (multi-distribution syllabi, e.g.
+// "Distribution 1 / Distribution 2") is the active gradeWeights set on a
+// course. Persists immediately so the pick survives later scans and reloads.
+export function applyGradeWeightChoice(courseKey, index) {
+    const course = state.cachedCourseMap && state.cachedCourseMap[courseKey];
+    const options = course && course.resources && Array.isArray(course.resources.gradeWeightOptions)
+      ? course.resources.gradeWeightOptions : null;
+    if (!options || options.length < 2) return false;
+    const idx = Math.max(0, Math.min(options.length - 1, parseInt(index, 10) || 0));
+    course.resources.gradeWeightChoice = idx;
+    course.resources.gradeWeights = options[idx].weights || [];
+    saveLocalCache(state.cachedCourseMap);
+    return true;
+  }
+
 export function loadLocalGradesCache() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_GRADES_CACHE);

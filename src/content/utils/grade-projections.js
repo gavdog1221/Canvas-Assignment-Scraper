@@ -23,7 +23,7 @@ export const LETTER_TIERS = [
 // "Final Project" group under the same key as the syllabus label.
 const CATEGORY_PATTERN = [
   { key: 'final', re: /\bfinal\b/ },
-  { key: 'midterm', re: /\bmid\s?term\b|\bexam(?:s)?\b|\btest(?:s)?\b/ },
+  { key: 'midterm', re: /\bmid[\s-]?terms?\b|\bexam(?:s)?\b|\btest(?:s)?\b/ },
   { key: 'project', re: /\bproject(?:s)?\b/ },
   { key: 'quiz', re: /\bquiz(?:zes|z)?\b/ },
   { key: 'lab', re: /\blab(?:s|oratory)?\b/ },

@@ -242,7 +242,7 @@ export function parseSyllabusInstructors(syllabusText) {
  * ------------------------------------------------------------------------- */
 
 // Words that make a label look like a genuine grade category.
-const WEIGHT_CATEGORY_WORD = /\b(hw|homework|final|final\s*exam|midterm|mid\s?term|exam|exams|test|tests|quiz|quizzes|lab|labs|laboratory|project|paper|essay|writing|report|participation|attendance|discussion|reading|presentation|assignment|assignments|problem|set|pset|activities|activity|recitation|studio|poster|research|team|group|individual)\b/i;
+const WEIGHT_CATEGORY_WORD = /\b(hw|homework|final|final\s*exams?|midterm|mid[\s\-]?terms?|exams?|tests?|quiz(?:zes)?|labs?|laboratories?|laboratory|projects?|papers?|essays?|writing|reports?|participation|attendance|discussions?|readings?|presentations?|assignments?|problems?|sets?|psets?|activities?|recitations?|studios?|posters?|research|teams?|groups?|individuals?)\b/i;
 
 // Connective filler that means the % belongs to boilerplate, not a category
 // ("50% of your grade is determined by...", "week 1 inquiry activity...").
@@ -250,6 +250,14 @@ const WEIGHT_JUNK_WORD = /\b(of|your|the|for|each|in|per|worth|counts?|count(?:e
 
 function cleanWeightLabel(raw) {
     let label = String(raw || '').trim();
+    // Letter-spaced PDFs can glue a category into one token ("FinalExam",
+    // "DueDateHomework"): split camelCase first so the word rules below work.
+    if (label && label.indexOf(' ') === -1) {
+      label = label.replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+    }
+    // Parenthetical asides from the syllabus ("Homework (Submitted
+    // Electronically) 25%") — the label is the category name itself.
+    label = label.replace(/\s*\([^)]*\)/g, ' ').trim();
     // Drop trailing/leading connective junk ("Final Exam is" -> "Final Exam",
     // "of your grade" -> ""). Note `final` is deliberately NOT trimmed —
     // "Final 40%" is a legit category label.
@@ -257,15 +265,28 @@ function cleanWeightLabel(raw) {
       label = label.replace(/\b(is|are|will|be|worth|counts?|count(?:ed|ing)?|toward|towards|of|the|for|and|your|each|in|per|due|course|grade|total|overall|scale|points?|week|weekly)\b\s*$/i, '').trim();
       label = label.replace(/^\s*(?:is|are|will|be|worth|counts?|of|the|for|and|your)\b/i, '').trim();
     }
+    // Anchoring: drop leading non-category tokens so "Due Date Homework 25%"
+    // yields label "Homework" rather than the whole phrase. (Same for
+    // "determined by Final 40%" -> "Final".)
+    const parts = label.split(/\s+/);
+    const start = parts.findIndex(p => WEIGHT_CATEGORY_WORD.test(p));
+    if (start > 0) label = parts.slice(start).join(' ');
+    // Sentence-final punctuation picked up from the text ("Homework.").
+    label = label.replace(/[.\u2026]+$/g, '').trim();
     return label;
   }
 
 export function parseGradeWeights(syllabusText) {
     if (!syllabusText) return null;
-    const text = String(syllabusText)
+    let text = String(syllabusText)
     .replace(/\u00a0/g, ' ')
     .replace(/\r\n?/g, '\n')
     .replace(/\t/g, ' ');
+
+    // Letter-spaced PDFs can glue a category onto its percent ("FinalExam25%");
+    // separate label and number at the % so the label matcher sees both parts.
+    // "Homework 25%" (space already present) is left untouched.
+    text = text.replace(/([A-Za-z])(\d{1,3}(?:\.\d+)?\s*%)/g, '$1 $2');
 
     const weights = [];
     const seen = new Set();
@@ -283,7 +304,11 @@ export function parseGradeWeights(syllabusText) {
         if (pct <= 0 || pct > 90) continue;
 
         const before = line.slice(0, m.index).trim();
-        const leftMatch = before.match(/([A-Za-z][A-Za-z0-9.&'\- ]{0,39})\s*$/);
+        // "(Submitted Electronically)"-style asides sit between a label and
+        // its percent in some syllabi; drop balanced paren groups first so
+        // "Homework (… ) 20%" still yields label "Homework".
+        const beforeClean = before.replace(/\s*\([^)]*\)/g, ' ').trim();
+        const leftMatch = beforeClean.match(/([A-Za-z][A-Za-z0-9.&'\- ]{0,39})\s*$/);
         const leftLabel = leftMatch ? cleanWeightLabel(leftMatch[1]) : '';
         const after = line.slice(m.index + m[0].length).trim();
         const rightMatch = after.match(/^([A-Za-z][A-Za-z0-9.&'\- ]{0,39})/);
@@ -310,6 +335,72 @@ export function parseGradeWeights(syllabusText) {
     const sum = weights.reduce((a, w) => a + w.pct, 0);
     if (weights.length === 1 && (sum < 60 || sum > 110)) return null;
     return weights;
+  }
+
+// The syllabus-body text arrives from Canvas as ONE giant single-line paragraph
+// (all line breaks collapsed to spaces at fetch time), which the line-based
+// parser above skips wholesale as a probable table dump (its 160-char guard).
+// Break the body into clause-sized pseudo-lines at comma/semicolon/period
+// boundaries so "50% Exams (32% Midterms, 18% Final), 15% Labs, ..." is
+// actually parsed, while keeping each "52% Midterms" unit intact.
+function chunkClauseLines(text, max) {
+    const out = [];
+    const clauses = String(text).split(/(?<=[,;.)])\s*/);
+    let cur = '';
+    const flush = () => { if (cur) { out.push(cur); cur = ''; } };
+    for (let clause of clauses) {
+      clause = clause.trim();
+      if (!clause) continue;
+      // A single clause longer than max: hard-split at word boundaries.
+      while (clause.length > max) {
+        let cut = clause.lastIndexOf(' ', max);
+        if (cut < 1) cut = max;
+        if (clause.slice(0, cut).trim()) { flush(); out.push(clause.slice(0, cut).trim()); }
+        clause = clause.slice(cut).trim();
+      }
+      if (cur && (cur + ' ' + clause).length > max) flush();
+      cur = cur ? `${cur} ${clause}` : clause;
+    }
+    flush();
+    return out;
+  }
+
+// Grade-weights entry point for inline (non-PDF) syllabus text: prose body ->
+// clause pseudo-lines -> the standard weight parser.
+export function parseGradeWeightsInProse(bodyText) {
+    if (!bodyText) return null;
+    const lines = chunkClauseLines(String(bodyText).replace(/\s+/g, ' '), 140);
+    return lines.length ? parseGradeWeights(lines.join('\n')) : null;
+  }
+
+// Some syllabi contain several self-contained grading breakdowns and the
+// professor intends you to pick one ("Distribution 1: ... / Distribution 2:
+// ...", "Option A / Option B", "Grading Scheme 1 / 2"). Returns
+// [{ label, weights }, ...] when at least two usable breakdowns are found,
+// null otherwise (the normal single-breakdown case uses parseGradeWeights).
+const DISTRIBUTION_HEAD_RE = /(?:^|[\s])(distributions?|options?|alternatives?|scenari\w*|schem\w*|grading\s*(?:option|scheme)s?|plans?)\s*[:#]?\s*([a-dA-D]|\d{1,2})?\s*[:. \-—–]/gi;
+
+export function parseGradeWeightDistributions(bodyText) {
+    if (!bodyText) return null;
+    const text = String(bodyText).replace(/\s+/g, ' ');
+    const heads = [];
+    let m;
+    while ((m = DISTRIBUTION_HEAD_RE.exec(text))) {
+      heads.push({
+        index: m.index + 1,
+        label: m[0].replace(/^[\s:]+/, '').replace(/[\s:. \-—–]+$/g, '').trim()
+      });
+    }
+    if (heads.length < 2) return null;
+
+    const sections = [];
+    for (let i = 0; i < heads.length; i++) {
+      const start = heads[i].index + heads[i].label.length;
+      const end = (i + 1 < heads.length) ? heads[i + 1].index : text.length;
+      const weights = parseGradeWeightsInProse(text.slice(start, end));
+      if (weights && weights.length) sections.push({ label: heads[i].label, weights });
+    }
+    return sections.length >= 2 ? sections : null;
   }
 
 /* ---------------------------------------------------------------------------

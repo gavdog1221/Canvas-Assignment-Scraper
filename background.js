@@ -293,6 +293,312 @@ const RMP_TEACHER_QUERY = `query TeacherSearch($query: TeacherSearchQuery!, $fir
   }
 }`;
 
+// --- Canvas file byte chase (FETCH_FILE) ---
+// The dashboard's content script cannot follow Canvas's file-download
+// redirects to the cross-origin file CDN (CORS blocks credentialed fetches in
+// page contexts), but the background page has host permissions for the CDN and
+// bypasses CORS. Mirrors the content-side chaser: raw PDF bytes, file JSON
+// metadata (including {"attachment":{...}} records), and HTML verifier
+// interstitials. Bytes come back as base64.
+
+function bgLooksLikePdf(buf) {
+    if (!buf || buf.byteLength < 5) return false;
+    const head = new Uint8Array(buf.slice(0, 5));
+    return head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 && head[4] === 0x2d; // %PDF-
+}
+
+function bgAppendVerifier(fileUrl, verifier) {
+    if (!verifier) return fileUrl;
+    return fileUrl + (fileUrl.indexOf('?') >= 0 ? '&' : '?') + 'verifier=' + encodeURIComponent(verifier);
+}
+
+function bgHeadString(buf, n) {
+    if (!buf) return '';
+    const bytes = new Uint8Array(buf.slice(0, n || 40));
+    let out = '';
+    for (const b of bytes) out += (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.';
+    return out;
+}
+
+// Pull the redirect target out of a Canvas verifier/interstitial HTML page:
+// a <meta refresh>, a JS `location` assignment, or a post-back form carrying a
+// hidden `verifier` input. Absolute URL or null.
+function bgFindRedirectInHtml(html, baseUrl) {
+    const abs = (raw) => {
+        if (!raw) return null;
+        try {
+            const decoded = raw.replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'").replace(/&#(\d+);/g, (m, d) => String.fromCharCode(Number(d)));
+            return new URL(decoded, baseUrl).href;
+        } catch (e) {
+            return null;
+        }
+    };
+    const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
+    for (const tag of metaTags) {
+        if (!/http-equiv=["']?refresh["']?/i.test(tag)) continue;
+        const content = tag.match(/content=(["'])([\s\S]*?)\1/i);
+        if (!content) continue;
+        const tail = content[2].trim().replace(/^\d+\s*;\s*/, '').trim();
+        let url = tail;
+        if (/^url\s*=/i.test(url)) url = url.replace(/^url\s*=\s*/i, '');
+        url = url.trim().replace(/^["']/, '').replace(/["']$/, '');
+        if (url) {
+            const resolved = abs(url);
+            if (resolved) return resolved;
+        }
+    }
+    const assign = html.match(/(?:window|document|top)?\s*\.?\s*location(?:\.href)?\s*=\s*["']([^"']+)["']/i);
+    if (assign) return abs(assign[1]);
+    const repl = html.match(/location\.replace\(\s*["']([^"']+)["']\s*\)/i);
+    if (repl) return abs(repl[1]);
+    const vf = html.match(/name=["']verifier["'][^>]*value=["']([^"']*)["']|value=["']([^"']*)["'][^>]*name=["']verifier["']/i);
+    if (vf) {
+        const v = (vf[1] !== undefined ? vf[1] : vf[2]) || '';
+        return abs(baseUrl.split('?')[0] + '?verifier=' + encodeURIComponent(v) + '&download_frd=1');
+    }
+    return null;
+}
+
+// With Total Cookie Protection a cookie can live in several partitions; the
+// partition is a client-side storage detail — the server only validates the
+// cookie VALUE. Duplicates in one Cookie header are a problem though (Rails
+// reads only the first match), so for each cookie NAME we send exactly one
+// value: the freshest (highest lastAccessed), preferring the unpartitioned
+// first-party copy as a tie-breaker.
+function bgCookieIsPartitioned(c) {
+    if (c == null || c.partitionKey == null) return false;
+    if (typeof c.partitionKey === 'string') {
+        return c.partitionKey.length > 0 && c.partitionKey !== 'none';
+    }
+    return !!(c.partitionKey && c.partitionKey.topLevelSite);
+}
+
+function bgPickCookies(cookies) {
+    const byName = new Map();
+    for (const c of cookies) {
+        const cur = byName.get(c.name);
+        if (!cur) { byName.set(c.name, c); continue; }
+        const curLast = cur.lastAccessed || 0;
+        const cLast = c.lastAccessed || 0;
+        if (cLast > curLast) byName.set(c.name, c);
+        else if (cLast === curLast && bgCookieIsPartitioned(cur) && !bgCookieIsPartitioned(c)) byName.set(c.name, c);
+    }
+    return Array.from(byName.values());
+}
+
+const bgCookiesLoggedHosts = new Set();
+
+// Read the current cookies for a URL as a "Cookie" header string. The
+// background page is a cross-site (moz-extension://) origin, so a plain
+// credentialed fetch doesn't see the user's SameSite / partitioned session
+// cookies for Canvas; passing them explicitly re-authenticates the request.
+// Returns { header, summary } or null. The content script is same-site with
+// Canvas, so its own fetches never need this.
+async function bgCookiesFor(url) {
+    try {
+        const host = new URL(url).host;
+        const cookies = await browser.cookies.getAll({ url: url });
+        if (!cookies || !cookies.length) return null;
+        const picked = bgPickCookies(cookies);
+        if (!picked.length) return null;
+        const header = picked.map((c) => c.name + '=' + c.value).join('; ');
+        const summary = picked.map((c) =>
+            c.name + '[' + String(c.value || '').length + 'B' + (bgCookieIsPartitioned(c) ? ':p' : '') + ']'
+        );
+        if (!bgCookiesLoggedHosts.has(host)) {
+            bgCookiesLoggedHosts.add(host);
+            console.warn('[YACE] Cookies attached for ' + host + ': ' + summary.join(', '));
+        }
+        return { header, summary };
+    } catch (e) {
+        return null;
+    }
+}
+
+const YACE_COOKIE_HOSTS = ['mycourses.unh.edu', 'unh.instructure.com'];
+
+// Per-host cache of the Cookie header used by the manual-Cookie fallback in
+// bgFetchBytes (a fetch-attached Cookie header is empirically delivered past
+// the SSO gate; session-URL chasing rarely succeeds, but it's kept as a
+// last-resort path). Refreshed on demand and on cookie changes.
+const yaceCookieCache = new Map(); // host -> { header, summary }
+
+// The CDN download token is SINGLE-USE ("JWT rejected: JTI has already been
+// used"), so only ONE GET of a CDN URL can ever return bytes. Trick: let the
+// PAGE generate the redirect (its real cookies make Canvas mint a fresh token),
+// but CANCEL the page's CDN hop before it is transmitted — the token stays
+// untouched. The background then fetches that exact URL itself and reads the
+// bytes. Scoped: only CDN hops arriving shortly after one of OUR trigger
+// requests (market ?yace=1 on the Canvas hop) are cancelled; other tabs' real
+// downloads pass through untouched.
+let yaceArmedAt = 0;        // when our trigger's Canvas hop was seen
+let yaceCapturedUrl = null; // the untouched single-use CDN URL
+let yaceCapturedAt = 0;     // when it was captured
+
+browser.webRequest.onBeforeRequest.addListener((details) => {
+    const u = details.url;
+    // Our trigger request on the Canvas hop — arm the capture window.
+    if (/(^|[?&])yace=1(&|$)/.test(u)) {
+        yaceArmedAt = Date.now();
+        return undefined;
+    }
+    // A CDN file hop while armed is our preview chain: cancel it untouched and
+    // hand its (never-consumed) token URL to the FETCH_FILE handler.
+    if (yaceArmedAt && (Date.now() - yaceArmedAt) < 5000
+        && /\/files\//i.test(u) && /[?&]token=/i.test(u)
+        && /inscloudgate\.net|instructuremedia\.com/i.test(u)) {
+        yaceCapturedUrl = u;
+        yaceCapturedAt = Date.now();
+        yaceArmedAt = 0; // disarm after one capture
+        return { cancel: true };
+    }
+    return undefined;
+}, {
+    urls: [
+        'https://mycourses.unh.edu/*',
+        'https://unh.instructure.com/*',
+        '*://*.inscloudgate.net/*',
+        '*://*.instructuremedia.com/*'
+    ]
+}, ['blocking']);
+
+async function yaceRefreshCookieHost(host) {
+    try {
+        const cd = await bgCookiesFor('https://' + host + '/');
+        if (cd) yaceCookieCache.set(host, cd);
+        else yaceCookieCache.delete(host);
+    } catch (e) { /* ignore */ }
+}
+
+async function yaceRefreshCookieCache(hosts) {
+    for (const host of (hosts || YACE_COOKIE_HOSTS)) {
+        await yaceRefreshCookieHost(host);
+    }
+}
+
+browser.cookies.onChanged.addListener((changeInfo) => {
+    const domain = (changeInfo && changeInfo.cookie && changeInfo.cookie.domain) || '';
+    const host = domain.replace(/^\./, '');
+    if (YACE_COOKIE_HOSTS.indexOf(host) >= 0) yaceRefreshCookieHost(host);
+});
+
+async function bgFetchBytes(url, headers, opts) {
+    opts = opts || {};
+    const h = Object.assign({}, headers || {});
+    // Manual "Cookie" header — empirically delivered (a round with it attached
+    // reached Canvas and got its 401, so it passed the SSO gate). Only hosts in
+    // the cookie cache get it; CDN hosts stay clean (their token suffices).
+    let credentials = 'include';
+    let cookieSummary = null;
+    if (!opts.noCookies) {
+        try {
+            const cd = yaceCookieCache.get(new URL(url).host);
+            if (cd) {
+                h['Cookie'] = cd.header;
+                cookieSummary = cd.summary;
+                credentials = 'omit';
+            }
+        } catch (e) { /* ignore */ }
+    }
+    try {
+        const res = await fetch(url, { credentials: credentials, headers: h });
+        const ab = await res.arrayBuffer();
+        return {
+            status: res.status,
+            // response.url is the FINAL url after transparent redirects —
+            // i.e. the CDN + token URL when Canvas 302s a download. Lets the
+            // chase retry that hop cookieless (the token needs no session).
+            finalUrl: res.url !== url ? res.url : undefined,
+            buf: ab,
+            cookieSummary: cookieSummary
+        };
+    } catch (e) {
+        return { status: 0, buf: null, err: (e && e.message) ? String(e.message).slice(0, 120) : String(e), cookieSummary: cookieSummary };
+    }
+}
+
+// Chase a Canvas file-ish URL until real PDF bytes come back: raw bytes, file
+// JSON metadata -> follow its `url`, HTML interstitials -> follow the redirect.
+async function bgChaseBytes(url, headers) {
+    let cur = url;
+    let status = 0;
+    let lastBuf = null;
+    let lastFinalUrl = null;
+    let lastCookieSummary = null;
+    for (let hop = 0; hop < 6; hop++) {
+        const res = await bgFetchBytes(cur, headers);
+        if (!res) return { status: 0, buf: null, err: 'no response' };
+        status = res.status;
+        if (res.err) return res;
+        if (res.finalUrl) lastFinalUrl = res.finalUrl;
+        if (res.cookieSummary) lastCookieSummary = res.cookieSummary;
+        if (bgLooksLikePdf(res.buf)) return { status, buf: res.buf, finalUrl: res.finalUrl, cookieSummary: lastCookieSummary };
+        if (!res.buf || res.buf.byteLength === 0) return { status, buf: null, finalUrl: res.finalUrl, cookieSummary: lastCookieSummary };
+        lastBuf = res.buf;
+
+        // The fetch followed a redirect (finalUrl set) but didn't land on PDF
+        // bytes — likely the CDN rejected the forwarded Canvas cookies. Hit the
+        // final URL again clean (the token in the URL is all the CDN needs).
+        if (res.finalUrl && res.finalUrl !== cur) {
+            const retry = await bgFetchBytes(res.finalUrl, headers, { noCookies: true });
+            if (bgLooksLikePdf(retry.buf)) return { status: retry.status, buf: retry.buf, finalUrl: retry.finalUrl };
+            if (retry.err) return retry;
+            if (retry.status && retry.status !== status) status = retry.status;
+            if (retry.buf && retry.buf.byteLength > 0) {
+                res.buf = retry.buf;
+                lastBuf = retry.buf;
+            }
+        }
+
+        const first = new Uint8Array(res.buf.slice(0, 2));
+        if (first[0] === 0x7b || first[0] === 0x5b) { // '{' or '[' -> JSON metadata
+            let meta = null;
+            try { meta = JSON.parse(new TextDecoder().decode(res.buf)); } catch (e) { meta = null; }
+            const rec = (meta && meta.attachment) || meta;
+            if (rec && typeof rec.url === 'string') {
+                try {
+                    const nextUrl = new URL(bgAppendVerifier(rec.url, rec.verifier), cur).href;
+                    if (nextUrl !== cur) { cur = nextUrl; continue; }
+                } catch (e) { /* fall through */ }
+            }
+            return { status, buf: res.buf, finalUrl: res.finalUrl, cookieSummary: lastCookieSummary };
+        }
+
+        const html = new TextDecoder().decode(res.buf).replace(/^\uFEFF/, '');
+        if (!/<(?:html|!doctype|meta|script|form)\b/i.test(html.slice(0, 400))) {
+            return { status, buf: res.buf, finalUrl: res.finalUrl, cookieSummary: lastCookieSummary };
+        }
+        const next = bgFindRedirectInHtml(html, cur);
+        if (!next || next === cur) return { status, buf: res.buf, finalUrl: res.finalUrl, cookieSummary: lastCookieSummary };
+        cur = next;
+    }
+    return { status, buf: lastBuf, finalUrl: lastFinalUrl, cookieSummary: lastCookieSummary };
+}
+
+function bgBufToBase64(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+}
+
+// Join StreamFilter chunks (ArrayBuffers) into one buffer.
+function bgJoinChunks(chunks) {
+    if (!chunks || !chunks.length) return null;
+    const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const chunk of chunks) {
+        out.set(new Uint8Array(chunk), off);
+        off += chunk.byteLength;
+    }
+    return out.buffer;
+}
+
 browser.runtime.onMessage.addListener((request) => {
     if (request.type === 'FETCH_RMP') {
         return (async () => {
@@ -522,6 +828,68 @@ browser.runtime.onMessage.addListener((request) => {
             } catch (e) {
                 return { success: false, error: String((e && e.message) || e) };
             }
+        })();
+    }
+
+    if (request.type === 'FETCH_FILE') {
+        // Fetch Canvas file bytes from the background page. Content-script
+        // fetch() cannot follow the download redirect to the cross-origin file
+        // CDN (CORS), but the background page has host permissions for the CDN
+        // and bypasses CORS. Chases each URL for raw PDF bytes (see
+        // bgChaseBytes) and returns the first hit base64-encoded.
+        return (async () => {
+            await yaceRefreshCookieCache().catch(() => {});
+            const urls = (request.urls || []).slice();
+
+            const safeHeaders = request.headers ? {
+                'X-Requested-With': request.headers['X-Requested-With'],
+                'X-CSRF-Token': request.headers['X-CSRF-Token'],
+                'Accept': request.headers['Accept']
+            } : undefined;
+
+            // Our trigger armed the capture and a single-use CDN URL was
+            // cancelled before it was transmitted; the token is untouched, so
+            // fetch it directly — this is the one GET that can read the bytes.
+            const captured = yaceCapturedUrl
+                && yaceCapturedAt >= (request.previewAt || 0)
+                && (Date.now() - yaceCapturedAt) < 15000
+                    ? { url: yaceCapturedUrl }
+                    : null;
+            let capBytes = -1;
+            if (captured) {
+                const got = await bgFetchBytes(captured.url, safeHeaders, { noCookies: true });
+                if (bgLooksLikePdf(got.buf)) {
+                    return { success: true, origin: captured.url, bytesBase64: bgBufToBase64(got.buf) };
+                }
+                capBytes = got.buf ? got.buf.byteLength : -1;
+            }
+
+            const results = [];
+            for (const url of urls) {
+                const got = await bgChaseBytes(url, safeHeaders);
+                if (bgLooksLikePdf(got.buf)) {
+                    return { success: true, origin: url, bytesBase64: bgBufToBase64(got.buf) };
+                }
+                results.push({
+                    url,
+                    status: got.status,
+                    err: got.err,
+                    final: got.finalUrl,
+                    head: bgHeadString(got.buf, 200).slice(0, 200)
+                });
+            }
+            // Report which cookies were attached (names + value sizes + whether
+            // the win came from a partitioned copy) so auth failures are
+            // debuggable from the page console.
+            let cookieSummary = null;
+            try {
+                const firstUrl = (request.urls || [])[0];
+                if (firstUrl) {
+                    const cd = await bgCookiesFor(firstUrl);
+                    if (cd) cookieSummary = cd.summary.join(', ');
+                }
+            } catch (e) { /* non-fatal */ }
+            return { success: false, results, cookies: cookieSummary, capBytes: capBytes };
         })();
     }
 });

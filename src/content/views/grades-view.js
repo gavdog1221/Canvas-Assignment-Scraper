@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { saveWhatIfScores } from '../storage/caches.js';
+import { applyGradeWeightChoice, saveWhatIfScores } from '../storage/caches.js';
 import { getCourseColors } from '../utils/colors.js';
 import { computeCourseProjection } from '../utils/grade-projections.js';
 import { computeCoursePercentagesWithWhatIf, formatScoreNum, gradeTierClass, percentageToGpa } from '../utils/grades.js';
@@ -111,9 +111,30 @@ export function renderGradesView(listContainer, hiddenCourses) {
         cCard.style.setProperty('--course-accent', coursePalette.accent);
         cCard.style.setProperty('--course-glow', coursePalette.glow);
         cCard.style.setProperty('--course-soft', coursePalette.soft);
+
+        // Syllabus grade breakdown for this course — shown on every card so
+        // each component's weight is visible at a glance.
+        const proj = computeCourseProjection(item.courseKey);
+        const weightsLine = proj && Array.isArray(proj.weights) && proj.weights.length > 0
+        ? proj.weights.map(w => `<span class="gci-weight-chip" title="Syllabus weight">${escapeHTML(w.label)} ${w.pct}%</span>`).join('')
+        : '';
+        // Multi-distribution syllabi ("Distribution 1: ... / Distribution 2:
+        // ...") get a mini select above the chips — picking one swaps which
+        // breakdown feeds the what-if math and persists for later scans.
+        const courseRes = (state.cachedCourseMap[item.courseKey] || {}).resources || {};
+        const weightOptions = Array.isArray(courseRes.gradeWeightOptions) && courseRes.gradeWeightOptions.length > 1
+        ? courseRes.gradeWeightOptions : null;
+        const choiceIdx = weightOptions && typeof courseRes.gradeWeightChoice === 'number'
+        ? Math.min(courseRes.gradeWeightChoice, weightOptions.length - 1) : 0;
+        const pickerHtml = weightOptions
+        ? `<select class="gci-weight-select" title="Choose grading distribution" style="font-size:11px;padding:1px 4px;border:1px solid rgba(128,128,128,.5);border-radius:6px;background:transparent;color:inherit">${weightOptions.map((o, i) => `<option value="${i}"${i === choiceIdx ? ' selected' : ''}>${escapeHTML(o.label || ('Distribution ' + (i + 1)))}</option>`).join('')}</select>`
+        : '';
+        const weightsRow = (weightsLine || pickerHtml)
+        ? `<div class="gci-weights-row">${pickerHtml}${weightsLine ? ' ' + weightsLine : ''}</div>`
+        : '';
+
         if (item.hasGrade) {
           const barPct = Math.max(0, Math.min(100, item.pct));
-          const proj = computeCourseProjection(item.courseKey);
           const needLine = proj && proj.needed.length > 0
           ? `Need ${proj.needed[0].pct}% on remaining for ${proj.needed[0].letter}`
           : '';
@@ -127,6 +148,7 @@ export function renderGradesView(listContainer, hiddenCourses) {
           </div>
           <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:${barPct}%"></div></div>
           ${needLine ? `<div class="cg-need-line" title="Score ~${needLine.replace('Need ', '')} on everything still ungraded">${needLine}</div>` : ''}
+          ${weightsRow}
           `;
         } else {
           cCard.innerHTML = `
@@ -137,6 +159,7 @@ export function renderGradesView(listContainer, hiddenCourses) {
           </div>
           </div>
           <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:0%"></div></div>
+          ${weightsRow}
           `;
         }
 
@@ -145,6 +168,19 @@ export function renderGradesView(listContainer, hiddenCourses) {
           renderFilterPills();
           renderGradesView(listContainer, hiddenCourses);
         });
+
+        // Distribution picker (multi-distribution syllabi). Stop the card's
+        // click-to-filter handler from firing when the select is used, then
+        // swap the active weights and re-render so the what-if math updates.
+        const gwSelect = cCard.querySelector('.gci-weight-select');
+        if (gwSelect) {
+          gwSelect.addEventListener('click', ev => ev.stopPropagation());
+          gwSelect.addEventListener('change', () => {
+            if (applyGradeWeightChoice(item.courseKey, parseInt(gwSelect.value, 10))) {
+              renderGradesView(listContainer, hiddenCourses);
+            }
+          });
+        }
 
         grid.appendChild(cCard);
       });

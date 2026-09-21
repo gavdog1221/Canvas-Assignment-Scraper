@@ -9,8 +9,8 @@ import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
 import { mergeCustomTasksIntoCourseMap } from '../storage/custom-assignments.js';
 import { applyCustomDueDates } from '../storage/custom-due-dates.js';
 import { isCourseInActiveTermWindow, isCurrentSemesterCourse, localDateKey } from '../utils/dates.js';
-import { extractCoreAssignmentToken, findSyllabusPdfUrl, generateTaskId, normalizeCourseCode, parseAndCleanTitle, parseGradeWeights, parseOfficeHours, parseSyllabusInstructors } from '../utils/text.js';
-import { extractPdfText } from '../utils/pdf.js';
+import { extractCoreAssignmentToken, findSyllabusPdfUrl, generateTaskId, normalizeCourseCode, parseAndCleanTitle, parseGradeWeightDistributions, parseGradeWeights, parseGradeWeightsInProse, parseOfficeHours, parseSyllabusInstructors } from '../utils/text.js';
+import { extractPdfText, probePdfStreams } from '../utils/pdf.js';
 import { updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { maybeShowWhatsNewBanner } from '../components/whats-new-banner.js';
@@ -201,6 +201,17 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
           const syllabusHtml = c.syllabus_body || '';
           const syllabusText = syllabusHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
           const syllabusInstructors = parseSyllabusInstructors(syllabusText);
+          // Multi-distribution syllabi ("Distribution 1: ... / Distribution
+          // 2: ..."): keep every breakdown as an option (the Grades-tab card
+          // has a picker) and honor a choice the user made in a previous run.
+          const weightDists = parseGradeWeightDistributions(syllabusText);
+          const prevRes = (state.cachedCourseMap && state.cachedCourseMap[courseKey]
+            && state.cachedCourseMap[courseKey].resources) || {};
+          const prevChoice = (typeof prevRes.gradeWeightChoice === 'number')
+            ? prevRes.gradeWeightChoice : 0;
+          const inlineWeights = (weightDists && weightDists.length)
+            ? weightDists[Math.min(prevChoice, weightDists.length - 1)].weights
+            : parseGradeWeightsInProse(syllabusText);
           unifiedCourseMap[courseKey] = {
             name: rawCourseName,
             canvasCourseId: c.id,
@@ -210,7 +221,15 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
               professors: syllabusInstructors,
               professorName: syllabusInstructors[0] || '',
               syllabusPdfUrl: findSyllabusPdfUrl(syllabusHtml, origin),
-              gradeWeights: parseGradeWeights(syllabusText),
+              gradeWeights: (() => {
+              if (!inlineWeights && syllabusText.length > 60) {
+                console.warn(`[YACE] Parsed no grade weights from inline syllabus for ${rawCourseName}. Text (${syllabusText.length} chars):\n${syllabusText.slice(0, 700)}`);
+              }
+              return inlineWeights;
+            })(),
+              gradeWeightOptions: (weightDists && weightDists.length > 1) ? weightDists : undefined,
+              gradeWeightChoice: (weightDists && weightDists.length > 1)
+                ? Math.min(prevChoice, weightDists.length - 1) : 0,
               officeHours: parseOfficeHours(syllabusText),
               syllabusExcerpt: syllabusText.length > 0
                 ? (syllabusText.length > 220 ? syllabusText.slice(0, 220).trim() + '…' : syllabusText)
@@ -275,21 +294,29 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
 
                   let downloadUrl = null;
                   let contentId = null;
+                  let syllabusPdfUrl = null;
                   if (item.type === 'File' && item.content_id) {
                     contentId = item.content_id;
                     downloadUrl = `${origin}/courses/${course.id}/files/${item.content_id}/download?download_frd=1`;
+                    // For syllabus hunting prefer Canvas's own URLs: the
+                    // module-item link the browser uses (302s to the file
+                    // server-side) or content_details.url. The hand-built
+                    // `/download?download_frd=1` fallback serves an HTML
+                    // interstitial to scripted fetches.
+                    syllabusPdfUrl = item.url || item.content_details?.url || downloadUrl;
                   } else if (/\.pdf$/i.test(item.title) && item.url) {
                     downloadUrl = item.url;
+                    syllabusPdfUrl = item.url;
                   }
 
                   // Remember syllabus-ish PDFs so the instructor fallback chain
                   // can try the ones professors actually post in Modules.
-                  if (downloadUrl && modulePdfCandidates.length < 3) {
-                    const titleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)|first\s+day|intro/i.test(item.title || '');
-                    const moduleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)/i.test(mod.name || '');
+                  if (syllabusPdfUrl && modulePdfCandidates.length < 6) {
+                    const titleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)|first\s+day|intro|policies|policy|handbook|expectations|information|breakdown|grading/i.test(item.title || '');
+                    const moduleIsSyllabus = /syllabus|course\s*(info|syllabus|overview)|policies|policy|expectations|handbook|information/i.test(mod.name || '');
                     const isPlainPdf = /\.pdf(\s|$)/i.test(item.title || '');
                     if (titleIsSyllabus || moduleIsSyllabus || isPlainPdf) {
-                      modulePdfCandidates.push({ url: downloadUrl, priority: (titleIsSyllabus || moduleIsSyllabus) ? 0 : 1 });
+                      modulePdfCandidates.push({ url: syllabusPdfUrl, priority: (titleIsSyllabus || moduleIsSyllabus) ? 0 : 1 });
                     }
                   }
 
@@ -324,7 +351,7 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         // Remember syllabus-ish PDFs so the instructor fallback can try them.
         modulePdfCandidates.sort((a, b) => a.priority - b.priority);
         if (unifiedCourseMap[courseKey].resources) {
-          unifiedCourseMap[courseKey].resources.modulePdfUrls = modulePdfCandidates.slice(0, 2).map(c => c.url);
+          unifiedCourseMap[courseKey].resources.modulePdfUrls = modulePdfCandidates.slice(0, 4).map(c => c.url);
         }
 
         // 2. Full Assignments Tab Scan with Submission Status
@@ -392,6 +419,12 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         // teacher enrollments -> syllabus-tab PDF -> Modules PDF(s). No-op
         // when the inline syllabus already produced a name.
         await enrichCourseInstructor(unifiedCourseMap[courseKey], course, headers);
+
+        // Grade-weight fallback: the grading breakdown often lives only in
+        // the syllabus PDF (syllabus-tab link or a Modules post) when the
+        // inline body is just a download link. No-op when the inline
+        // syllabus text already produced a breakdown.
+        await enrichCourseGradeWeights(unifiedCourseMap[courseKey], headers, courseKey);
       }
 
       if (showLoadingUI) {
@@ -494,12 +527,13 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
   }
 
 /* ---------------------------------------------------------------------------
- * Instructor name fallback chain
+ * Syllabus PDF fallback chain
  *
- * Some syllabi never name the professor inline: the syllabus tab is just a
- * link to a PDF, or the syllabus PDF lives in Modules. These helpers chase
- * the remaining sources in order of reliability, and only when the inline
- * syllabus text yielded no names:
+ * Some syllabi never name the professor or break down the grade inline: the
+ * syllabus tab is just a link to a PDF, or the syllabus PDF lives in Modules.
+ * The same PDFs are chased for both the instructor name and the grade-weight
+ * breakdown, in order of reliability, and only when the inline syllabus text
+ * produced nothing:
  *   1. Canvas teacher enrollments for the course (authoritative, no parsing)
  *   2. the syllabus-tab PDF, when the syllabus body links one
  *   3. syllabus-ish PDFs collected from the Modules scan
@@ -522,16 +556,301 @@ async function fetchTeacherNames(canvasCourseId, headers) {
     }
   }
 
-async function fetchPdfInstructorNames(url) {
-    try {
-      const res = await fetch(url, { credentials: 'include' });
-      if (!res.ok) return [];
-      const buf = await res.arrayBuffer();
-      const text = await extractPdfText(buf);
-      return parseSyllabusInstructors(text);
-    } catch (e) {
-      return [];
+function bytesToPrintableHead(buf, n = 40) {
+    if (!buf) return '';
+    const bytes = new Uint8Array(buf.slice(0, n));
+    let out = '';
+    for (const b of bytes) {
+      out += (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.';
     }
+    return out;
+  }
+
+function looksLikePdfBytes(buf) {
+    if (!buf || buf.byteLength < 5) return false;
+    const head = new Uint8Array(buf.slice(0, 5));
+    return head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46 && head[4] === 0x2d; // %PDF-
+  }
+
+async function fetchBinaryDetailed(url, headers) {
+    try {
+      const res = await fetch(url, { credentials: 'include', headers: headers || undefined });
+      return { status: res.status, buf: res.ok ? await res.arrayBuffer() : null };
+    } catch (e) {
+      return { status: 0, buf: null, err: e && e.message ? e.message.slice(0, 80) : String(e) };
+    }
+  }
+
+// Canvas's verifier interstitials are tiny HTML pages — a <meta refresh> or a
+// JS `location` assignment to the verifier'd file URL (or an auto-posting
+// form with a hidden verifier input). Pull the target out and return it as
+// an absolute URL, or null when the page isn't a redirect handshake.
+function findRedirectInHtml(html, baseUrl) {
+    const abs = (raw) => {
+      if (!raw) return null;
+      try {
+        const decoded = raw.replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'").replace(/&#(\d+);/g, (m, d) => String.fromCharCode(Number(d)));
+        return new URL(decoded, baseUrl).href;
+      } catch (e) {
+        return null;
+      }
+    };
+    const metaTags = String(html).match(/<meta\b[^>]*>/gi) || [];
+    for (const tag of metaTags) {
+      if (!/http-equiv=["']?refresh["']?/i.test(tag)) continue;
+      const content = tag.match(/content=(["'])([\s\S]*?)\1/i);
+      if (!content) continue;
+      const tail = content[2].trim().replace(/^\d+\s*;\s*/, '').trim();
+      let url = tail;
+      if (/^url\s*=/i.test(url)) url = url.replace(/^url\s*=\s*/i, '');
+      url = url.trim().replace(/^["']/, '').replace(/["']$/, '');
+      if (url) {
+        const resolved = abs(url);
+        if (resolved) return resolved;
+      }
+    }
+    const assign = html.match(/(?:window|document|top)?\s*\.?\s*location(?:\.href)?\s*=\s*["']([^"']+)["']/i);
+    if (assign) return abs(assign[1]);
+    const repl = html.match(/location\.replace\(\s*["']([^"']+)["']\s*\)/i);
+    if (repl) return abs(repl[1]);
+    const vf = html.match(/name=["']verifier["'][^>]*value=["']([^"']*)["']|value=["']([^"']*)["'][^>]*name=["']verifier["']/i);
+    if (vf) {
+      const v = (vf[1] !== undefined ? vf[1] : vf[2]) || '';
+      return abs(`${baseUrl.split('?')[0]}?verifier=${encodeURIComponent(v)}&download_frd=1`);
+    }
+    return null;
+  }
+
+function appendVerifier(fileUrl, verifier) {
+    if (!verifier) return fileUrl;
+    return fileUrl + (fileUrl.indexOf('?') >= 0 ? '&' : '?') + 'verifier=' + encodeURIComponent(verifier);
+  }
+
+// Fetch a Canvas file-ish URL and chase it until real PDF bytes come back.
+// Handles three response shapes:
+//  - raw PDF bytes → return them
+//  - Canvas file JSON metadata → follow its `url` (plus `verifier`)
+//  - HTML interstitial → follow meta-refresh / JS location / verifier form
+// Returns { status, buf } where buf is PDF bytes, or the last non-PDF
+// response (or null when nothing came back).
+async function fetchPdfBytesChasing(url, headers) {
+    let cur = url;
+    let status = 0;
+    let lastBuf = null;
+    for (let hop = 0; hop < 6; hop++) {
+      const res = await fetchBinaryDetailed(cur, headers);
+      if (!res) return { status: 0, buf: null };
+      status = res.status;
+      if (res.err) return { status: 0, buf: null, err: res.err };
+      if (looksLikePdfBytes(res.buf)) return { status, buf: res.buf };
+      if (!res.buf || res.buf.byteLength === 0) return { status, buf: null };
+      lastBuf = res.buf;
+
+      const first = new Uint8Array(res.buf.slice(0, 2));
+      if (first[0] === 0x7b || first[0] === 0x5b) { // '{' or '[' → JSON metadata
+        let meta = null;
+        try { meta = JSON.parse(new TextDecoder().decode(res.buf)); } catch (e) { meta = null; }
+        const rec = (meta && meta.attachment) || meta; // wrap pages → {"attachment":{...}}
+        if (rec && typeof rec.url === 'string') {
+          try {
+            const nextUrl = new URL(appendVerifier(rec.url, rec.verifier), cur).href;
+            if (nextUrl !== cur) { cur = nextUrl; continue; }
+          } catch (e) { /* fall through */ }
+        }
+        return { status, buf: res.buf };
+      }
+
+      const html = new TextDecoder().decode(res.buf).replace(/^\uFEFF/, '');
+      if (!/<(?:html|!doctype|meta|script|form)\b/i.test(html.slice(0, 400))) {
+        return { status, buf: res.buf };
+      }
+      const next = findRedirectInHtml(html, cur);
+      if (!next || next === cur) return { status, buf: res.buf };
+      cur = next;
+    }
+    return { status, buf: lastBuf };
+  }
+
+async function fetchFileMeta(courseId, fileId, headers) {
+    // include[]=verifier mints a one-time token that authorizes a download
+    // WITHOUT a session cookie — exactly what we need, since background fetches
+    // can't carry a valid Canvas session. The global /api/v1/files/:id endpoint
+    // honors the include (the course-scoped one often 400s / omits the field),
+    // so try it first, then plain metadata, then the course-scoped variants.
+    const attempts = [];
+    if (fileId) {
+      attempts.push(`${origin}/api/v1/files/${fileId}?include[]=verifier`);
+      attempts.push(`${origin}/api/v1/files/${fileId}`);
+    }
+    if (courseId && fileId) {
+      attempts.push(`${origin}/api/v1/courses/${courseId}/files/${fileId}?include[]=verifier`);
+      attempts.push(`${origin}/api/v1/courses/${courseId}/files/${fileId}`);
+    }
+    for (const attempt of attempts) {
+      try {
+        const res = await fetch(attempt, { credentials: 'include', headers: headers });
+        if (res.ok) return await res.json();
+      } catch (e) { /* try the next variant */ }
+    }
+    return { error: 'no file metadata' };
+  }
+
+// Canvas file downloads redirect to a cross-origin CDN that content-script
+// fetch() can't follow (CORS), even with credentials. The background page has
+// host permissions for the CDN, so it chases URLs to PDF bytes (same
+// JSON/HTML/raw-byte logic as fetchPdfBytesChasing) and returns them base64.
+async function fetchPdfBytesViaBackground(urls, headers, previewAt) {
+    try {
+      const resp = await browser.runtime.sendMessage({
+        type: 'FETCH_FILE',
+        urls: urls,
+        headers: headers || undefined,
+        previewAt: previewAt || 0
+      }).catch(() => null);
+      if (resp && resp.success && resp.bytesBase64) {
+        try {
+          const bin = atob(resp.bytesBase64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch (e) {
+          return null;
+        }
+      }
+      if (resp && resp.results) {
+        const detail = resp.results.map((r) =>
+          `${r.url} → ${r.status}${r.err ? ' err=' + r.err : ''}${r.final ? ' final=' + r.final : ''} "${r.head || ''}"`).join(' | ');
+        console.warn(`[YACE] Background PDF fetch failed — ${detail}${resp.cookies ? ' | cookies=' + resp.cookies : ' | cookies=none'}${resp && resp.capBytes !== undefined ? ' | capBytes=' + (resp.capBytes < 0 ? 'none' : resp.capBytes + 'B') : ''}`);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+// Canvas file URLs often answer a scripted fetch() with something other than
+// raw bytes — an HTML interstitial (wrap preview / verifier handshake) or the
+// file's own JSON metadata. A browser tab sails through automatically; fetch()
+// can't, so we chase: try candidate URLs, follow JSON `url` fields and HTML
+// redirect handshakes, then resolve the file id through the Files API
+// (include[]=verifier yields the one-time token that unlocks the raw bytes).
+// Returns PDF bytes or null.
+async function fetchCanvasPdfBytes(url, headers) {
+    const notes = [];
+    const candidates = [];
+    if (url) candidates.push(url);
+
+    // Recover the underlying Canvas file id from whatever URL shape we got:
+    // course file, API file, or module item.
+    let courseId = null;
+    let fileId = null;
+    const mFile = url && url.match(/\/courses\/(\d+)\/files\/(\d+)/i);
+    if (mFile) {
+      courseId = mFile[1];
+      fileId = mFile[2];
+      // wrap=1 preview pages never serve bytes — also try the course download URL.
+      const alt = `${origin}/courses/${courseId}/files/${fileId}/download?download_frd=1`;
+      if (!candidates.includes(alt)) candidates.push(alt);
+    } else {
+      const mApi = url && url.match(/\/api\/v1\/courses\/(\d+)\/files\/(\d+)/i);
+      if (mApi) {
+        courseId = mApi[1];
+        fileId = mApi[2];
+      } else {
+        const mItem = url && url.match(/\/courses\/(\d+)\/modules\/items\/(\d+)/i);
+        if (mItem) {
+          try {
+            const itRes = await fetch(`${origin}/api/v1/courses/${mItem[1]}/modules/items/${mItem[2]}`, {
+              credentials: 'include',
+              headers: headers
+            });
+            if (itRes.ok) {
+              const item = await itRes.json();
+              if (item && item.content_id) {
+                courseId = mItem[1];
+                fileId = item.content_id;
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+    }
+
+    for (const candidate of candidates) {
+      const got = await fetchPdfBytesChasing(candidate, headers);
+      if (looksLikePdfBytes(got.buf)) return got.buf;
+      notes.push(`${candidate} → ${got.status}${got.err ? ' err=' + got.err : ''} "${bytesToPrintableHead(got.buf, 140)}"`);
+    }
+
+    let meta = null;
+    let verifierUrl = null;
+    if (courseId && fileId) {
+      meta = await fetchFileMeta(courseId, fileId, headers);
+      if (meta && !meta.error && typeof meta.url === 'string') {
+        notes.push(`api.url=${meta.url} verifier=${meta.verifier ? 'yes' : 'no'}`);
+        const got = await fetchPdfBytesChasing(appendVerifier(meta.url, meta.verifier), headers);
+        if (looksLikePdfBytes(got.buf)) return got.buf;
+        notes.push(`apiTarget → ${got.status}${got.err ? ' err=' + got.err : ''} "${bytesToPrintableHead(got.buf, 140)}"`);
+        if (meta.verifier && fileId) {
+          // Canonical verifier URL: the one-time token authorizes the download
+          // instead of a session cookie — sidesteps the whole auth battle.
+          verifierUrl = `${origin}/files/${fileId}/download?download_frd=1&verifier=${encodeURIComponent(meta.verifier)}`;
+          const gotV = await fetchPdfBytesChasing(verifierUrl, headers);
+          if (looksLikePdfBytes(gotV.buf)) return gotV.buf;
+          notes.push(`verifierUrl → ${gotV.status}${gotV.err ? ' err=' + gotV.err : ''} "${bytesToPrintableHead(gotV.buf, 140)}"`);
+        }
+      } else {
+        notes.push(`api.${meta && meta.error ? meta.error : 'no-url'}`);
+      }
+    }
+
+    // Background fallback: content-script fetch() can't follow Canvas's
+    // cross-origin CDN redirects (CORS), but the background page — with its
+    // host permissions — can; it chases the same URL set and returns base64.
+    // The canonical verifier URL leads (it's the most likely to yield bytes).
+    const bgUrls = [];
+    if (verifierUrl) bgUrls.push(verifierUrl);
+    bgUrls.push(...candidates);
+    if (meta && typeof meta.url === 'string') bgUrls.push(appendVerifier(meta.url, meta.verifier));
+
+    // Kick the REAL token-minting hop off from page context. A no-cors fetch
+    // follows Canvas's cross-origin redirect (a cors fetch aborts at the
+    // boundary in Firefox), so Canvas mints a fresh single-use CDN token. Our
+    // background cancels that CDN hop BEFORE it is transmitted and then fetches
+    // the untouched token URL itself — the one GET that can actually read the
+    // bytes. The ?yace=1 marker tells the background this hop is ours, so real
+    // downloads in other tabs are never cancelled.
+    const previewAt = Date.now();
+    const triggerUrl = verifierUrl
+        || (meta && typeof meta.url === 'string' ? appendVerifier(meta.url, meta.verifier) : null)
+        || (candidates[0] || url);
+    if (triggerUrl) {
+        try {
+            const marked = triggerUrl + (triggerUrl.indexOf('?') >= 0 ? '&' : '?') + 'yace=1';
+            await fetch(marked, { mode: 'no-cors', credentials: 'include' });
+        } catch (e) { /* cancelled hop is expected; harmless */ }
+    }
+    const bgBuf = await fetchPdfBytesViaBackground(bgUrls, headers, previewAt);
+    if (looksLikePdfBytes(bgBuf)) return bgBuf;
+
+    console.warn(`[YACE] No PDF bytes — ${notes.join(' | ')} | input=${url}`);
+    return null;
+  }
+
+async function fetchPdfText(url, headers) {
+    const buf = await fetchCanvasPdfBytes(url, headers);
+    if (!buf) return '';
+    const text = await extractPdfText(buf);
+    if (!text && buf.byteLength > 0) {
+      const probe = await probePdfStreams(buf);
+      console.warn(`[YACE] Syllabus PDF yielded no text — size=${buf.byteLength} head="${bytesToPrintableHead(buf)}" streams=${JSON.stringify(probe)} url=${url}`);
+    }
+    return text;
+  }
+
+async function fetchPdfInstructorNames(url, headers) {
+    return parseSyllabusInstructors(await fetchPdfText(url, headers));
   }
 
 function setCourseProfessors(res, names) {
@@ -539,6 +858,53 @@ function setCourseProfessors(res, names) {
     if (!clean.length) return;
     res.professors = clean;
     res.professorName = clean[0];
+  }
+
+// Grade-weight backfill from the syllabus PDFs. Called for every course so a
+// breakdown that only exists in a PDF (syllabus-tab link or Modules post)
+// still feeds the Grades tab / What-If simulator. Inline-text weights win —
+// they're the authoritative body text, while PDF reconstruction is chunkier.
+async function enrichCourseGradeWeights(courseEntry, headers, courseKey) {
+    const res = (courseEntry && courseEntry.resources) || {};
+    if (Array.isArray(res.gradeWeights) && res.gradeWeights.length) return;
+
+    const urls = [];
+    if (res.syllabusPdfUrl) urls.push(res.syllabusPdfUrl);
+    (Array.isArray(res.modulePdfUrls) ? res.modulePdfUrls : []).forEach(u => {
+      if (!urls.includes(u)) urls.push(u);
+    });
+
+    // PDF-only course: honor a distribution the user picked from a previous
+    // run (inline mapping always resets choice for these, since it sees no
+    // inline breakdown to compare against).
+    const prevRes = courseKey && state.cachedCourseMap && state.cachedCourseMap[courseKey]
+      ? (state.cachedCourseMap[courseKey].resources || {}) : {};
+    const prevChoice = (typeof prevRes.gradeWeightChoice === 'number')
+      ? prevRes.gradeWeightChoice : 0;
+
+    for (const url of urls) {
+      const text = await fetchPdfText(url, headers);
+      const dists = text ? parseGradeWeightDistributions(text) : null;
+      const weights = (dists && dists.length)
+        ? dists[Math.min(prevChoice, dists.length - 1)].weights
+        : (text ? parseGradeWeights(text) : null);
+      if (weights) {
+        res.gradeWeights = weights;
+        res.gradeWeightOptions = (dists && dists.length > 1) ? dists : undefined;
+        res.gradeWeightChoice = (dists && dists.length > 1)
+          ? Math.min(prevChoice, dists.length - 1) : 0;
+        console.info(`[YACE] Syllabus grade weights from PDF for ${courseEntry.name || 'course'}:`, weights);
+        return;
+      }
+      if (text) {
+        console.warn(`[YACE] Parsed no grade weights from PDF for ${courseEntry.name || 'course'}. Extracted text (${text.length} chars):\n${text.slice(0, 600)}`);
+      } else {
+        console.warn(`[YACE] Empty text extracted from syllabus PDF for ${courseEntry.name || 'course'}:`, url);
+      }
+    }
+    if (urls.length) {
+      console.warn(`[YACE] No grade weights from any syllabus PDF for ${courseEntry.name || 'course'} — searched:`, urls);
+    }
   }
 
 async function enrichCourseInstructor(courseEntry, canvasCourse, headers) {
@@ -556,7 +922,7 @@ async function enrichCourseInstructor(courseEntry, canvasCourse, headers) {
 
     // 2. Syllabus-tab PDF.
     if (res.syllabusPdfUrl) {
-      const names = await fetchPdfInstructorNames(res.syllabusPdfUrl);
+      const names = await fetchPdfInstructorNames(res.syllabusPdfUrl, headers);
       if (names.length) {
         setCourseProfessors(res, names);
         return;
@@ -566,7 +932,7 @@ async function enrichCourseInstructor(courseEntry, canvasCourse, headers) {
     // 3. Syllabus-ish PDFs posted in Modules.
     const moduleUrls = Array.isArray(res.modulePdfUrls) ? res.modulePdfUrls : [];
     for (const url of moduleUrls) {
-      const names = await fetchPdfInstructorNames(url);
+      const names = await fetchPdfInstructorNames(url, headers);
       if (names.length) {
         setCourseProfessors(res, names);
         return;
