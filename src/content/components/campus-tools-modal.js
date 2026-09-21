@@ -10,12 +10,17 @@
 
 import { state } from '../state.js';
 import { renderBuildingHoursView } from '../views/building-hours-view.js';
+import { renderBusView } from '../views/bus-view.js';
 import { renderDiningView } from '../views/dining-view.js';
+import { renderEventsView } from '../views/events-view.js';
+import { renderExportView } from '../views/export-view.js';
+import { renderOptionsView } from '../views/options-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
 import { renderRmpView } from '../views/rmp-view.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
 
-// Which tab shows next time the modal opens ('food' | 'registration' | 'rmp' | 'buildings').
+// Which tab shows next time the modal opens
+// ('food' | 'registration' | 'rmp' | 'buildings' | 'bus' | 'events' | 'export' | 'options').
 let activeTool = 'food';
 
 // Reflect state.isDrawerOpen + the active tool on every 🍽/🧑‍🏫/🎓 header
@@ -65,9 +70,24 @@ function renderTool() {
       renderRmpView(body, getHiddenCourses());
     } else if (activeTool === 'buildings') {
       renderBuildingHoursView(body);
+    } else if (activeTool === 'bus') {
+      renderBusView(body);
+    } else if (activeTool === 'events') {
+      renderEventsView(body);
+    } else if (activeTool === 'export') {
+      renderExportView(body);
+    } else if (activeTool === 'options') {
+      renderOptionsView(body);
     } else {
       renderRegistrationView(body);
     }
+  }
+
+// The Options tab can switch themes while the modal is open — refresh the CSS
+// custom properties the modal copied from the widget on open.
+export function refreshCampusToolsPalette() {
+    const modal = document.getElementById('campus-tools-modal');
+    if (modal) applyThemePalette(modal);
   }
 
 export function openCampusToolsModal(tool) {
@@ -92,6 +112,10 @@ export function openCampusToolsModal(tool) {
       <button type="button" class="campus-tools-tab" data-tool="rmp" role="tab">🧑‍🏫 Professors</button>
       <button type="button" class="campus-tools-tab" data-tool="registration" role="tab">🎓 WebCat Reg</button>
       <button type="button" class="campus-tools-tab" data-tool="buildings" role="tab">🏢 Hours</button>
+      <button type="button" class="campus-tools-tab" data-tool="bus" role="tab">🚌 Bus</button>
+      <button type="button" class="campus-tools-tab" data-tool="events" role="tab">🗓️ Events</button>
+      <button type="button" class="campus-tools-tab" data-tool="export" role="tab">📅 Export</button>
+      <button type="button" class="campus-tools-tab" data-tool="options" role="tab">⚙️ Options</button>
       </div>
       <button type="button" class="doc-preview-close" id="campus-tools-close-btn" title="Close (Esc)">✕</button>
       </div>

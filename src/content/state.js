@@ -9,6 +9,8 @@ import {
   STORAGE_KEY_THEME,
   STORAGE_KEY_WHATIF,
   STORAGE_KEY_DOM_COLORS,
+  STORAGE_KEY_OPTIONS,
+  STORAGE_KEY_EVENTS_CACHE,
 } from './constants.js';
 
 export const state = {
@@ -74,6 +76,13 @@ export const state = {
   cachedOfficialHours: null,
   activeStationFilter: '__DEFAULT__',
   activeDiningDayOffset: 0, // 0 = today, 1 = tomorrow
+
+  // --- Options (tab visibility, notification prefs, …) ---
+  // Hydrated from STORAGE_KEY_OPTIONS below; options.js owns the write path.
+  options: {},
+
+  // --- Campus events (MUB + UNH Today) in-memory mirror of the cache ---
+  eventsCache: null, // { date, mub, unhtoday } persisted under STORAGE_KEY_EVENTS_CACHE
 };
 
 try {
@@ -86,4 +95,16 @@ try {
   state.domCourseColors = JSON.parse(localStorage.getItem(STORAGE_KEY_DOM_COLORS) || '{}');
 } catch {
   state.domCourseColors = {};
+}
+
+try {
+  state.options = JSON.parse(localStorage.getItem(STORAGE_KEY_OPTIONS) || '{}');
+} catch {
+  state.options = {};
+}
+
+try {
+  state.eventsCache = JSON.parse(localStorage.getItem(STORAGE_KEY_EVENTS_CACHE) || 'null');
+} catch {
+  state.eventsCache = null;
 }

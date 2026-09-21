@@ -181,6 +181,7 @@ export function renderDashboardView(listContainer, strip, searchRow, progressEl)
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `fs-task-tab${activeTab === tab ? ' active' : ''}`;
+      btn.dataset.tab = tab;
       btn.textContent = label;
       btn.addEventListener('click', () => {
         state.currentTab = tab;

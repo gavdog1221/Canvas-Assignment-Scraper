@@ -1,5 +1,6 @@
 import { state } from '../state.js';
 import { STORAGE_KEY_CACHE_TIME, STORAGE_KEY_THEME, THEMES } from '../constants.js';
+import { applyOptions } from '../options.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
 import { openShortcutsModal } from '../components/shortcuts-modal.js';
 import { toggleCampusToolsModal } from '../components/campus-tools-modal.js';
@@ -98,6 +99,18 @@ export function injectWidget(container) {
     <button type="button" class="icon-btn campus-tools-btn" data-tool="buildings" title="Building Hours — MUB, Rec, Library" aria-haspopup="dialog" aria-expanded="false">
     <span class="campus-tools-icon">🏢</span><span class="campus-tools-label">Hours</span>
     </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="bus" title="Next Wildcat Transit bus" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🚌</span><span class="campus-tools-label">Bus</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="events" title="What's Happening on Campus" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🗓️</span><span class="campus-tools-label">Events</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="export" title="Export Assignments as .ics Calendar" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">📅</span><span class="campus-tools-label">Export</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="options" title="Options — theme, tabs, notifications" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">⚙️</span><span class="campus-tools-label">Options</span>
+    </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
     <!-- Theme Swatch Palette Dock -->
@@ -188,6 +201,10 @@ export function injectWidget(container) {
     </div>    `;
 
     container.prepend(widget);
+
+    // Apply persisted options (hidden view tabs, notification prefs) to the
+    // widget right after it's in the DOM, before the first render kicks off.
+    applyOptions();
 
     // Fullscreen is the only mode now: the sidebar and the minimize-to-edge
     // states are gone. Relocate the widget to <body> (the #right-side-wrapper

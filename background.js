@@ -377,6 +377,32 @@ browser.runtime.onMessage.addListener((request) => {
         })();
     }
 
+    if (request.type === 'FETCH_EVENTS') {
+        return (async () => {
+            // What's-happening-on-campus: two unh.edu Drupal homepages fetched
+            // in parallel (same origin the dashboard can't CORS on its own).
+            // unhis athletics is not included — the calendar on unwildcats.com
+            // migrated to a client-side SPA with no server-rendered events.
+            const grab = async (url) => {
+                try {
+                    const res = await fetch(url, { credentials: 'omit' });
+                    if (!res.ok) return null;
+                    return await res.text();
+                } catch (e) {
+                    return null;
+                }
+            };
+            const [mubHtml, unhtodayHtml] = await Promise.all([
+                grab('https://www.unh.edu/mub/events'),
+                grab('https://www.unh.edu/unhtoday/'),
+            ]);
+            if (!mubHtml && !unhtodayHtml) {
+                return { success: false, error: 'Could not reach the campus event pages.' };
+            }
+            return { success: true, mubHtml, unhtodayHtml };
+        })();
+    }
+
     if (request.type === 'FETCH_BUILDING_HOURS') {
         return (async () => {
             // Building hours live on three different UNH sites, and every one

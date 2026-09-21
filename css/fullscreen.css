@@ -45,7 +45,8 @@
 #module-tasks-widget.is-fullscreen .title-row { gap: 8px !important; justify-self: start !important; }
 #module-tasks-widget.is-fullscreen .widget-date-center { display: flex !important; min-width: 0 !important; align-items: center !important; justify-content: center !important; justify-self: center !important; }
 #module-tasks-widget.is-fullscreen .widget-current-date { display: inline-block !important; font-size: 22px !important; font-weight: 800 !important; letter-spacing: -0.3px !important; color: #ffffff !important; background: transparent !important; border: none !important; padding: 0 !important; margin: 0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-#module-tasks-widget.is-fullscreen .widget-controls { gap: 6px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; justify-self: end !important; min-width: 0 !important; max-width: 100% !important; }
+#module-tasks-widget.is-fullscreen .widget-controls { gap: 6px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; justify-self: end !important; min-width: 0 !important; max-width: 100% !important; overflow-x: auto !important; scrollbar-width: none !important; }
+#module-tasks-widget.is-fullscreen .widget-controls::-webkit-scrollbar { display: none !important; }
 #module-tasks-widget.is-fullscreen .icon-btn { padding: 6px 11px !important; font-size: 12px !important; min-height: 32px !important; white-space: nowrap !important; flex-shrink: 0 !important; gap: 4px !important; }
 #module-tasks-widget.is-fullscreen .icon-btn.eye-btn { min-width: 34px !important; }
 #module-tasks-widget.is-fullscreen .campus-tools-btn { padding: 6px 10px !important; font-size: 11px !important; gap: 5px !important; }
