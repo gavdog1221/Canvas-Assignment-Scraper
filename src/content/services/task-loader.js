@@ -13,6 +13,7 @@ import { extractCoreAssignmentToken, findSyllabusPdfUrl, generateTaskId, normali
 import { extractPdfText } from '../utils/pdf.js';
 import { updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
+import { maybeShowWhatsNewBanner } from '../components/whats-new-banner.js';
 
 export function deduplicateCourseMap(courseMap, allGrades = []) {
     const gradedTokensByCourse = {};
@@ -479,6 +480,7 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       // rebuild instead of being re-mounted stale from the previous render.
       state.forceDashboardRebuild = true;
       renderCurrentView();
+      maybeShowWhatsNewBanner();
       purgeDefaultCanvasElements();
 
       setTimeout(hideReloadProgress, 400);

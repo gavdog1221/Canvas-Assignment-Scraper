@@ -89,7 +89,7 @@ css/                       Dashboard widget styles, split by feature (content sc
 ├── canvas-overrides.css   Canvas page resets: native To-Do sidebar suppression, wide layout
 ├── widget-shell.css       Main hub glass surface + fullscreen mode base
 ├── widget-header.css      Title bar, icon/campus buttons, theme swatch dock
-├── overlays.css           Reload-progress banner, hidden-courses popover
+├── overlays.css           Reload-progress banner, hidden-courses popover, what's-new toast
 ├── task-cards.css         Task/announcement cards, star & date-edit, badges, empty state
 ├── hud.css                Workload strip, progress tracker, search + filters, HUD dock,
 │ │                        responsive container-query scaling, course strip

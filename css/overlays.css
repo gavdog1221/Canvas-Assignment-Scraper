@@ -56,3 +56,69 @@
 }
 .hidden-pill-btn:hover { background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; color: #ffffff !important; }
 .hidden-pill-btn span { font-weight: 800 !important; color: var(--primary-accent) !important; }
+
+/* ==========================================================================
+ *  WHAT'S-NEW TOAST BANNER
+ *  (fixed top-center overlay outside the widget; palette vars are copied
+ *  onto the element by whats-new-banner.js, defaults below are just the
+ *  Liquid Blue fallback)
+ *  ========================================================================== */
+.whats-new-banner {
+  --primary-accent: #0a84ff; --secondary-accent: #64d2ff; --accent-glow: rgba(10, 132, 255, 0.35); --accent-soft: rgba(10, 132, 255, 0.16);
+  --card-bg: rgba(255, 255, 255, 0.055); --border-subtle: rgba(255, 255, 255, 0.14);
+  --text-primary: rgba(255, 255, 255, 0.95); --text-secondary: rgba(235, 235, 245, 0.65); --text-tertiary: rgba(235, 235, 245, 0.42);
+  --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  position: fixed !important; top: 16px !important; left: 50% !important;
+  transform: translateX(-50%) !important; z-index: 2147483100 !important;
+  width: min(680px, calc(100vw - 36px)) !important;
+  max-height: min(70vh, 560px) !important; overflow-y: auto !important;
+  background:
+    radial-gradient(100% 150% at 12% 0%, var(--accent-soft) 0%, transparent 52%),
+    radial-gradient(90% 130% at 92% 12%, var(--accent-glow) 0%, transparent 60%),
+    linear-gradient(165deg, #26262e 0%, #10101a 100%) !important;
+  backdrop-filter: blur(26px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 18px !important; padding: 14px 16px !important;
+  box-shadow: var(--shadow-float) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Inter, Roboto, sans-serif !important;
+  color: var(--text-primary) !important;
+  animation: wnbIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.whats-new-banner.is-hiding { animation: wnbOut 0.26s ease forwards !important; }
+@keyframes wnbIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes wnbOut { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -10px); } }
+.wnb-head { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; }
+.wnb-title { font-size: 13px !important; font-weight: 800 !important; letter-spacing: 0.2px !important; }
+.wnb-title::before { content: '✨ '; }
+.wnb-close {
+  background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: var(--text-secondary) !important; font-size: 11px !important; font-weight: 700 !important;
+  border-radius: 999px !important; padding: 5px 12px !important; cursor: pointer !important;
+  transition: all 0.18s ease !important;
+}
+.wnb-close:hover { background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; color: #ffffff !important; }
+.wnb-body { display: flex !important; flex-direction: column !important; gap: 10px !important; margin-top: 12px !important; }
+.wnb-group {
+  background: rgba(255, 255, 255, 0.05) !important; border: 1px solid var(--border-subtle) !important;
+  border-radius: 14px !important; padding: 10px 12px !important;
+  display: flex !important; flex-direction: column !important; gap: 7px !important;
+}
+.wnb-group-title {
+  font-size: 10.5px !important; font-weight: 800 !important; letter-spacing: 0.6px !important;
+  text-transform: uppercase !important; color: var(--primary-accent) !important;
+  display: flex !important; align-items: center !important; gap: 7px !important;
+}
+.wnb-count {
+  background: var(--accent-soft) !important; color: var(--primary-accent) !important;
+  border-radius: 999px !important; font-size: 10px !important; padding: 1px 8px !important;
+}
+.wnb-item { display: flex !important; align-items: baseline !important; gap: 8px !important; font-size: 12px !important; line-height: 1.35 !important; }
+.wnb-course {
+  flex: none !important; max-width: 130px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+  font-size: 10.5px !important; font-weight: 800 !important; background: var(--accent-soft) !important; color: var(--primary-accent) !important;
+  border-radius: 999px !important; padding: 2px 9px !important;
+}
+.wnb-name { flex: 1 !important; min-width: 0 !important; color: var(--text-primary) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.wnb-score { font-style: normal !important; font-family: ui-monospace, SFMono-Regular, monospace !important; font-size: 11px !important; color: var(--secondary-accent) !important; }
+.wnb-more { font-size: 11px !important; color: var(--text-tertiary) !important; font-style: italic !important; }
