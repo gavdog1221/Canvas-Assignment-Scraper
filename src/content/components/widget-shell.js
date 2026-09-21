@@ -94,6 +94,9 @@ export function injectWidget(container) {
     <button type="button" class="icon-btn campus-tools-btn" data-tool="registration" title="WebCat Registration" aria-haspopup="dialog" aria-expanded="false">
     <span class="campus-tools-icon">🎓</span><span class="campus-tools-label">Reg</span>
     </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="buildings" title="Building Hours — MUB, Rec, Library" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🏢</span><span class="campus-tools-label">Hours</span>
+    </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
     <!-- Theme Swatch Palette Dock -->

@@ -9,12 +9,13 @@
 // keyboard-shortcuts.js) applies for free.
 
 import { state } from '../state.js';
+import { renderBuildingHoursView } from '../views/building-hours-view.js';
 import { renderDiningView } from '../views/dining-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
 import { renderRmpView } from '../views/rmp-view.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
 
-// Which tab shows next time the modal opens ('food' | 'registration' | 'rmp').
+// Which tab shows next time the modal opens ('food' | 'registration' | 'rmp' | 'buildings').
 let activeTool = 'food';
 
 // Reflect state.isDrawerOpen + the active tool on every 🍽/🧑‍🏫/🎓 header
@@ -62,6 +63,8 @@ function renderTool() {
       renderDiningView(body);
     } else if (activeTool === 'rmp') {
       renderRmpView(body, getHiddenCourses());
+    } else if (activeTool === 'buildings') {
+      renderBuildingHoursView(body);
     } else {
       renderRegistrationView(body);
     }
@@ -88,6 +91,7 @@ export function openCampusToolsModal(tool) {
       <button type="button" class="campus-tools-tab" data-tool="food" role="tab">🍽 Food</button>
       <button type="button" class="campus-tools-tab" data-tool="rmp" role="tab">🧑‍🏫 Professors</button>
       <button type="button" class="campus-tools-tab" data-tool="registration" role="tab">🎓 WebCat Reg</button>
+      <button type="button" class="campus-tools-tab" data-tool="buildings" role="tab">🏢 Hours</button>
       </div>
       <button type="button" class="doc-preview-close" id="campus-tools-close-btn" title="Close (Esc)">✕</button>
       </div>

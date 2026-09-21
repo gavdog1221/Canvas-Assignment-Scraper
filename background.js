@@ -377,6 +377,37 @@ browser.runtime.onMessage.addListener((request) => {
         })();
     }
 
+    if (request.type === 'FETCH_BUILDING_HOURS') {
+        return (async () => {
+            // Building hours live on three different UNH sites, and every one
+            // hides its real schedule behind a collapsible/dropdown affordance:
+            // - unh.edu/mub/... renders each section as a bootstrap accordion
+            //   (hours only appear inside the collapsed .collapse bodies)
+            // - campusrec.unh.edu/hours tucks the Hamel hours into a paragraph
+            // - library.unh.edu serves hours through a LibCal JSON widget on
+            //   librarycalendars.unh.edu (weeks of per-location day rows)
+            // Grab all three in parallel; local parsing handles the rest.
+            const grab = async (url) => {
+                try {
+                    const res = await fetch(url, { credentials: 'omit' });
+                    if (!res.ok) return null;
+                    return await res.text();
+                } catch (e) {
+                    return null;
+                }
+            };
+            const [mubHtml, recHtml, libraryJson] = await Promise.all([
+                grab('https://unh.edu/mub/about/mub-building-hours'),
+                grab('https://campusrec.unh.edu/hours'),
+                grab('https://librarycalendars.unh.edu/widget/hours/grid?iid=3647&lid=0&format=json'),
+            ]);
+            if (!mubHtml && !recHtml && !libraryJson) {
+                return { success: false, error: 'Could not reach the building hours pages.' };
+            }
+            return { success: true, mubHtml, recHtml, libraryJson };
+        })();
+    }
+
     if (request.type === 'FETCH_WEBCAT_CRN') {
         return (async () => {
             try {
