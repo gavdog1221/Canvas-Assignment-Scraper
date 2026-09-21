@@ -1,0 +1,282 @@
+/* ==========================================================================
+ *  view-general.css — YACE dashboard styles
+ *  (source: sidebar.css lines 989-1264)
+ *  Split mechanically from the original single sidebar.css stylesheet;
+ *  do not reformat bodies. See manifest.json `content_scripts.css` for order.
+ *  ========================================================================== */
+/* ==========================================================================
+ *  GENERAL TAB — per-course syllabus & resource links
+ *  ========================================================================== */
+.general-resource-card { --tier-color: #98989f; --tier-glow: rgba(152, 152, 159, 0.25); }
+.general-resource-card.tier-a,
+.general-resource-card.tier-b,
+.general-resource-card.tier-c { --tier-color: #dde2ea; --tier-glow: rgba(221, 226, 234, 0.35); }
+.general-resource-card.tier-d,
+.general-resource-card.tier-f { --tier-color: #ff453a; --tier-glow: rgba(255, 69, 58, 0.35); }
+.general-course-name { cursor: pointer !important; text-decoration: none !important; transition: color 0.15s ease !important; }
+.general-course-name:hover { color: var(--primary-accent, #0a84ff) !important; text-decoration: underline !important; }
+
+.gci-badge {
+  margin-left: auto !important; flex-shrink: 0 !important;
+  font-size: 10px !important; font-weight: 800 !important;
+  color: var(--tier-color) !important;
+  background: color-mix(in srgb, var(--tier-color) 16%, transparent) !important;
+  border: 1px solid var(--tier-color) !important;
+  border-radius: 999px !important; padding: 3px 9px !important;
+  white-space: nowrap !important;
+}
+
+/* Rate My Professor panel in the Info tab. Instructor name is parsed from
+ * the syllabus; ratings come from the RMP GraphQL API via background.js.
+ * Extension is UNH-scoped, so the panel always links back to the UNH school
+ * page (RMP legacyId 1231). */
+.rmp-panel {
+  width: 100% !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
+  padding: 9px 11px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  display: flex !important; flex-direction: column !important; gap: 6px !important;
+}
+/* The full-width view header already announces "🎓 Rate My Professor" + the
+   UNH badge; hiding the per-panel repeat keeps each card small and clean. */
+.rmp-panel > .rmp-panel-header { display: none !important; }
+
+/* rating ring + professor identity */
+.rmp-panel-header { display: flex !important; align-items: center !important; gap: 8px !important; }
+.rmp-panel-title { font-size: 10.5px !important; font-weight: 700 !important; color: var(--text-secondary) !important; }
+.rmp-panel-badge {
+  margin-left: auto !important;
+  font-size: 8.5px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.3px !important;
+  color: var(--primary-accent) !important;
+  background: var(--accent-soft) !important;
+  border-radius: 999px !important; padding: 2px 7px !important;
+  white-space: nowrap !important;
+}
+.rmp-head { display: flex !important; align-items: center !important; gap: 9px !important; min-width: 0 !important; }
+.rmp-head-missing { opacity: 0.85 !important; }
+.rmp-score-big {
+  --rmp-color: var(--primary-accent);
+  flex-shrink: 0 !important;
+  display: grid !important; place-items: center !important;
+  min-width: 40px !important; height: 30px !important;
+  padding: 0 5px !important;
+  border-radius: 9px !important;
+  background: color-mix(in srgb, var(--rmp-color) 14%, transparent) !important;
+  font-size: 17px !important; font-weight: 800 !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+  line-height: 1 !important;
+  color: var(--rmp-color) !important;
+}
+.rmp-score-big.is-good { --rmp-color: var(--primary-accent) !important; }
+.rmp-score-big.is-mid { --rmp-color: rgba(255, 255, 255, 0.62) !important; }
+.rmp-score-big.is-bad { --rmp-color: var(--danger) !important; }
+.rmp-score-big.is-none { --rmp-color: rgba(255, 255, 255, 0.45) !important; background: rgba(255, 255, 255, 0.07) !important; }
+.rmp-prof { display: flex !important; flex-direction: column !important; gap: 1px !important; min-width: 0 !important; }
+.rmp-prof-name {
+  font-size: 12px !important; font-weight: 750 !important; color: var(--text-primary) !important;
+  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+.rmp-prof-meta {
+  font-size: 9px !important; font-weight: 500 !important; color: var(--text-tertiary) !important;
+  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+
+/* stat lines (difficulty bar, would-take-again) */
+.rmp-line { display: flex !important; align-items: center !important; gap: 8px !important; min-width: 0 !important; }
+.rmp-line-label {
+  flex-shrink: 0 !important; font-size: 9px !important; font-weight: 700 !important;
+  text-transform: uppercase !important; letter-spacing: 0.3px !important;
+  color: var(--text-tertiary) !important;
+}
+.rmp-line-value {
+  margin-left: auto !important; flex-shrink: 0 !important;
+  font-size: 10px !important; font-weight: 800 !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+  color: var(--text-secondary) !important;
+}
+.rmp-bar {
+  flex: 1 !important; min-width: 0 !important; height: 5px !important;
+  border-radius: 999px !important; background: rgba(255, 255, 255, 0.08) !important;
+  overflow: hidden !important;
+}
+.rmp-bar-fill {
+  display: block !important; height: 100% !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), var(--danger)) !important;
+}
+
+/* teacher tags */
+.rmp-tags { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; }
+.rmp-tag {
+  font-size: 8.5px !important; font-weight: 650 !important;
+  color: var(--text-secondary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 999px !important; padding: 2px 7px !important;
+  white-space: nowrap !important;
+}
+
+/* links footer */
+.rmp-links { display: flex !important; align-items: center !important; gap: 12px !important; flex-wrap: wrap !important; }
+.rmp-link {
+  font-size: 9px !important; font-weight: 700 !important;
+  color: var(--primary-accent, #0a84ff) !important;
+  text-decoration: none !important;
+  transition: opacity 0.15s ease !important;
+}
+.rmp-link:hover { opacity: 0.75 !important; text-decoration: underline !important; }
+.rmp-panel-note { margin: 0 !important; font-size: 9.5px !important; color: var(--text-tertiary) !important; font-style: italic !important; }
+
+/* loading skeleton */
+.rmp-loading { display: flex !important; align-items: center !important; gap: 10px !important; }
+.rmp-loading-tile {
+  flex-shrink: 0 !important; width: 40px !important; height: 30px !important;
+  border-radius: 9px !important; background: rgba(255, 255, 255, 0.07) !important;
+  animation: rmpPulse 1.2s ease-in-out infinite !important;
+}
+.rmp-loading-lines { flex: 1 !important; display: flex !important; flex-direction: column !important; gap: 7px !important; min-width: 0 !important; }
+.rmp-loading-line {
+  display: block !important; height: 9px !important; border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  animation: rmpPulse 1.2s ease-in-out infinite !important;
+}
+@keyframes rmpPulse { 0%, 100% { opacity: 0.35 !important; } 50% { opacity: 0.85 !important; } }
+
+
+.resource-links-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  row-gap: 6px !important;
+  width: 100% !important;
+  margin-top: 2px !important;
+}
+
+.resource-link-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  padding: 5px 10px !important;
+  border-radius: 999px !important;
+  background: var(--task-course-soft) !important;
+  border: 1px solid var(--task-course-accent) !important;
+  color: var(--task-course-accent) !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  transition: all 0.15s ease !important;
+}
+.resource-link-pill:hover {
+  background: var(--task-course-accent) !important;
+  color: #0b0b0d !important;
+  transform: translateY(-1px) !important;
+}
+.resource-link-pill.is-empty {
+  opacity: 0.55 !important;
+  border-style: dashed !important;
+}
+.gci-open-btn {
+  font-family: inherit !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+}
+
+@container yace (max-width: 435px) {
+  .resource-link-pill { font-size: 9.5px !important; padding: 4px 8px !important; }
+}
+
+/* Office-hours "today at a glance" strip at the top of the Info tab */
+.gci-today-strip {
+  display: flex !important; flex-direction: column !important; gap: 5px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 14px !important;
+  padding: 8px 11px !important; margin-bottom: 9px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.gci-today-title { font-size: 10px !important; font-weight: 800 !important; letter-spacing: 0.5px !important; text-transform: uppercase !important; color: var(--text-secondary) !important; }
+.gci-today-items { display: flex !important; flex-wrap: wrap !important; gap: 5px 10px !important; }
+.gci-today-item { font-size: 10.5px !important; color: var(--text-secondary) !important; }
+.gci-today-item b { color: var(--text-primary) !important; font-weight: 750 !important; }
+
+/* Per-card office hours line + syllabus grade-weight chips (Info tab) */
+.gci-office-hours {
+  margin-top: 7px !important;
+  font-size: 10px !important; font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+}
+.gci-weights-row {
+  display: flex !important; flex-wrap: wrap !important; gap: 5px !important;
+  margin-top: 6px !important;
+}
+.gci-weight-chip {
+  display: inline-flex !important; align-items: center !important;
+  font-size: 9.5px !important; font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important; padding: 2px 8px !important;
+  white-space: nowrap !important;
+}
+
+/* "Need on remaining" projection chips inside the what-if simulator */
+.whatif-projection-block {
+  display: flex !important; flex-direction: column !important; gap: 6px !important;
+  margin: 7px 4px 8px !important;
+  padding: 7px 9px !important;
+  background: rgba(0, 0, 0, 0.16) !important;
+  border-radius: 12px !important;
+  border: 1px dashed rgba(255, 255, 255, 0.12) !important;
+}
+.whatif-projection-block .gci-weights-row { margin-top: 0 !important; }
+.whatif-need-line {
+  display: flex !important; flex-wrap: wrap !important; align-items: center !important; gap: 4px !important;
+  font-size: 10px !important; font-weight: 700 !important; color: var(--text-secondary) !important;
+}
+.whatif-need-chip {
+  font-size: 9.5px !important; font-weight: 800 !important;
+  color: var(--primary-accent) !important;
+  background: var(--accent-soft, rgba(10, 132, 255, 0.16)) !important;
+  border-radius: 999px !important; padding: 2px 7px !important;
+  white-space: nowrap !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important;
+}
+
+/* Condensed need line on the course-grade summary cards */
+.cg-need-line {
+  margin-top: 6px !important;
+  font-size: 9.5px !important; font-weight: 700 !important;
+  color: var(--tier-color) !important;
+  opacity: 0.85 !important;
+  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+
+/* Grade-change alert strip + Grades tab counter badge */
+.grade-changes-card {
+  border: 1px solid var(--accent-glow) !important; border-radius: 14px !important;
+  padding: 9px 11px !important; margin-bottom: 9px !important;
+  background: var(--accent-soft) !important;
+}
+.grade-changes-header {
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  margin-bottom: 6px !important;
+}
+.grade-changes-title { font-size: 10px !important; font-weight: 800 !important; letter-spacing: 0.5px !important; text-transform: uppercase !important; color: var(--primary-accent) !important; }
+.grade-changes-dismiss {
+  font-size: 9.5px !important; font-weight: 700 !important;
+  color: var(--text-tertiary) !important;
+  background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 999px !important; padding: 2px 9px !important;
+  cursor: pointer !important; transition: all 0.15s ease !important;
+}
+.grade-changes-dismiss:hover { color: #b9b9c0 !important; background: rgba(255, 255, 255, 0.07) !important; }
+.grade-change-row {
+  display: flex !important; align-items: center !important; gap: 7px !important;
+  font-size: 10.5px !important; padding: 3px 0 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+.grade-change-course { font-weight: 800 !important; color: var(--primary-accent) !important; white-space: nowrap !important; }
+.grade-change-title { flex: 1 !important; min-width: 0 !important; color: var(--text-primary) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+.grade-change-delta { flex-shrink: 0 !important; font-family: ui-monospace, SFMono-Regular, monospace !important; font-weight: 700 !important; color: var(--primary-accent) !important; }
+.hud-tab-badge.grades-change-badge { background: var(--primary-accent) !important; color: #000000 !important; }

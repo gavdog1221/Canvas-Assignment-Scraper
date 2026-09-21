@@ -1,0 +1,597 @@
+/* ==========================================================================
+ *  hud.css — YACE dashboard styles
+ *  (source: sidebar.css lines 457-801)
+ *  (source: sidebar.css lines 1793-2037)
+ *  Split mechanically from the original single sidebar.css stylesheet;
+ *  do not reformat bodies. See manifest.json `content_scripts.css` for order.
+ *  ========================================================================== */
+/* ==========================================================================
+ *  7-DAY WORKLOAD DENSITY STRIP — thin compact single-line ribbon
+ *  (name + count inline per day; ~24px tall instead of a tall tile grid)
+ *  ========================================================================== */
+.workload-strip {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  gap: 3px !important;
+  margin: 8px 0 6px 0 !important;
+  background: rgba(0, 0, 0, 0.18) !important;
+  padding: 4px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.3) !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+.workload-day {
+  display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important;
+  gap: 4px !important; min-width: 0 !important;
+  padding: 4px 5px !important; border-radius: 999px !important; cursor: pointer !important;
+  background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1) !important; user-select: none !important;
+}
+.workload-day:hover { background: rgba(255, 255, 255, 0.11) !important; border-color: rgba(255, 255, 255, 0.24) !important; }
+.day-name {
+  font-size: 9px !important; color: var(--text-primary) !important; font-weight: 750 !important;
+  text-transform: uppercase !important; letter-spacing: 0.5px !important; white-space: nowrap !important;
+  flex: 0 1 auto !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+.day-count {
+  font-size: 8.5px !important; font-weight: 800 !important; color: var(--text-tertiary) !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important; flex-shrink: 0 !important;
+  min-width: 13px !important; text-align: center !important; line-height: 1 !important; margin: 0 !important;
+}
+.workload-day.has-tasks { background: rgba(255, 255, 255, 0.08) !important; border-color: var(--accent-glow) !important; }
+.workload-day.has-tasks .day-name { color: #ffffff !important; }
+.workload-day.has-tasks .day-count { color: var(--primary-accent) !important; }
+.workload-day.has-urgent { border-color: rgba(255, 69, 58, 0.55) !important; background: linear-gradient(180deg, rgba(255, 69, 58, 0.06), rgba(255, 69, 58, 0.14)) !important; }
+.workload-day.has-urgent .day-name { color: #ffb4ae !important; }
+.workload-day.has-urgent .day-count { color: var(--danger) !important; }
+.workload-day.active { background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; box-shadow: 0 0 10px var(--accent-glow) !important; }
+.workload-day.active .day-name, .workload-day.active .day-count { color: #ffffff !important; }
+
+/* ==========================================================================
+ *  DYNAMIC PROGRESS TRACKER & COMPLETION SYSTEM
+ *  ========================================================================== */
+.progress-container {
+  margin: 6px 0 10px 0 !important;
+  position: relative !important;
+  z-index: 3 !important;
+}.progress-meta { display: flex !important; justify-content: space-between !important; font-size: 11.5px !important; color: var(--text-secondary) !important; margin-bottom: 8px !important; font-weight: 600 !important; }
+.progress-meta span#progress-label { transition: color 0.3s ease !important; }
+.progress-bar-bg {
+  width: 100% !important; height: 10px !important; background: rgba(0, 0, 0, 0.28) !important; border-radius: 99px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important; overflow: visible !important; position: relative !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+.progress-bar-fill { height: 100% !important; width: 0%; border-radius: 99px !important; position: relative !important; overflow: hidden !important; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), background 0.4s ease, box-shadow 0.4s ease !important; }
+.progress-bar-fill.tier-low { background: linear-gradient(90deg, var(--primary-accent), var(--secondary-accent)) !important; box-shadow: 0 0 10px var(--accent-glow) !important; }
+.progress-bar-fill.tier-mid { background: linear-gradient(90deg, var(--primary-accent), var(--secondary-accent)) !important; box-shadow: 0 0 12px var(--accent-glow) !important; }
+.progress-bar-fill.tier-high { background: linear-gradient(90deg, var(--primary-accent), var(--secondary-accent)) !important; box-shadow: 0 0 12px var(--accent-glow) !important; }
+.progress-bar-fill.tier-complete { background: linear-gradient(90deg, var(--primary-accent), var(--secondary-accent)) !important; box-shadow: 0 0 16px var(--accent-glow) !important; }
+.progress-bar-fill::after {
+  content: "" !important; position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent) !important;
+  animation: shimmerSweep 2.4s infinite linear !important;
+}
+@keyframes shimmerSweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+.progress-container.is-all-done .progress-bar-bg { border-color: rgba(255, 255, 255, 0.3) !important; box-shadow: 0 0 16px var(--accent-glow) !important; animation: completePulse 2s infinite ease-in-out !important; }
+.progress-container.is-all-done #progress-label { color: var(--primary-accent) !important; }
+@keyframes completePulse { 0% { box-shadow: 0 0 8px var(--accent-glow); } 50% { box-shadow: 0 0 20px var(--accent-glow), 0 0 10px var(--accent-glow); } 100% { box-shadow: 0 0 8px var(--accent-glow); } }
+
+/* ==========================================================================
+ *  CONSOLIDATED SEARCH BAR ROW (CLASS + SEARCH + SCOPE)
+ *  ========================================================================== */
+.search-bar-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-bottom: 8px !important;
+  position: relative !important;
+  height: 34px !important;
+  z-index: 25 !important;
+}
+.search-bar-row:has(.radial-horizon-wrap:hover),
+.search-bar-row:has(.course-filter-menu.open) {
+  z-index: 9999 !important;
+}
+
+/* Integrated Course Filter Dropdown Button */
+.course-filter-dropdown-wrap {
+  position: relative !important;
+  flex-shrink: 0 !important;
+}
+
+.course-filter-btn {
+  height: 34px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  color: var(--text-primary) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.2s ease !important;
+}
+.course-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: var(--primary-accent) !important;
+  color: #fff !important;
+}
+.course-filter-caret {
+  font-size: 9px !important;
+  color: var(--primary-accent) !important;
+}
+
+.course-filter-menu {
+  display: none !important;
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  left: 0 !important;
+  min-width: 140px !important;
+  background: rgba(22, 22, 28, 0.95) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 16px !important;
+  padding: 5px !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+  z-index: 10000 !important;
+}
+.course-filter-menu.open {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.course-filter-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 7px 9px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-secondary) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.course-filter-item:hover, .course-filter-item.active {
+  background: var(--accent-soft) !important;
+  color: var(--primary-accent) !important;
+}
+.cf-item-left {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.cf-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+}
+.cf-remove {
+  font-size: 11px !important;
+  padding: 1px 4px !important;
+  border-radius: 50% !important;
+  color: var(--text-tertiary) !important;
+}
+.cf-remove:hover {
+  color: #ff453a !important;
+  background: rgba(255, 69, 58, 0.25) !important;
+}
+.search-bar-row .search-wrapper {
+  flex: 1 1 auto !important;
+  height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.search-input {
+  width: 100% !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 999px !important;
+  color: var(--text-primary) !important;
+  font-size: 12px !important;
+  padding: 0 14px !important;
+  outline: none !important;
+  backdrop-filter: blur(12px) !important;
+  transition: all 0.2s ease !important;
+}
+.search-input::placeholder { color: var(--text-tertiary) !important; }
+.search-input:focus { border-color: var(--primary-accent) !important; box-shadow: 0 0 0 3px var(--accent-soft) !important; background: rgba(0, 0, 0, 0.3) !important; }
+
+/* ==========================================================================
+ *  RADIAL PIE CHART HORIZON SELECTOR
+ *  ========================================================================== */
+.radial-horizon-wrap {
+  position: relative !important;
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  z-index: 9999 !important;
+}
+
+.radial-horizon-trigger {
+  width: 34px !important;
+  height: 34px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  color: var(--primary-accent) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.2s ease !important;
+  position: relative !important;
+  z-index: 52 !important;
+}
+.radial-horizon-wrap:hover .radial-horizon-trigger {
+  transform: scale(1.1) !important;
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 14px var(--accent-glow) !important;
+}
+
+.radial-pie-menu {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 140px !important;
+  height: 140px !important;
+  margin-top: -70px !important;
+  margin-left: -70px !important;
+  border-radius: 50% !important;
+  background: rgba(18, 18, 22, 0.94) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 0, 0, 0.4) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: scale(0.3) rotate(-30deg) !important;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease !important;
+  overflow: hidden !important;
+  z-index: 10000 !important;
+}
+
+.radial-horizon-wrap:not(.is-closed):hover .radial-pie-menu {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: scale(1) rotate(0deg) !important;
+}
+/* 5 Slices: each covers 72deg */
+.pie-slice {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 50% !important;
+  height: 50% !important;
+  transform-origin: 0% 100% !important;
+  transform: rotate(calc(var(--slice-index) * 72deg)) skewY(-18deg) !important;
+  background: transparent !important;
+  border: none !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.12) !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  transition: background 0.15s ease !important;
+}
+
+.pie-slice:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+.pie-slice.active {
+  background: var(--accent-soft) !important;
+}
+
+/* Upright slice labels */
+.pie-slice span {
+  display: block !important;
+  position: absolute !important;
+  left: 20px !important;
+  bottom: 20px !important;
+  transform: skewY(18deg) rotate(calc(var(--slice-index) * -72deg)) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  color: var(--text-secondary) !important;
+  pointer-events: none !important;
+}
+
+.pie-slice:hover span {
+  color: #ffffff !important;
+}
+
+.pie-slice.active span {
+  color: var(--primary-accent) !important;
+}
+.view-tabs {
+  display: flex !important; background: rgba(0, 0, 0, 0.22) !important; padding: 4px !important; border-radius: 16px !important;
+  margin-bottom: 12px !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; gap: 3px !important;
+  position: relative !important; z-index: 3 !important;
+}
+.tab-btn {
+  flex: 1 !important; background: transparent !important; border: none !important; color: var(--text-secondary) !important;
+  padding: 8px 0 !important; font-size: 11px !important; font-weight: 600 !important; border-radius: 12px !important;
+  cursor: pointer !important; text-align: center !important; transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.tab-btn:hover { color: #ffffff !important; }
+.tab-btn.active { background: rgba(255, 255, 255, 0.14) !important; color: #ffffff !important; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important; }
+.tab-btn.overdue.active { color: #ffb4ae !important; background: rgba(255, 69, 58, 0.2) !important; }
+
+.tab-alert-pill {
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  min-width: 15px !important; height: 15px !important; padding: 0 4px !important; margin-left: 3px !important;
+  border-radius: 999px !important; background: rgba(255, 69, 58, 0.28) !important; color: #ffd4d0 !important;
+  border: 1px solid rgba(255, 69, 58, 0.55) !important; font-size: 9.5px !important; font-weight: 800 !important;
+  animation: tabAlertPulse 2s infinite ease-in-out !important; vertical-align: middle !important;
+}
+@keyframes tabAlertPulse { 0% { box-shadow: 0 0 4px rgba(255, 69, 58, 0.35); } 50% { box-shadow: 0 0 12px rgba(255, 69, 58, 0.7); } 100% { box-shadow: 0 0 4px rgba(255, 69, 58, 0.35); } }
+/* ==========================================================================
+ *  HUD COMMAND BAR (TRUE EQUAL-HEIGHT ZERO-OVERLAP DOCK)
+ *  ========================================================================== */
+.widget-current-date {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-tertiary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+}
+/* Wrapper is transparent in the sidebar path so the chip renders as before. */
+.widget-date-center { display: contents !important; }
+
+.hud-command-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 5px !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 4px 6px !important;
+  border-radius: 19px !important;
+  margin-bottom: 8px !important;
+  position: relative !important;
+  z-index: 10 !important;
+  min-height: 38px !important;
+  box-sizing: border-box !important;
+}
+
+.hud-view-buttons {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 2px !important;
+  row-gap: 3px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  padding: 2px 0 !important;
+}
+
+.hud-view-btn {
+  flex: 1 1 21% !important;
+  min-width: 58px !important;
+  max-width: 100% !important;
+  height: 26px !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.1px !important;
+  padding: 0 2px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  line-height: 1 !important;
+  transition: all 0.18s ease !important;
+}.hud-view-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+.hud-view-btn.active {
+  background: var(--accent-soft) !important;
+  border-color: var(--primary-accent) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+.hud-tab-badge { background: #ff453a !important; color: #000000 !important; font-size: 8.5px !important; font-weight: 900 !important; padding: 1px 3px !important; border-radius: 99px !important; line-height: 1 !important; }
+.hud-tab-badge.announce-dot { background: var(--primary-accent) !important; box-shadow: 0 0 6px var(--accent-glow) !important; width: 5px !important; height: 5px !important; padding: 0 !important; }
+
+.hud-add-btn {
+  height: 28px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  background: var(--accent-soft) !important;
+  border: 1px solid var(--primary-accent) !important;
+  color: #ffffff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 0 9px !important;
+  border-radius: 999px !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+  transition: all 0.18s ease !important;
+}
+.hud-add-btn:hover {
+  background: var(--primary-accent) !important;
+  color: #000000 !important;
+  box-shadow: 0 0 12px var(--accent-glow) !important;
+}
+.hud-add-btn .plus-icon {
+  font-weight: 900 !important;
+  color: var(--primary-accent) !important;
+  font-size: 11px !important;
+}
+.hud-add-btn:hover .plus-icon { color: #000000 !important; }
+
+/* ==========================================================================
+ *  RESPONSIVE SCALING — keyed off the PANEL's own rendered width (the
+ *  "yace" container, defined on #right-side-wrapper) rather than the
+ *  viewport. #right-side-wrapper is always ~410–460px wide regardless of
+ *  monitor size, but that ~50px difference is enough for content sized for
+ *  the 460px end (large external monitor) to overflow and visually overlap
+ *  at the 410px floor (a MacBook / any narrower or zoomed-in display).
+ *  These rules progressively reclaim space as the panel shrinks toward
+ *  that floor, and are a graceful upgrade on top of the wrap/ellipsis
+ *  fallbacks above — if a browser doesn't support container queries, the
+ *  layout still wraps safely instead of overlapping, just less tightly.
+ *  ========================================================================== */
+@container yace (max-width: 460px) {
+  .hud-view-btn { font-size: 11.5px !important; letter-spacing: -0.2px !important; }
+  .hud-add-btn { padding: 0 8px !important; }
+}
+
+@container yace (max-width: 435px) {
+  .hud-command-bar { padding: 4px 5px !important; gap: 4px !important; }
+  .hud-view-btn { font-size: 10.5px !important; padding: 0 !important; }
+  .hud-add-btn { padding: 0 7px !important; gap: 0 !important; }
+  .hud-add-btn .btn-text { display: none !important; } /* keep the ＋ icon, drop the "Task" label */
+  .course-tag-chip { max-width: 64px !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  .mod-task-title { font-size: 12.5px !important; }
+  #module-tasks-widget { padding: 16px !important; }
+  .mod-task-card { padding: 10px 11px !important; gap: 9px !important; }
+}
+
+@container yace (max-width: 415px) {
+  .hud-view-btn { font-size: 9.5px !important; }
+  .badge-tag.points-chip { display: none !important; } /* least essential info; free width for tabs/pills first */
+}
+
+/* ==========================================================================
+ *  HORIZONTAL FADE-MASKED COURSE STRIP
+ *  ========================================================================== */
+/* ==========================================================================
+ *  DYNAMIC SINGLE-ROW ACCORDION DOCK (CLEAN NO-DOT / FULL TEXT)
+ *  ========================================================================== */
+.course-scroll-wrap {
+  width: 100% !important;
+  overflow: visible !important;
+  margin-bottom: 12px !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.course-pills {
+  display: flex !important;
+  width: 100% !important;
+  gap: 4px !important;
+  align-items: center !important;
+  justify-content: stretch !important;
+}
+
+.filter-pill {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 999px !important;
+  padding: 5px 3px !important;
+  cursor: pointer !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  user-select: none !important;
+  transition: flex 0.25s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+/* Compact fixed "All" button */
+.filter-pill.all-pill {
+  flex: 0 0 34px !important;
+  padding: 5px 0 !important;
+}
+
+.pill-label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.2px !important;
+  color: var(--text-secondary) !important;
+  overflow: hidden !important;
+  text-overflow: clip !important; /* Removes the "..." to show raw text */
+  white-space: nowrap !important;
+  text-align: center !important;
+}
+
+.pill-remove {
+  display: none !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  color: var(--text-tertiary) !important;
+  margin-left: 2px !important;
+  padding: 1px 3px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+}
+
+.filter-pill:hover {
+  flex: 2 1 0% !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: var(--course-accent, rgba(255, 255, 255, 0.3)) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+}
+
+.filter-pill.all-pill:hover {
+  flex: 0 0 34px !important;
+}
+
+.filter-pill:hover .pill-label {
+  color: #ffffff !important;
+}
+
+.filter-pill:hover .pill-remove {
+  display: inline-block !important;
+}
+
+.filter-pill.active {
+  background: var(--accent-soft) !important;
+  border-color: var(--primary-accent) !important;
+  box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+.filter-pill.active .pill-label {
+  color: #ffffff !important;
+}
+
+.pill-remove:hover {
+  color: #ff453a !important;
+  background: rgba(255, 69, 58, 0.25) !important;
+}

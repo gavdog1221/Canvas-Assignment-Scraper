@@ -1,0 +1,58 @@
+/* ==========================================================================
+ *  overlays.css — YACE dashboard styles
+ *  (source: sidebar.css lines 404-455)
+ *  Split mechanically from the original single sidebar.css stylesheet;
+ *  do not reformat bodies. See manifest.json `content_scripts.css` for order.
+ *  ========================================================================== */
+/* ==========================================================================
+ *  RELOAD PROGRESS BANNER OVERLAY
+ *  ========================================================================== */
+.reload-progress-overlay {
+  background:
+    radial-gradient(100% 150% at 12% 0%, var(--accent-soft) 0%, transparent 52%),
+    radial-gradient(90% 130% at 92% 12%, var(--accent-glow) 0%, transparent 60%),
+    linear-gradient(165deg, #26262e 0%, #10101a 100%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 18px !important; padding: 14px 16px !important; margin: 10px 0 !important;
+  box-shadow: var(--shadow-card) !important;
+  display: flex !important; flex-direction: column !important; gap: 8px !important;
+  position: relative !important; z-index: 5 !important; animation: fadeInDown 0.25s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+@keyframes fadeInDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.reload-meta-row { display: flex !important; justify-content: space-between !important; align-items: center !important; font-size: 11.5px !important; font-weight: 700 !important; }
+.reload-label { color: var(--primary-accent) !important; display: flex !important; align-items: center !important; gap: 6px !important; }
+.reload-spinner { display: inline-block !important; animation: spin 0.8s infinite linear !important; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.reload-percent-text { color: var(--text-primary) !important; font-family: ui-monospace, SFMono-Regular, monospace !important; }
+.reload-bar-bg { height: 6px !important; background: rgba(0, 0, 0, 0.3) !important; border-radius: 99px !important; overflow: hidden !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; }
+.reload-bar-fill { height: 100% !important; width: 0% !important; background: linear-gradient(90deg, var(--secondary-accent), var(--primary-accent)) !important; box-shadow: 0 0 8px var(--accent-glow) !important; transition: width 0.25s ease !important; }
+
+/* ==========================================================================
+ *  HIDDEN COURSES POPOVER
+ *  ========================================================================== */
+.hidden-courses-popover {
+  display: none !important; flex-direction: column !important; gap: 10px !important;
+  background:
+    radial-gradient(100% 150% at 12% 0%, var(--accent-soft) 0%, transparent 52%),
+    radial-gradient(90% 130% at 92% 12%, var(--accent-glow) 0%, transparent 60%),
+    linear-gradient(165deg, #26262e 0%, #10101a 100%) !important;
+  backdrop-filter: blur(26px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 18px !important; padding: 14px !important; margin: 12px 0 !important;
+  box-shadow: var(--shadow-float) !important; position: relative !important; z-index: 4 !important;
+}
+.hidden-courses-popover.is-visible { display: flex !important; }
+.hidden-popover-header { display: flex !important; justify-content: space-between !important; align-items: center !important; }
+.hidden-popover-title { font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.5px !important; text-transform: uppercase !important; color: var(--text-secondary) !important; }
+.hidden-popover-close { background: transparent !important; border: none !important; color: var(--text-secondary) !important; font-size: 15px !important; cursor: pointer !important; padding: 2px 5px !important; border-radius: 999px !important; }
+.hidden-popover-close:hover { color: #ffffff !important; background: rgba(255, 255, 255, 0.14) !important; }
+.hidden-pills-list { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+.hidden-pill-btn {
+  background: rgba(255, 255, 255, 0.08) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 999px !important; color: var(--text-primary) !important; font-size: 11px !important; font-weight: 600 !important;
+  padding: 6px 13px !important; cursor: pointer !important; display: inline-flex !important; align-items: center !important; gap: 6px !important;
+  transition: all 0.18s ease !important;
+}
+.hidden-pill-btn:hover { background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; color: #ffffff !important; }
+.hidden-pill-btn span { font-weight: 800 !important; color: var(--primary-accent) !important; }

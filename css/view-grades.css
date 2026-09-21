@@ -1,0 +1,121 @@
+/* ==========================================================================
+ *  view-grades.css — YACE dashboard styles
+ *  (source: sidebar.css lines 1677-1791)
+ *  Split mechanically from the original single sidebar.css stylesheet;
+ *  do not reformat bodies. See manifest.json `content_scripts.css` for order.
+ *  ========================================================================== */
+/* ==========================================================================
+ *  GRADES TAB: GPA BANNER, WHAT-IF MATRIX & COURSE CARDS
+ *  ========================================================================== */
+.gpa-card, .course-grade-summary-card, .grade-card { --tier-color: #98989f; --tier-glow: rgba(152, 152, 159, 0.25); }
+.gpa-card.tier-a, .course-grade-summary-card.tier-a, .grade-card.tier-a,
+.gpa-card.tier-b, .course-grade-summary-card.tier-b, .grade-card.tier-b,
+.gpa-card.tier-c, .course-grade-summary-card.tier-c, .grade-card.tier-c { --tier-color: #dde2ea; --tier-glow: rgba(221, 226, 234, 0.35); }
+.gpa-card.tier-d, .course-grade-summary-card.tier-d, .grade-card.tier-d,
+.gpa-card.tier-f, .course-grade-summary-card.tier-f, .grade-card.tier-f { --tier-color: #ff453a; --tier-glow: rgba(255, 69, 58, 0.35); }
+
+.gpa-card {
+  background: linear-gradient(150deg, rgba(70, 70, 78, 0.4) 0%, rgba(18, 18, 22, 0.6) 100%) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  border: 1px solid var(--tier-color) !important; box-shadow: var(--shadow-card), 0 0 16px var(--tier-glow) !important;
+  border-radius: 16px !important; padding: 10px 14px !important; margin-bottom: 10px !important;
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  position: relative !important; z-index: 3 !important; transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+.gpa-info-left { display: flex !important; flex-direction: column !important; gap: 2px !important; }
+.gpa-label { font-size: 10.5px !important; font-weight: 700 !important; letter-spacing: 0.6px !important; text-transform: uppercase !important; color: var(--text-secondary) !important; display: flex !important; align-items: center !important; gap: 6px !important; }
+.gpa-whatif-flag { font-size: 9px !important; font-weight: 800 !important; letter-spacing: 0.4px !important; color: #000000 !important; background: var(--primary-accent) !important; border-radius: 999px !important; padding: 2px 7px !important; text-transform: uppercase !important; }
+.gpa-sub { font-size: 10px !important; font-weight: 500 !important; color: var(--text-tertiary) !important; }
+.gpa-ring-wrap { position: relative !important; width: 46px !important; height: 46px !important; flex-shrink: 0 !important; }
+.gpa-ring {
+  position: absolute !important; inset: 0 !important; border-radius: 50% !important;
+  background: conic-gradient(var(--tier-color) calc(var(--gpa-pct, 0) * 1%), rgba(255, 255, 255, 0.1) 0) !important;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px)) !important;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px)) !important;
+  filter: drop-shadow(0 0 8px var(--tier-glow)) !important;
+  transition: background 0.6s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+.gpa-ring-value {
+  position: absolute !important; inset: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important;
+  font-family: ui-monospace, SFMono-Regular, monospace !important; font-weight: 800 !important; font-size: 13px !important; color: var(--tier-color) !important;
+  text-shadow: 0 0 12px var(--tier-glow) !important;
+}
+
+.whatif-matrix-card {
+  background: rgba(255, 255, 255, 0.05) !important; backdrop-filter: blur(22px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important; box-shadow: var(--shadow-card) !important;
+  border-radius: 20px !important; padding: 16px !important; margin-bottom: 14px !important; position: relative !important; z-index: 3 !important;
+}
+.whatif-top-bar { display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 8px !important; margin-bottom: 10px !important; padding-bottom: 9px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; }
+.whatif-toggle { display: inline-flex !important; align-items: center !important; gap: 6px !important; background: transparent !important; border: none !important; padding: 0 !important; margin: 0 !important; cursor: pointer !important; font: inherit !important; color: inherit !important; min-width: 0 !important; flex: 1 1 auto !important; text-align: left !important; }
+.whatif-toggle:hover .whatif-heading { text-decoration: underline !important; }
+.whatif-chevron { font-size: 10px !important; color: var(--text-tertiary) !important; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important; flex-shrink: 0 !important; }
+.whatif-matrix-card:not(.is-collapsed) .whatif-chevron { transform: rotate(90deg) !important; }
+.whatif-collapsed-note { font-size: 10px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; letter-spacing: 0 !important; text-transform: none !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important; }
+.whatif-matrix-card:not(.is-collapsed) .whatif-collapsed-note { display: none !important; }
+.whatif-matrix-card.is-collapsed .whatif-top-bar { border-bottom: none !important; padding-bottom: 0 !important; margin-bottom: 0 !important; }
+.whatif-matrix-card.is-collapsed .whatif-matrix-body { display: none !important; }
+.whatif-heading { font-size: 11.5px !important; font-weight: 700 !important; letter-spacing: 0.6px !important; text-transform: uppercase !important; color: var(--primary-accent) !important; display: flex !important; align-items: center !important; gap: 6px !important; white-space: nowrap !important; }
+.whatif-clear-all-btn { background: rgba(255, 69, 58, 0.14) !important; border: 1px solid rgba(255, 69, 58, 0.45) !important; color: #ffb4ae !important; border-radius: 999px !important; font-size: 10px !important; font-weight: 700 !important; padding: 4px 10px !important; cursor: pointer !important; transition: all 0.18s ease !important; }
+.whatif-clear-all-btn:hover { background: var(--danger) !important; color: #000000 !important; }
+.whatif-course-group { margin-bottom: 12px !important; }
+.whatif-course-header { display: flex !important; justify-content: space-between !important; align-items: center !important; font-size: 11px !important; font-weight: 700 !important; color: var(--text-primary) !important; margin-bottom: 6px !important; padding: 0 4px !important; }
+.whatif-course-tag { color: var(--primary-accent) !important; }
+.whatif-projected-badge { font-size: 11px !important; font-weight: 700 !important; color: var(--primary-accent) !important; font-family: ui-monospace, monospace !important; }
+.whatif-items-list { display: flex !important; flex-direction: column !important; gap: 6px !important; }
+.whatif-row-card { background: rgba(255, 255, 255, 0.04) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 14px !important; padding: 9px 11px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; transition: border-color 0.2s ease, background 0.2s ease !important; }
+.whatif-row-card.has-sim { border-color: var(--accent-glow) !important; background: var(--accent-soft) !important; }
+.whatif-item-left { display: flex !important; flex-direction: column !important; gap: 2px !important; min-width: 0 !important; flex: 1 !important; }
+.whatif-item-title { font-size: 11.5px !important; font-weight: 600 !important; color: var(--text-primary) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+.whatif-item-pts { font-size: 10px !important; font-weight: 600 !important; color: var(--text-secondary) !important; }
+.whatif-item-right { display: flex !important; align-items: center !important; gap: 6px !important; flex-shrink: 0 !important; }
+.whatif-matrix-input { width: 58px !important; background: rgba(0, 0, 0, 0.28) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 10px !important; color: var(--primary-accent) !important; font-size: 11.5px !important; font-weight: 700 !important; padding: 6px 6px !important; text-align: center !important; font-family: ui-monospace, monospace !important; outline: none !important; transition: border-color 0.15s ease, box-shadow 0.15s ease !important; }
+.whatif-matrix-input:focus { border-color: var(--primary-accent) !important; box-shadow: 0 0 0 2px var(--accent-soft) !important; }
+.whatif-row-reset { background: transparent !important; border: none !important; color: var(--text-tertiary) !important; cursor: pointer !important; font-size: 14px !important; line-height: 1 !important; padding: 2px 5px !important; border-radius: 999px !important; transition: all 0.15s ease !important; }
+.whatif-row-reset:hover { color: #ffb4ae !important; background: rgba(255, 69, 58, 0.15) !important; }
+
+.course-grades-grid { display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; margin-bottom: 14px !important; }
+.course-grade-summary-card {
+  background: rgba(255, 255, 255, 0.045) !important; backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important; border-left: 3px solid var(--course-accent, var(--tier-color)) !important;
+  border-radius: 14px !important; padding: 10px 11px !important; display: flex !important; flex-direction: column !important; gap: 7px !important;
+  cursor: pointer !important; transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease !important;
+}
+.course-grade-summary-card:hover { border-color: var(--course-accent, var(--tier-color)) !important; box-shadow: 0 4px 16px var(--course-glow, var(--tier-glow)) !important; background: rgba(255, 255, 255, 0.08) !important; transform: translateY(-1px) !important; }
+.course-grade-summary-card.is-filtering { border-color: var(--course-accent, var(--tier-color)) !important; background: rgba(255, 255, 255, 0.09) !important; box-shadow: 0 0 0 1px var(--course-accent, var(--tier-color)), 0 0 14px var(--course-glow, var(--tier-glow)) !important; }
+.cg-top-row { display: flex !important; justify-content: space-between !important; align-items: center !important; gap: 6px !important; }
+.cg-name { font-size: 11px !important; font-weight: 600 !important; color: var(--text-primary) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; min-width: 0 !important; }
+.cg-score-wrap { display: flex !important; align-items: baseline !important; gap: 4px !important; flex-shrink: 0 !important; }
+.cg-percent { font-size: 12px !important; font-weight: 700 !important; color: var(--tier-color) !important; font-family: ui-monospace, SFMono-Regular, monospace !important; }
+.cg-percent.no-grade { color: var(--text-tertiary) !important; font-size: 10.5px !important; font-weight: 600 !important; }
+.cg-letter { font-size: 10px !important; font-weight: 700 !important; color: var(--text-secondary) !important; }
+.cg-bar-bg { width: 100% !important; height: 5px !important; background: rgba(0, 0, 0, 0.28) !important; border-radius: 99px !important; overflow: hidden !important; }
+.cg-bar-fill { height: 100% !important; background: var(--course-accent, var(--tier-color)) !important; box-shadow: 0 0 6px var(--course-glow, var(--tier-glow)) !important; border-radius: 99px !important; transition: width 0.4s ease !important; }
+
+.grades-heading-row { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; margin: 12px 2px 8px !important; flex-wrap: wrap !important; }
+.grades-heading { font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.6px !important; text-transform: uppercase !important; color: var(--text-secondary) !important; }
+.grades-sort-toggle { display: flex !important; gap: 3px !important; background: rgba(0, 0, 0, 0.2) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 999px !important; padding: 3px !important; }
+.grades-sort-btn { background: transparent !important; border: none !important; color: var(--text-tertiary) !important; font-size: 9.5px !important; font-weight: 700 !important; letter-spacing: 0.3px !important; text-transform: uppercase !important; padding: 5px 9px !important; border-radius: 999px !important; cursor: pointer !important; transition: all 0.18s ease !important; }
+.grades-sort-btn:hover { color: var(--text-primary) !important; }
+.grades-sort-btn.active { background: var(--primary-accent) !important; color: #000000 !important; }
+
+.grade-card {
+  background: var(--card-bg) !important; backdrop-filter: blur(16px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important; border-left: 3px solid var(--course-accent, var(--tier-color)) !important;
+  box-shadow: var(--shadow-card) !important; border-radius: 16px !important; padding: 12px 15px !important;
+  display: flex !important; align-items: flex-start !important; gap: 10px !important; margin-bottom: 8px !important;
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.2s ease !important;
+}
+.grade-card:hover { background: rgba(255, 255, 255, 0.09) !important; transform: translateX(3px) translateY(-2px) !important; border-color: var(--course-accent, var(--tier-color)) !important; box-shadow: var(--shadow-card-hover), 0 0 16px var(--course-glow, var(--tier-glow)) !important; }
+.grade-check { flex-shrink: 0 !important; min-width: 25px !important; height: 25px !important; padding: 0 4px !important; border-radius: 999px !important; background: color-mix(in srgb, var(--tier-color) 22%, transparent) !important; color: var(--tier-color) !important; border: 1px solid var(--tier-color) !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 10.5px !important; font-weight: 800 !important; font-family: ui-monospace, SFMono-Regular, monospace !important; letter-spacing: -0.2px !important; margin-top: 1px !important; }
+
+@keyframes gradeCardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.grade-card, .course-grade-summary-card, .whatif-row-card { animation: gradeCardIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both !important; }
+.grade-body { flex: 1 !important; min-width: 0 !important; display: flex !important; flex-direction: column !important; gap: 4px !important; }
+.grade-title { font-size: 13px !important; font-weight: 600 !important; color: var(--primary-accent) !important; text-decoration: none !important; line-height: 1.3 !important; }
+.grade-title:hover { text-decoration: underline !important; }
+.grade-meta { display: flex !important; align-items: center !important; gap: 6px !important; flex-wrap: wrap !important; }
+.grade-course { font-size: 11.5px !important; font-weight: 700 !important; color: var(--course-accent, var(--text-secondary)) !important; }
+.grade-date { font-size: 10.5px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; }
+.grade-score { font-size: 12.5px !important; font-weight: 700 !important; color: var(--text-primary) !important; margin-top: 1px !important; display: flex !important; align-items: center !important; gap: 8px !important; }
+.grade-score-pct { font-size: 10.5px !important; font-weight: 800 !important; color: var(--tier-color) !important; background: color-mix(in srgb, var(--tier-color) 18%, transparent) !important; border: 1px solid var(--tier-color) !important; border-radius: 999px !important; padding: 1px 7px !important; font-family: ui-monospace, SFMono-Regular, monospace !important; }
