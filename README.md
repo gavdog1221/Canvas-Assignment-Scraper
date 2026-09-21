@@ -1,57 +1,175 @@
-# YACE — modular source + esbuild pipeline
+# YACE — Yet Another Canvas Extension
 
-This is the original `content.js` (4,393 lines, single IIFE, ~90 functions)
-split into 25 ES modules under `src/content/`, plus the untouched
-`background.js`, `manifest.json` (updated to load `dist/content.js`), and
-`sidebar.css`.
+A **Firefox/Chrome MV2 extension** for UNH that replaces the default Canvas
+dashboard with a cyber-deck HUD: assignments with filtering/starring, grade
+tracking + What-If, syllabus-derived grade projections, custom assignments,
+workload forecasting, Rate My Professors lookups, dining menus & hours,
+building hours (MUB / Hamel Rec / Dimond Library), announcements, and a WebCat
+registration autofill with time-conflict detection.
 
-The split was generated mechanically from the original file: every top-level
-function was extracted with its original body untouched except for one
-change — references to the old closure-scoped `let` variables (`currentTab`,
-`cachedCourseMap`, `whatIfScores`, etc.) were rewritten to `state.<name>`,
-where `state` is the shared mutable store in `src/content/state.js` (see
-comment at the top of that file for why a plain object is used instead of
-`let` exports). Every generated file has been syntax-checked with
-`node --check`, and every `import { ... } from '...'` has been verified
-against the real `export` statements in its target file.
+Runs as **two esbuild bundles** (+ a shared background page for cross-origin
+fetches):
 
-## Build
+| Bundle | Output | Where it runs |
+|---|---|---|
+| Dashboard | `dist/content.js` | Canvas (`mycourses.unh.edu`, `unh.instructure.com`) — the widget |
+| Registration | `dist/registration.js` | WebCat registration (`webcat.unh.edu/StudentRegistrationSsb/*`) — CRN autofill |
+| Background | `background.js` (plain script) | Relay for fetches the content scripts can't CORS |
 
-```bash
-npm install
-npm run build     # one-shot, minified, no sourcemap -> dist/content.js
-npm run watch      # rebuilds on save, inline sourcemap, for `about:debugging`
+---
+
+## Quick setup (users)
+
+1. **Build**: `npm install` then `npm run build` — this produces
+   `dist/content.js` + `dist/registration.js` (the extension won't work
+   without them; `dist/` is gitignored).
+2. **Load the unpacked extension**:
+
+   - **Firefox** (recommended): open `about:debugging#/runtime/this-firefox` →
+     **Load Temporary Add-on…** → select this folder's `manifest.json`.
+   - **Chrome**: open `chrome://extensions` → enable **Developer mode** →
+     **Load unpacked** → select this folder.
+
+3. Open `mycourses.unh.edu` and log in. The widget replaces the dashboard; the
+   **Campus & Tools** button (top of the widget) opens Food, WebCat Reg, and
+   Building Hours. Registration data you save there is auto-filled on WebCat.
+
+> For development, use `npm run watch` instead of `build` and reload the
+> temporary add-on after every edit — Firefox does **not** auto-reload
+> temporary extensions, and Canvas caches scraped data for ~15 minutes.
+
+---
+
+## How it works
+
+The dashboard widget is injected into Canvas `#right-side` at `document_start`,
+hidden before Canvas paints (early CSS in `src/content/index.js`). When the
+right sidebar appears, the shell mounts and polls for data. The widget talks to:
+
+- **Canvas** directly (same-origin) — assignments, grades, announcements,
+  syllabus. Every call sends `credentials: 'include'` plus
+  `Accept: application/json`, `X-Requested-With`, and the `X-CSRF-Token`
+  from the `_csrf_token` cookie.
+- **Everything else through `background.js`** via `browser.runtime.sendMessage`
+  — the `foodpro`/`unh.edu`/`courses.unh.edu`/RMP/LibCal hosts refuse
+  content-script CORS, so the background page fetches them and relays HTML/JSON:
+  - `FETCH_DINING_MENU` / `FETCH_DINING_HOURS` — FoodPro menus + dining hours
+  - `FETCH_BUILDING_HOURS` — grabs MUB, campusrec, and LibCal hours in parallel
+  - `FETCH_RMP` — Rate My Professors GraphQL (UNH school ID 1231)
+  - `FETCH_WEBCAT_CRN` / `FETCH_COURSE_SEARCH` — public UNH course catalog
+    (`courses.unh.edu`) for CRN lookups and course search, no WebCat login needed
+- **Stored state** — UI state lives on a shared `state` object; persisted data
+  in versioned `localStorage` keys (dashboard) or `browser.storage.local`
+  (cross-origin registration data via `src/shared/registration-storage.js`).
+
+### Scraping details worth knowing
+
+- **Dining**: `foodpro.unh.edu/shortmenu.asp`, hall IDs are hardcoded
+  (`80` = Holloway, `30` = Philbrook; Philbrook is closed weekends — enforced).
+  The background page tries 4 URL variants and validates responses contain
+  `shortmenurecipes`.
+- **Building hours** live in collapsed UI, so each source is scraped carefully:
+  MUB via its Bootstrap **accordion** `.collapse` bodies, Hamel Rec from the
+  "Fall Semester Hours" **paragraph** on `campusrec.unh.edu/hours`, and Dimond
+  Library from a **LibCal JSON** week grid (`weeks[0]` = current week). "Open
+  now/Closed" is computed at render time from the parsed day rows.
+
+---
+
+## Developer guide
+
+### Layout
+
+```
+build.mjs                 esbuild pipeline (both bundles, iife, prod/dev/watch)
+manifest.json             MV2 manifest — permissions, background, content scripts
+background.js             Cross-origin fetch relay (RMP, dining, hours, WebCat)
+sidebar.css               Dashboard widget styles (content script CSS)
+registration.css          WebCat autofill styles
+src/content/              ── dashboard bundle ──
+├── index.js              Entry: early-hide CSS, wait for #right-side (observer
+│                         + polling), inject widget
+├── constants.js          Runtime origin, versioned STORAGE_KEY_*, THEMES, presets
+├── state.js              Shared mutable store (replaces old closure `let`s)
+├── components/
+│   ├── widget-shell.js   Widget mount, header buttons, canvas purge, fullscreen
+│   ├── campus-tools-modal.js  Campus & Tools drawer (Food / Reg / Hours tabs)
+│   ├── assignment-modal.js    Custom Assignment Maker
+│   ├── pdf-modal.js           In-widget PDF viewer
+│   ├── shortcuts-modal.js     Keyboard shortcut reference
+│   └── reload-progress.js     Scrape progress overlay
+├── views/                One renderer per tab/screen
+│   ├── upcoming-view.js  Main task list; also renderCurrentView() dispatcher
+│   ├── dashboard-view.js Mini grades/news panels on the home screen
+│   ├── grades-view.js    Full grades + What-If matrix
+│   ├── recent-grades-view.js
+│   ├── general-view.js   Syllabus/Info (grade weights, office hours)
+│   ├── announcements-view.js
+│   ├── dining-view.js    Menus, hall status, station filters
+│   ├── rmp-view.js       Rate My Professors
+│   ├── registration-view.js  WebCat term/RAC/CRN editor
+│   ├── building-hours-view.js Building Hours cards
+│   └── kanban-view.js    Fullscreen kanban board
+├── services/             Data access / parsing
+│   ├── canvas-api.js     Canvas REST + CSRF headers, Gradescope fetch
+│   ├── task-loader.js    Orchestrates task loading, dedup, custom merge
+│   ├── dining-api.js     FoodPro HTML parsing, hours, hall status
+│   ├── rmp-api.js        RMP result resolution & caching
+│   └── building-hours-api.js  MUB/Rec/LibCal parsers + status computation
+├── storage/              localStorage read/write pairs
+│   ├── caches.js         Task/grades/percentages/announcements caches
+│   ├── completed-tasks.js, starred-tasks, hidden-courses, grade-alerts,
+│   └── custom-assignments.js, custom-due-dates
+├── utils/                Pure helpers: colors, dates, text/syllabus parsing,
+│                         grade math + projections, PDF text extraction
+└── handlers/
+    └── keyboard-shortcuts.js  Global shortcuts + card navigation
+src/registration/         ── WebCat autofill bundle ──
+├── index.js              Page-1 term/RAC fill, Page-2 CRN autofill, preview
+│                         panel with time-conflict warnings
+└── dom-utils.js          waitForElement / setInputValue helpers
+src/shared/               Bundled into BOTH outputs (dependency-free)
+├── registration-storage.js  browser.storage.local bridge (dashboard ↔ WebCat)
+└── schedule-conflicts.js    Meeting-day/time parsing + conflict detection
 ```
 
-`dist/` is not checked in here — run `npm run build` (or `npm run watch`)
-once before loading the extension.
+### Architecture rules (don't violate these)
 
-## Loading in Firefox for development
+- **Shared mutable state** lives on the single `state` object in
+  `src/content/state.js`. ES module `let` exports can't be reassigned from
+  importers, so cross-module state goes on `state.<name>`.
+- **Storage keys are versioned** (`STORAGE_KEY_*` in `constants.js`). Changing
+  a stored shape requires bumping the version suffix or stale caches break the
+  UI.
+- **Cross-origin state uses `browser.storage.local`** (per-extension), not
+  `localStorage` (per-origin) — see `src/shared/registration-storage.js`.
+- **Canvas API calls must send `credentials: 'include'` + `Accept:
+  application/json` + `X-Requested-With` + `X-CSRF-Token` from the
+  `_csrf_token` cookie** (`getCsrfToken()` in `services/canvas-api.js`).
+  Omitting the CSRF header → 401s.
+- **External non-Canvas fetches go through `background.js`** via
+  `browser.runtime.sendMessage`. The dashboard can't CORS-fetch FoodPro,
+  unh.edu, courses.unh.edu, etc. New external sites also need their host
+  pattern added to `manifest.json` `permissions`.
+- **New entrypoints** require editing **both** `build.mjs` and the
+  `content_scripts` in `manifest.json`.
+- **Don't reformat the generated source.** Functions were extracted verbatim
+  from the original IIFE, so style is inconsistent. Make minimal,
+  locally-consistent edits.
+- **Never `git commit` / `git push`** — the owner publishes manually.
 
-1. `npm install && npm run watch` (leave this running in a terminal)
-2. `about:debugging#/runtime/this-firefox` → "Load Temporary Add-on…" → select
-   this folder's `manifest.json`
-3. After each source edit, esbuild rewrites `dist/content.js` automatically
-   (watch mode) — but Firefox does **not** auto-reload temporary extensions,
-   so click "Reload" on the extension card in `about:debugging` to pick up
-   the new bundle.
-4. Before packaging for AMO, run `npm run build` (prod mode) instead — it
-   strips the inline sourcemap and minifies.
+### Dev loop
 
-## Directory map
+1. `npm run watch` in a terminal (rebuilds both bundles on save, inline sourcemaps).
+2. Reload the temporary add-on (`about:debugging` / `chrome://extensions`), then
+   hard-refresh the Canvas page. CSS-only changes in `sidebar.css`/`registration.css`
+   need no rebuild (loaded directly via manifest).
+3. Before shipping/AMO packaging: `npm run build` (minified, no sourcemap).
 
-```
-src/content/
-├── index.js                 entry point / bootstrap
-├── constants.js              storage keys, palettes, THEMES
-├── state.js                  shared mutable store
-├── services/                 network calls (Canvas API, dining API, task-load orchestration)
-├── storage/                  localStorage get/set pairs (caches, starred, hidden courses, custom assignments...)
-├── utils/                    pure helpers (colors, dates, text parsing, grade math)
-├── components/                reusable UI pieces (PDF modal, assignment modal, confetti, widget shell)
-├── views/                     the 5 tab renderers (upcoming, grades, dining, general, announcements)
-└── handlers/                  keyboard shortcut controller
-```
+### Adding a new view/tab
 
-See the accompanying chat message for the full function → file mapping and
-the reasoning behind each module boundary.
+Create `src/content/views/<name>-view.js` exporting `render<Name>View(container,
+…)`, then wire it in `widget-shell.js` (tab button) and the view dispatcher in
+`upcoming-view.js` (`renderCurrentView`). If it scrapes an external site, the
+fetch belongs in `background.js` + a new `manifest.json` permission, similar to
+`FETCH_BUILDING_HOURS`.
