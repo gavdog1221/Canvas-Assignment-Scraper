@@ -15,6 +15,7 @@ import { escapeHTML } from '../utils/text.js';
 import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { refreshDashboardView } from '../views/dashboard-view.js';
+import { maybeShowWhatsNewBanner } from './whats-new-banner.js';
 
 export function purgeDefaultCanvasElements() {
     const selectors = [
@@ -402,6 +403,7 @@ export function injectWidget(container) {
       }
 
       initKeyboardShortcuts();
+      maybeShowWhatsNewBanner();
   }
 
 export function updateHiddenMenuButton() {

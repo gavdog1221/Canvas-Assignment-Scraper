@@ -21,6 +21,7 @@ export const STORAGE_KEY_CUSTOM_TASKS = 'canvas_mod_tasks_custom_assignments_v1'
 export const STORAGE_KEY_CUSTOM_DUE = 'canvas_mod_tasks_custom_due_v1';
 export const STORAGE_KEY_RMP_CACHE = 'canvas_mod_tasks_rmp_cache_v1';
 export const STORAGE_KEY_GRADE_SNAPSHOT = 'canvas_mod_tasks_grade_snapshot_v1';
+export const STORAGE_KEY_WHATS_NEW = 'canvas_mod_tasks_whats_new_v1';
 
 export const CUSTOM_COLOR_PRESETS = ['#0a84ff', '#ff375f', '#30d158', '#ff9f0a', '#bf5af2', '#ff2d55', '#ffd60a', '#64d2ff'];
 

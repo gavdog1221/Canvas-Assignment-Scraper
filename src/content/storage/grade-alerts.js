@@ -5,7 +5,7 @@ import { STORAGE_KEY_GRADE_SNAPSHOT } from '../constants.js';
 // against it and surface "MATH 425: 17/20 -> 19/20" style notifications in
 // the Grades tab. The snapshot itself is zoned per scan, not per day.
 
-function gradeKey(g) {
+export function gradeKey(g) {
     return `${g.courseKey}::${g.title}::${g.pointsPossible}`;
   }
 
