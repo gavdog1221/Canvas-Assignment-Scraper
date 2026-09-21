@@ -84,8 +84,25 @@ right sidebar appears, the shell mounts and polls for data. The widget talks to:
 build.mjs                 esbuild pipeline (both bundles, iife, prod/dev/watch)
 manifest.json             MV2 manifest — permissions, background, content scripts
 background.js             Cross-origin fetch relay (RMP, dining, hours, WebCat)
-sidebar.css               Dashboard widget styles (content script CSS)
-registration.css          WebCat autofill styles
+css/                       Dashboard widget styles, split by feature (content script CSS)
+├── tokens.css             Theme palettes + CSS custom properties (incl. assignment modal)
+├── canvas-overrides.css   Canvas page resets: native To-Do sidebar suppression, wide layout
+├── widget-shell.css       Main hub glass surface + fullscreen mode base
+├── widget-header.css      Title bar, icon/campus buttons, theme swatch dock
+├── overlays.css           Reload-progress banner, hidden-courses popover
+├── task-cards.css         Task/announcement cards, star & date-edit, badges, empty state
+├── hud.css                Workload strip, progress tracker, search + filters, HUD dock,
+│ │                        responsive container-query scaling, course strip
+├── view-general.css       Syllabus/Info tab (RMP, office hours, weights)
+├── view-announcements.css Announcements tab
+├── modals.css             Doc-preview/shortcuts + Campus & Tools dialogs, WebCat Reg tab,
+│ │                        Building Hours
+├── custom-assignments.css Radial action pie + Custom Assignment Maker modal
+├── view-grades.css        Grades tab (GPA, What-If matrix, course cards)
+├── view-dining.css        Dining tab (menus, dinner-plate pie, dietary badges)
+├── view-kanban.css        Kanban board
+├── fullscreen.css         Fullscreen dashboard grid, panels, responsive fallbacks
+└── registration.css       WebCat autofill styles (separate content script)
 src/content/              ── dashboard bundle ──
 ├── index.js              Entry: early-hide CSS, wait for #right-side (observer
 │                         + polling), inject widget
@@ -162,7 +179,7 @@ src/shared/               Bundled into BOTH outputs (dependency-free)
 
 1. `npm run watch` in a terminal (rebuilds both bundles on save, inline sourcemaps).
 2. Reload the temporary add-on (`about:debugging` / `chrome://extensions`), then
-   hard-refresh the Canvas page. CSS-only changes in `sidebar.css`/`registration.css`
+   hard-refresh the Canvas page. CSS-only changes in `css/*`
    need no rebuild (loaded directly via manifest).
 3. Before shipping/AMO packaging: `npm run build` (minified, no sourcemap).
 

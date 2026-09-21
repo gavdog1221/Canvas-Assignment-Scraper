@@ -1,0 +1,97 @@
+/* ==========================================================================
+ *  widget-shell.css — YACE dashboard styles
+ *  (source: sidebar.css lines 120-210)
+ *  Split mechanically from the original single sidebar.css stylesheet;
+ *  do not reformat bodies. See manifest.json `content_scripts.css` for order.
+ *  ========================================================================== */
+/* ==========================================================================
+ *  MAIN HUB CONTAINER — Frosted Aurora Obsidian Glass
+ *  ========================================================================== */
+#module-tasks-widget {
+background:
+radial-gradient(120% 90% at 0% 0%, rgba(100, 210, 255, 0.12) 0%, transparent 60%),
+radial-gradient(100% 80% at 100% 100%, rgba(191, 90, 242, 0.08) 0%, transparent 50%),
+linear-gradient(165deg, rgba(45, 45, 54, 0.28) 0%, rgba(15, 15, 20, 0.45) 100%) !important;
+backdrop-filter: blur(48px) saturate(220%) contrast(108%) !important;
+-webkit-backdrop-filter: blur(48px) saturate(220%) contrast(108%) !important;
+color: var(--text-primary) !important;
+border-radius: 28px !important;
+padding: 20px !important;
+margin-bottom: 26px !important;
+font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Inter, Roboto, sans-serif !important;
+box-sizing: border-box !important;
+border: 1px solid rgba(255, 255, 255, 0.18) !important;
+box-shadow:
+0 30px 80px rgba(0, 0, 0, 0.45),
+inset 0 1px 1px rgba(255, 255, 255, 0.35),
+inset 0 -1px 1px rgba(0, 0, 0, 0.4) !important;
+position: relative !important;
+overflow: visible !important;
+}#module-tasks-widget * { box-sizing: border-box !important; }
+
+/* ==========================================================================
+ *  FULL-SCREEN MODE — toggled via the ⛶ header button
+ *  ========================================================================== */
+body.yace-fullscreen-active { overflow: hidden !important; }
+
+/* Hide the original Canvas dashboard content when YACE is fullscreen */
+body.yace-fullscreen-active #content,
+body.yace-fullscreen-active .ic-Layout-contentMain,
+body.yace-fullscreen-active .dashboard,
+body.yace-fullscreen-active #main,
+body.yace-fullscreen-active .ic-Layout-content,
+body.yace-fullscreen-active .ic-DashboardCard__container,
+body.yace-fullscreen-active .ic-Layout-contentMain > *:not(#module-tasks-widget) {
+  display: none !important;
+}
+
+#module-tasks-widget.is-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important; height: 100vh !important;
+  max-width: none !important; max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  z-index: 2147483000 !important;
+  display: flex !important; flex-direction: column !important;
+  overflow: hidden !important;
+  animation: yaceFullscreenIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+#module-tasks-widget.is-fullscreen::after { border-radius: 0 !important; }
+#module-tasks-widget.is-fullscreen::before { left: 0 !important; right: 0 !important; border-radius: 0 !important; }
+
+@keyframes yaceFullscreenIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#module-tasks-widget.is-fullscreen #module-tasks-list {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Thin specular highlight along the top edge, like light catching curved glass */
+#module-tasks-widget::before {
+content: "" !important; position: absolute !important; top: 0 !important; left: 8% !important; right: 8% !important;
+height: 1px !important;
+background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent) !important;
+opacity: 0.8 !important; z-index: 2 !important; border-radius: 99px !important;
+}
+
+/* Prismatic cursor refraction sheen */
+#module-tasks-widget::after {
+content: "" !important;
+position: absolute !important;
+inset: 0 !important;
+border-radius: 28px !important;
+background: radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), rgba(255, 255, 255, 0.12), transparent 70%) !important;
+pointer-events: none !important;
+z-index: 1 !important;
+mix-blend-mode: overlay !important;
+}

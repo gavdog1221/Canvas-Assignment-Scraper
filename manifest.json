@@ -35,7 +35,21 @@
         "dist/content.js"
       ],
       "css": [
-        "sidebar.css"
+        "css/tokens.css",
+        "css/canvas-overrides.css",
+        "css/widget-shell.css",
+        "css/widget-header.css",
+        "css/overlays.css",
+        "css/task-cards.css",
+        "css/hud.css",
+        "css/view-general.css",
+        "css/view-announcements.css",
+        "css/modals.css",
+        "css/custom-assignments.css",
+        "css/view-grades.css",
+        "css/view-dining.css",
+        "css/view-kanban.css",
+        "css/fullscreen.css"
       ],
       "run_at": "document_start"
     },
@@ -47,7 +61,7 @@
         "dist/registration.js"
       ],
       "css": [
-        "registration.css"
+        "css/registration.css"
       ],
       "run_at": "document_start"
     }
