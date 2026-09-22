@@ -196,10 +196,6 @@ function reflowDashboardLayout(grid) {
   const visible = getVisiblePanels();
   const bp = getBreakpoint();
 
-  // Keep the dock pinned as the first child (it must sit above the rows).
-  const dock = grid.querySelector('.fs-panel-dock');
-  if (dock) dock.remove();
-
   // Collect every panel element — they are re-parented, never rebuilt.
   const panels = new Map();
   grid.querySelectorAll('.fullscreen-panel').forEach((p) => {
@@ -284,7 +280,6 @@ function reflowDashboardLayout(grid) {
     grid.appendChild(row);
   }
 
-  if (dock) grid.insertBefore(dock, grid.firstChild);
   return visible;
 }
 
@@ -407,12 +402,16 @@ function syncPanelToggles(grid, dock) {
 }
 
 // Wires the per-panel chevrons and the dock pills (idempotent per grid node),
-// then lays out once. The dock lives above the grid so a collapsed panel can
-// always be restored even though its own header is hidden.
+// then lays out once. The dock lives in the header (left of today's date), so
+// a collapsed panel can always be restored even though its own header is
+// hidden — the pills never disappear with the grid.
 function initDashboardPanels(listArea, grid) {
   if (!grid || grid.dataset.panelsWired === '1') return;
   grid.dataset.panelsWired = '1';
-  const dock = listArea.querySelector('.fs-panel-dock');
+  // The dock now lives in the widget header (left of today's date); fall back
+  // to the grid area only when the header mount failed.
+  const dock = document.querySelector('#module-tasks-widget .header .fs-panel-dock') ||
+    listArea.querySelector('.fs-panel-dock');
 
   const toggle = (key) => {
     if (!key) return;
@@ -542,6 +541,16 @@ export function renderDashboardView(listContainer, strip, searchRow, progressEl)
   const grid = document.createElement('div');
   grid.className = 'fullscreen-dashboard';
 
+  // The panel dock lives in the widget HEADER now (left of today's date), so
+  // it no longer occupies a row inside the cards grid. Rebuilt fresh on every
+  // render so its pills always mirror the persisted dragged order, and the
+  // old instance removed first so re-renders never stack duplicate docks.
+  const header = document.querySelector('#module-tasks-widget .header');
+  const prevDock = header ? header.querySelector('.fs-panel-dock') : null;
+  if (prevDock) prevDock.remove();
+  const dock = makePanelDock();
+  if (header) header.appendChild(dock);
+
   try {
     // Center stage: Assignments -- the vertical task list (the same list the
     // Due/Overdue/Done tabs render in the sidebar) owns the middle column,
@@ -624,7 +633,7 @@ export function renderDashboardView(listContainer, strip, searchRow, progressEl)
     const schedule = getScrapePanel(prevPanels, forceRebuild, 'schedule', 'Schedule', '', '',
       (body) => renderScheduleView(body));
 
-    grid.append(makePanelDock(), news, recentGrades, assignments.panel, grades, info, schedule);
+    grid.append(news, recentGrades, assignments.panel, grades, info, schedule);
     listContainer.appendChild(grid);
     initDashboardPanels(listContainer, grid);
   } finally {
@@ -646,11 +655,9 @@ export function renderDashboardView(listContainer, strip, searchRow, progressEl)
     }
     if (grid.dataset.panelsWired !== '1') {
       if (!grid.isConnected && listContainer.isConnected) listContainer.appendChild(grid);
-      // The dock lives INSIDE the grid (first row), so slot it in before any
-      // panels if a partial build got here without one.
-      if (grid && !grid.querySelector('.fs-panel-dock')) {
-        grid.insertBefore(makePanelDock(), grid.firstChild);
-      }
+      // If the header mount failed above (edge case), park the dock in the
+      // grid so the collapse/expand pills are never lost.
+      if (dock && !dock.isConnected) grid.insertBefore(dock, grid.firstChild);
       initDashboardPanels(listContainer, grid);
     }
   }
