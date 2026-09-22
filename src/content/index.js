@@ -5,6 +5,7 @@
 
 import { injectWidget, purgeDefaultCanvasElements } from './components/widget-shell.js';
 import { scrapeCanvasDashboardColors } from './utils/colors.js';
+import { hydrateSyncedStorage, installSyncMirror } from './storage/xstorage.js';
 
 // Immediately inject CSS to hide Canvas dashboard content before it renders
 (function injectEarlyHidingStyles() {
@@ -52,6 +53,13 @@ import { scrapeCanvasDashboardColors } from './utils/colors.js';
 
 (function initUnifiedDashboard() {
   let widgetInjected = false;
+
+  // Mirror every localStorage write into browser.storage.local (cross-origin
+  // sync for the mycourses.unh.edu <-> unh.instructure.com split), then seed
+  // this origin's localStorage from the storage area before rendering.
+  // injectWidget() awaits the hydration again before its first render.
+  installSyncMirror();
+  hydrateSyncedStorage();
 
   function tryInjectWidget() {
     const rightSide = document.getElementById('right-side');

@@ -464,7 +464,9 @@ browser.runtime.onMessage.addListener((request) => {
             if (!query) return { success: false, error: 'Enter a course name or code to search.' };
             try {
                 let termCode = null;
-                if (request.term) {
+                if (request.termCode) {
+                    termCode = String(request.termCode).trim() || null;
+                } else if (request.term) {
                     termCode = await getWebCatTermCode(String(request.term).trim()).catch(() => null);
                 }
                 const url = COURSES_BASE + '/jsonapi/node/course?'

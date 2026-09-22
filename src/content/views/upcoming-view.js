@@ -12,6 +12,7 @@ import { renderAnnouncementsView } from '../views/announcements-view.js';
 import { renderDashboardView } from '../views/dashboard-view.js';
 import { renderGeneralView } from '../views/general-view.js';
 import { renderGradesView, updateGradeChangeBadge } from '../views/grades-view.js';
+import { renderScheduleView } from '../views/schedule-view.js';
 
 export function renderWorkloadStrip() {
     const container = document.getElementById('workload-strip-container');
@@ -586,6 +587,11 @@ export function renderCurrentView() {
       return;
     }
 
+    if (state.currentTab === 'schedule') {
+      renderScheduleView(listContainer);
+      return;
+    }
+
     renderTaskList(listContainer);
   }
 
@@ -757,6 +763,8 @@ export function renderTaskList(container) {
         listContainer.innerHTML = '<div class="mod-empty-msg">✨ No overdue assignments! You are all caught up.</div>';
       } else if (tab === 'completed') {
         listContainer.innerHTML = '<div class="mod-empty-msg">No completed assignments yet.</div>';
+      } else if (state.isScanning) {
+        listContainer.innerHTML = '<div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>';
       } else {
         listContainer.innerHTML = '<div class="mod-empty-msg">🎉 All clear! No upcoming tasks due.</div>';
       }

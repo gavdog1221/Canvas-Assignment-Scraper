@@ -12,6 +12,8 @@ import { applyCustomDueDates } from '../storage/custom-due-dates.js';
 import { getHiddenCourses, unhideCourse } from '../storage/hidden-courses.js';
 import { scrapeCanvasDashboardColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
+import { hydrateSyncedStorage } from '../storage/xstorage.js';
+import { showReloadProgress } from './reload-progress.js';
 import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { refreshDashboardView } from '../views/dashboard-view.js';
@@ -47,7 +49,7 @@ export function purgeDefaultCanvasElements() {
 // block for the `position: fixed` fullscreen shell, pinning it to that small
 // box), applies the fullscreen shell class, and performs the first render.
 // A hidden placeholder marks the original injection point.
-export function setWidgetFullscreen() {
+function prepFullscreenShell() {
     state.isFullscreen = true;
 
     const widget = document.getElementById('module-tasks-widget');
@@ -64,11 +66,20 @@ export function setWidgetFullscreen() {
 
     widget.classList.add('is-fullscreen');
     document.body.classList.add('yace-fullscreen-active');
+  }
 
+export function setWidgetFullscreen() {
+    prepFullscreenShell();
     renderCurrentView();
   }
 
-export function injectWidget(container) {
+export async function injectWidget(container) {
+    // The skeleton mounts SYNCHRONOUSLY — prepend + fullscreen shell classes
+    // happen before any await, so Canvas's own chrome can never flash behind
+    // the widget. Cross-origin state is then hydrated (best-effort, capped at
+    // 1s) so the FIRST data render opens with the sibling origin's saved
+    // panel state, hidden courses, custom due dates and task cache — and even
+    // if the storage backend hangs, the dashboard still renders after the cap.
     const nowDate = new Date();
     const dayNum = nowDate.getDate();
     const suffix = (dayNum % 10 === 1 && dayNum !== 11) ? 'st' : (dayNum % 10 === 2 && dayNum !== 12) ? 'nd' : (dayNum % 10 === 3 && dayNum !== 13) ? 'rd' : 'th';
@@ -178,6 +189,7 @@ export function injectWidget(container) {
     <button type="button" class="hud-view-btn" data-tab="grades">Grades <span class="hud-tab-badge grades-change-badge" id="grades-change-badge" style="display:none;"></span></button>
     <button type="button" class="hud-view-btn" data-tab="general">Info</button>
     <button type="button" class="hud-view-btn" data-tab="announcements">News <span class="hud-tab-badge announce-dot" id="announce-badge" style="display:none;"></span></button>
+    <button type="button" class="hud-view-btn" data-tab="schedule">Schedule</button>
     </div>    <button type="button" class="hud-add-btn" id="add-custom-task-btn" title="Create Custom Assignment (Press 'n')">
     <span class="plus-icon">＋</span> <span class="btn-text">Task</span>
     </button>
@@ -189,12 +201,36 @@ export function injectWidget(container) {
 
     container.prepend(widget);
 
-    // Fullscreen is the only mode now: the sidebar and the minimize-to-edge
-    // states are gone. Relocate the widget to <body> (the #right-side-wrapper
-    // container-type would otherwise trap position:fixed) and apply the
-    // fullscreen shell immediately; setWidgetFullscreen() also kicks the
-    // first render.
-    setWidgetFullscreen();
+    // Fullscreen shell chrome NOW, before any async work — the widget must
+    // cover the page the same frame it appears (see prepFullscreenShell).
+    // prepFullscreenShell() is idempotent, so setWidgetFullscreen() below
+    // re-applies it right before the first render.
+    prepFullscreenShell();
+
+    // Cross-origin storage seed (see storage/xstorage.js). Raced against a
+    // 1s timeout so a hung storage backend can never gate the first render —
+    // worst case the dashboard opens with this origin's localStorage only.
+    try {
+      await Promise.race([
+        hydrateSyncedStorage(),
+        new Promise((r) => setTimeout(r, 1000)),
+      ]);
+    } catch (err) {
+      console.warn('[YACE] storage hydrate failed:', err);
+    }
+
+    // FIRST RENDER — the instant skeleton + any cross-origin cache the seed
+    // just made visible. A render failure must surface visibly, never as an
+    // endless "Scanning…" dead end with no dock and a dead ↻.
+    try {
+      setWidgetFullscreen();
+    } catch (err) {
+      console.error('[YACE] initial render failed:', err);
+      const list = document.getElementById('module-tasks-list');
+      if (list && !list.querySelector('.fullscreen-dashboard')) {
+        list.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; white-space:pre-wrap;">YACE failed to render — see console.\n${String(err && err.message || err)}</div>`;
+      }
+    }
 
     widget.addEventListener('mousemove', (e) => {
       const rect = widget.getBoundingClientRect();
@@ -303,6 +339,9 @@ export function injectWidget(container) {
 
     document.getElementById('refresh-mod-tasks').addEventListener('click', () => {
       scrapeCanvasDashboardColors();
+      // Visible feedback immediately, even when this is a minutes-long scan:
+      // the overlay appears now, not only after the first API response.
+      showReloadProgress('Reloading everything...', 3);
       loadTasks(true);
     });
     const eyeBtn = document.getElementById('toggle-hidden-courses-btn');
@@ -355,6 +394,13 @@ export function injectWidget(container) {
             lastListRefresh = now;
             refreshDashboardView();
           }
+          // A long-running scan must not look dead — surface progress +
+          // elapsed time so a hung API call is at least visible, not an
+          // eternal "Scanning…" with no way to tell what's happening.
+          if (state.isScanning && state.scanStartedAt && now - state.scanStartedAt > 8 * 60 * 1000) {
+            const mins = Math.round((now - state.scanStartedAt) / 60000);
+            showReloadProgress(`Scan still running (${mins} min elapsed)...`, 50);
+          }
           // When the 5-minute cache window lapses, kick a background rescan
           // of just the mandatory data (assignments + grades) — never
           // announcements. Guarded so two poll ticks can't stack scans.
@@ -383,22 +429,36 @@ export function injectWidget(container) {
       const cached = loadLocalCache();
       const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
       const isCacheFresh = (Date.now() - lastCacheTime) < (5 * 60 * 1000);
+      console.info('YACE cache', {
+        hasCache: !!cached,
+        courseCount: cached ? Object.keys(cached).length : 0,
+        fresh: isCacheFresh,
+        ageMin: Math.round((Date.now() - lastCacheTime) / 60000),
+      });
 
-      if (cached && Object.keys(cached).length > 0) {
-        state.cachedCourseMap = deduplicateCourseMap(cached, state.cachedGrades);
-        applyCustomDueDates();
-        autoCompleteSubmittedTasks(state.cachedCourseMap);
-        mergeCustomTasksIntoCourseMap(state.cachedCourseMap);
-        renderFilterPills();
-        updateHiddenMenuButton();
-        updateProgressBar();
-        renderWorkloadStrip();
-        renderCurrentView();
+      try {
+        if (cached && Object.keys(cached).length > 0) {
+          state.cachedCourseMap = deduplicateCourseMap(cached, state.cachedGrades);
+          applyCustomDueDates();
+          autoCompleteSubmittedTasks(state.cachedCourseMap);
+          mergeCustomTasksIntoCourseMap(state.cachedCourseMap);
+          renderFilterPills();
+          updateHiddenMenuButton();
+          updateProgressBar();
+          renderWorkloadStrip();
+          renderCurrentView();
 
-        if (!isCacheFresh) {
-          loadTasks(false, { refreshAnnouncements: false });
+          if (!isCacheFresh) {
+            loadTasks(false, { refreshAnnouncements: false });
+          }
+        } else {
+          loadTasks(true);
         }
-      } else {
+      } catch (cacheErr) {
+        // A cached render must never wedge the widget into a blank state —
+        // log the real cause and fall back to a full fresh scan.
+        console.error('YACE cached render failed, scanning fresh:', cacheErr);
+        state.cachedCourseMap = {};
         loadTasks(true);
       }
 

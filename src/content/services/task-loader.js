@@ -130,23 +130,43 @@ export function mergeGradeSources(canvasGrades, gsGrades) {
   }
 
 export async function loadTasks(showLoadingUI = true, opts = {}) {
+    // The dashboard is NEVER torn down for a scan: the first render always
+    // mounts it (dock + panels), so the "⇱ All" pill and the tab pills stay
+    // visible and clickable the whole time. Scan feedback shows in the reload
+    // overlay (showReloadProgress) and, while no data exists yet, as an
+    // in-panel "Scanning…" state (renderTaskList renders it whenever
+    // state.isScanning is true). The old code wiped #module-tasks-list with a
+    // bare "Scanning…" message BEFORE its try block, so an exception anywhere
+    // in the setup below (or a hung endpoint) wedged the widget at that
+    // message forever — no dock, no working ↻. That entire failure mode is
+    // gone now: setup is inside the try, the UI stays mounted, and the catch
+    // renders a RETRY-able error instead.
+    state.isScanning = true;
+    state.scanStartedAt = Date.now();
+    const scanId = (globalThis.__yaceScanSeq = (globalThis.__yaceScanSeq || 0) + 1);
     const listContainer = document.getElementById('module-tasks-list');
+
+    // While a first-ever scan runs (no cached data to show), put the scanning
+    // state INSIDE the already-mounted Assignments panel so the dock stays.
     if (showLoadingUI && (!state.cachedCourseMap || Object.keys(state.cachedCourseMap).length === 0)) {
-      listContainer.innerHTML = '<div class="mod-empty-msg">Scanning Canvas Modules, Assignments & Gradescope...</div>';
+      const assignmentsBody = listContainer.querySelector('.fullscreen-panel.assignments-panel .fullscreen-panel-body');
+      if (assignmentsBody) {
+        assignmentsBody.innerHTML = '<div class="mod-empty-msg">Scanning Canvas & Gradescope...</div>';
+      }
     }
 
     if (showLoadingUI) {
       showReloadProgress('Connecting to Canvas...', 5);
     }
 
-    const csrfToken = getCsrfToken();
-    const headers = {
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest'
-    };
-    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-
     try {
+      const csrfToken = getCsrfToken();
+      const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      };
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
       const gradescopePromise = fetchGradescopeData();
 
       // Pull EVERY actively-enrolled course, not just ones the student has
@@ -186,6 +206,8 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         const rawName = course.course_code || course.name;
         return isCurrentSemesterCourse(rawName);
       });
+
+      console.info('[YACE] scan begin —', (courses || []).length, 'courses fetched,', activeCourses.length, 'active');
 
       const unifiedCourseMap = {};
       const courseNameById = {};
@@ -241,18 +263,16 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         : Promise.resolve(state.cachedAnnouncements || []);
 
       const totalSteps = Math.max(activeCourses.length, 1);
-      let stepIndex = 0;
+      let stepDone = 0;
 
-      for (const course of activeCourses) {
+      // Scan courses concurrently (capped below). Each course writes only its
+      // own slot in unifiedCourseMap, so the per-course fetch chains are
+      // independent — the old serial for-of turned a multi-minute full scan
+      // into ~4 concurrent lanes. Progress is driven by completed courses.
+      const scanCourse = async (course) => {
         const rawCourseName = courseNameById[course.id];
         const courseKey = normalizeCourseCode(rawCourseName);
         const modulePdfCandidates = [];
-
-        stepIndex++;
-        if (showLoadingUI) {
-          const pct = 15 + Math.round((stepIndex / totalSteps) * 60);
-          showReloadProgress(`Scanning ${courseKey}...`, pct);
-        }
 
         // 1. Modules Scan
         try {
@@ -392,7 +412,28 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         // teacher enrollments -> syllabus-tab PDF -> Modules PDF(s). No-op
         // when the inline syllabus already produced a name.
         await enrichCourseInstructor(unifiedCourseMap[courseKey], course, headers);
-      }
+
+        stepDone++;
+        if (showLoadingUI) {
+          const pct = 15 + Math.round((stepDone / totalSteps) * 60);
+          showReloadProgress(`Scanned ${courseKey}...`, pct);
+        }
+      };
+
+      const scanQueue = [...activeCourses];
+      const workers = Array.from({ length: Math.min(4, scanQueue.length) }, async () => {
+        while (scanQueue.length) {
+          const c = scanQueue.shift();
+          try {
+            await scanCourse(c);
+          } catch (err) {
+            console.warn(`Course scan failed for ${courseNameById[c.id] || c.id}:`, err);
+          }
+        }
+      });
+      await Promise.all(workers);
+
+      console.info('[YACE] scan courses done — parallel course scan complete');
 
       if (showLoadingUI) {
         showReloadProgress('Synchronizing Gradescope...', 80);
@@ -463,9 +504,14 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       // 5. Intelligent Deduplication
       deduplicateCourseMap(unifiedCourseMap, allGrades);
 
+      console.info('[YACE] scan grades done —', allGrades.length, 'grades');
+
       if (showLoadingUI) {
         showReloadProgress('Ready!', 100);
       }
+
+      const totalScanTasks = Object.values(unifiedCourseMap).reduce((n, c) => n + (c.tasks || []).length, 0);
+      console.info('[YACE] scan complete —', totalScanTasks, 'tasks across', Object.keys(unifiedCourseMap).length, 'courses');
 
       state.cachedCourseMap = unifiedCourseMap;
       applyCustomDueDates();
@@ -479,16 +525,41 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       // Fresh scrape data lands here — force the Grades/News/Info panels to
       // rebuild instead of being re-mounted stale from the previous render.
       state.forceDashboardRebuild = true;
-      renderCurrentView();
+      // The last-started scan owns the in-memory scanning flags.
+      if (scanId === globalThis.__yaceScanSeq) {
+        state.isScanning = false;
+        state.scanStartedAt = 0;
+      }
+      try {
+        renderCurrentView();
+      } catch (renderErr) {
+        // A post-scan render failure must never leave the "Scanning…"
+        // empty-state up forever — surface the actual error visibly.
+        console.error('[YACE] post-scan render failed:', renderErr);
+        const list = document.getElementById('module-tasks-list');
+        if (list) {
+          list.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; white-space:pre-wrap;">YACE loaded data but failed to render — see console.\n${String(renderErr && renderErr.message || renderErr)}</div>`;
+        }
+      }
       maybeShowWhatsNewBanner();
       purgeDefaultCanvasElements();
 
       setTimeout(hideReloadProgress, 400);
     } catch (fatalErr) {
-      console.error('Task Scanner Error:', fatalErr);
+      console.error('[YACE] scan failed:', fatalErr);
+      if (scanId === globalThis.__yaceScanSeq) {
+        state.isScanning = false;
+        state.scanStartedAt = 0;
+      }
       hideReloadProgress();
       if (!state.cachedCourseMap || Object.keys(state.cachedCourseMap).length === 0) {
-        listContainer.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; border-color: rgba(248, 113, 113, 0.4);">Error scanning courses.</div>`;
+        // Keep the dashboard mounted and show a RETRY-able error in the
+        // Assignments panel instead of wiping to a dead-end message.
+        const assignmentsBody = listContainer.querySelector('.fullscreen-panel.assignments-panel .fullscreen-panel-body');
+        const target = assignmentsBody || listContainer;
+        target.innerHTML = `<div class="mod-empty-msg" style="color:#f87171; border-color: rgba(248, 113, 113, 0.4);">Error scanning courses.<br><button type="button" class="show-more-tasks-btn" id="yace-rescan-btn">Click to retry</button></div>`;
+        const retry = target.querySelector('#yace-rescan-btn');
+        if (retry) retry.addEventListener('click', () => loadTasks(true));
       }
     }
   }
