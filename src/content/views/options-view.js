@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { THEMES } from '../constants.js';
 import {
   TAB_LABELS,
+  OPTION_TAB_KEYS,
   NOTIF_OPTIONS,
   applyOptions,
   applyThemeFromOptions,
@@ -19,7 +20,10 @@ import { escapeHTML } from '../utils/text.js';
 export function renderOptionsView(container) {
     if (!container) return;
     const opts = getOptions();
-    const tabKeys = Object.keys(TAB_LABELS);
+    // Only the assignment-universe tabs stay toggleable here. Grades / Info /
+    // News are modular draggable tiles with their own visibility controls in
+    // the main UI — exposing them in Options conflicts with that.
+    const tabKeys = OPTION_TAB_KEYS.filter(k => TAB_LABELS[k] !== undefined);
 
     container.innerHTML = `
     <div class="opt-view-header">
@@ -87,7 +91,7 @@ export function renderOptionsView(container) {
         } else {
           // Never hide the last remaining tab — the dashboard needs at least
           // one view to land on.
-          const visible = Object.keys(TAB_LABELS).filter(k => hidden.indexOf(k) === -1);
+          const visible = tabKeys.filter(k => hidden.indexOf(k) === -1);
           if (visible.length <= 1 && visible.indexOf(key) !== -1) {
             input.checked = true;
             return;

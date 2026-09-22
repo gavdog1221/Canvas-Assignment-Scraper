@@ -55,6 +55,7 @@
         "css/custom-assignments.css",
         "css/view-grades.css",
         "css/view-dining.css",
+        "css/view-schedule.css",
         "css/view-kanban.css",
         "css/fullscreen.css"
       ],

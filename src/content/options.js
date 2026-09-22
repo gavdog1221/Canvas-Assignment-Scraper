@@ -16,6 +16,13 @@ export const TAB_LABELS = {
   announcements: 'News',
 };
 
+// Tabs still toggleable from Options (Campus & Tools → Options → View tabs).
+// Grades / Info / News are modular draggable tiles with their own visibility
+// controls in the main UI — Options must NOT be able to hide them (the old
+// data-hidden-tabs CSS hid the fullscreen panels, conflicting with the tile
+// show/hide). Keep this list in sync with options-view.js.
+export const OPTION_TAB_KEYS = ['upcoming', 'overdue', 'completed'];
+
 export const NOTIF_OPTIONS = [
   { key: 'overdue', label: 'Overdue count badge', element: 'hud-overdue-badge' },
   { key: 'grades', label: 'Grade-change alert badge', element: 'grades-change-badge' },
@@ -24,8 +31,11 @@ export const NOTIF_OPTIONS = [
 
 export function getOptions() {
   const stored = state.options || {};
+  // Only tabs in OPTION_TAB_KEYS can be hidden anymore. Stale hiddenTabs
+  // entries for Grades / Info / News are dropped so Options can never hide
+  // the modular tiles — their visibility belongs to the tiles themselves.
   const hiddenTabs = Array.isArray(stored.hiddenTabs)
-    ? stored.hiddenTabs.filter(t => TAB_LABELS[t] !== undefined)
+    ? stored.hiddenTabs.filter(t => OPTION_TAB_KEYS.includes(t))
     : [];
   const notif = Object.assign({ overdue: true, grades: true, news: true }, stored.notif || {});
   return { hiddenTabs, notif };

@@ -47,6 +47,11 @@
 #module-tasks-widget.is-fullscreen .widget-current-date { display: inline-block !important; font-size: 22px !important; font-weight: 800 !important; letter-spacing: -0.3px !important; color: #ffffff !important; background: transparent !important; border: none !important; padding: 0 !important; margin: 0 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
 #module-tasks-widget.is-fullscreen .widget-controls { gap: 6px !important; flex-wrap: nowrap !important; justify-content: flex-end !important; justify-self: end !important; min-width: 0 !important; max-width: 100% !important; overflow-x: auto !important; scrollbar-width: none !important; }
 #module-tasks-widget.is-fullscreen .widget-controls::-webkit-scrollbar { display: none !important; }
+/* The theme dock's flyout is absolutely positioned just below the trigger,
+   so it gets clipped by the controls strip's overflow-x: auto scroll
+   container. While the dock is open, relax that overflow so the dropdown is
+   visible (closed state keeps narrow-window horizontal scrolling). */
+#module-tasks-widget.is-fullscreen .widget-controls.is-overflow-open { overflow: visible !important; }
 #module-tasks-widget.is-fullscreen .icon-btn { padding: 6px 11px !important; font-size: 12px !important; min-height: 32px !important; white-space: nowrap !important; flex-shrink: 0 !important; gap: 4px !important; }
 #module-tasks-widget.is-fullscreen .icon-btn.eye-btn { min-width: 34px !important; }
 #module-tasks-widget.is-fullscreen .campus-tools-btn { padding: 6px 10px !important; font-size: 11px !important; gap: 5px !important; }
@@ -96,7 +101,11 @@
 /* The shell command bar is display:none above, so there is no addbtn grid
    slot to place in the strip — its controls live in the center toolbar. */
 
-/* The dashboard row swallows everything below the slim strip — no page scroll. */
+/* The dashboard row swallows everything below the slim strip — no page scroll.
+   (The panel dock lives INSIDE the grid as its own full-width row, see
+   .fs-panel-dock below — it is managed by the JS grid template, not by flex
+   layout, so the dashboard keeps a definite height and its 1fr rows fraction
+   normally.) */
 #module-tasks-widget.is-fullscreen #module-tasks-list {
   grid-area: list !important;
   overflow: hidden !important;
@@ -122,22 +131,14 @@
   margin: 0 !important;
 }
 
-/* 3 columns where Assignments is the center stage and owns the full middle
-   column: the left column is split 50/50 (News/announcements on top, a
-   Recent Grades feed below), Grades sits top-right and Info bottom-right.
-   Food & Reg moved into the Campus & Tools drawer, so they are no longer
-   dashboard panels. The shell grid above sizes this to exactly 100vh − the
-   slim header row; nothing here is allowed to scroll the page — every panel
-   manages its own overflow. (overflow is visible so the center
-   search/class-filter menus and the 2W horizon pie can float over the
-   surrounding grid.) */
+/* Panels are placed by dashboard-view.js (reflowDashboardLayout) into flex
+   ROW wrappers: the dashboard is a flex column, each visible panel is a flex
+   item that fills its row equally, and collapsed panels are display:none so
+   flex hands their space to the survivors automatically. No grid templates,
+   no named areas — the layout re-flows itself for any panel combination. */
 .fullscreen-dashboard {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) !important;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) !important;
-  grid-template-areas:
-    "news assignments grades"
-    "recent-grades assignments info" !important;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 12px !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -146,6 +147,45 @@
   overflow: visible !important;
   box-sizing: border-box !important;
 }
+
+/* Equal row: every panel in a row splits its width 1fr-style, and a lone
+   panel stretches full width automatically. Rows share the dashboard height
+   equally (flex:1 each). */
+.fs-layout-row {
+  display: flex !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  gap: 12px !important;
+}
+.fs-layout-row .fullscreen-panel {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+}
+
+/* Three-zone middle (wide / mid): Assignments pinned TALL in the center with
+   the four side tabs flanking it — two stacked on the left, two on the right
+   (see reflowDashboardLayout). Columns and the central panel all stretch to
+   the zone's full height; Assignments keeps a stronger width share. The zone
+   takes ~2/3 of the dashboard height so Schedule keeps its familiar ~1/3
+   full-width strip below. */
+.fs-middle-zone {
+  display: flex !important;
+  flex: 2 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  gap: 12px !important;
+}
+.fs-tile-column {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  gap: 12px !important;
+}
+.fs-middle-zone .fullscreen-panel.assignments-panel { flex: 1.4 1 0 !important; }
+.fs-tile-column .fullscreen-panel { flex: 1 1 0 !important; }
 
 .fullscreen-panel {
   display: flex !important;
@@ -158,14 +198,8 @@
   overflow: hidden !important;
 }
 
-/* Panel slot assignment — the left column is a 50/50 stack: News fills the
-   top grid row and Recent Grades the bottom one; Grades and Info split the
-   right column the same way. The Assignments panel owns the entire middle
-   column (both rows). */
-.fullscreen-panel.news-panel          { grid-area: news !important; }
-.fullscreen-panel.recent-grades-panel { grid-area: recent-grades !important; }
-.fullscreen-panel.grades-panel        { grid-area: grades !important; }
-.fullscreen-panel.info-panel          { grid-area: info !important; }
+/* Panel placement is pure DOM order inside the flex rows created by
+   reflowDashboardLayout (no grid-area keying anymore). */
 
 /* Center stage: the Assignments panel is the primary focal surface —
    brighter glass, accent edge, and a soft glow so it reads as the hero.
@@ -173,7 +207,6 @@
    course-filter menu and horizon pie are absolutely-positioned descendants;
    only the task-list body scrolls. */
 .fullscreen-panel.assignments-panel {
-  grid-area: assignments !important;
   background:
     radial-gradient(110% 120% at 10% 0%, var(--accent-soft) 0%, transparent 55%),
     rgba(255, 255, 255, 0.05) !important;
@@ -243,15 +276,18 @@
 .fullscreen-panel.news-panel .fullscreen-panel-body::-webkit-scrollbar,
 .fullscreen-panel.recent-grades-panel .fullscreen-panel-body::-webkit-scrollbar,
 .fullscreen-panel.grades-panel .fullscreen-panel-body::-webkit-scrollbar,
-.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar { width: 6px !important; }
+.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar,
+.fullscreen-panel.schedule-panel .fullscreen-panel-body::-webkit-scrollbar { width: 6px !important; }
 .fullscreen-panel.news-panel .fullscreen-panel-body::-webkit-scrollbar-track,
 .fullscreen-panel.recent-grades-panel .fullscreen-panel-body::-webkit-scrollbar-track,
 .fullscreen-panel.grades-panel .fullscreen-panel-body::-webkit-scrollbar-track,
-.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar-track { background: transparent !important; }
+.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar-track,
+.fullscreen-panel.schedule-panel .fullscreen-panel-body::-webkit-scrollbar-track { background: transparent !important; }
 .fullscreen-panel.news-panel .fullscreen-panel-body::-webkit-scrollbar-thumb,
 .fullscreen-panel.recent-grades-panel .fullscreen-panel-body::-webkit-scrollbar-thumb,
 .fullscreen-panel.grades-panel .fullscreen-panel-body::-webkit-scrollbar-thumb,
-.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; border-radius: 99px !important; }
+.fullscreen-panel.info-panel .fullscreen-panel-body::-webkit-scrollbar-thumb,
+.fullscreen-panel.schedule-panel .fullscreen-panel-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; border-radius: 99px !important; }
 
 /* Center toolbar: Due / Overdue / Done switcher + "+ Task", mirroring the
    shell tab buttons that fullscreen hides from the top strip. */
@@ -292,36 +328,17 @@
 /* ==========================================================================
  *  RESPONSIVE FULLSCREEN FALLBACKS
  *  ========================================================================== */
-/* Below ~1100px a true 3-column grid gets cramped: fall back to the two-pane
-   layout (assignments pinned to the right slot, all four side panels stacked
-   on the left). */
-@media (max-width: 1100px) {
-  .fullscreen-dashboard {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) !important;
-    grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "news           assignments"
-      "recent-grades  assignments"
-      "grades         assignments"
-      "info           assignments" !important;
-  }
-}
+/* Below ~1100px the grid falls back to two panes (side panels stacked left,
+   assignments right) and below ~820px to a single stack — both handled by
+   dashboard-view.js applyDashboardLayout, which computes the template per
+   breakpoint from the collapsed-panel set. */
 
 /* Very narrow windows: full single-column stack, assignments first and tallest,
    and the dashboard itself becomes scrollable. */
 @media (max-width: 820px) {
   .fullscreen-dashboard {
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-rows: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr)) !important;
-    grid-template-areas:
-      "assignments"
-      "news"
-      "recent-grades"
-      "grades"
-      "info" !important;
+    /* columns / rows / areas computed by dashboard-view.js per breakpoint */
     overflow-y: auto !important;
-    height: auto !important;
-    min-height: 100% !important;
   }
 }
 
@@ -340,4 +357,120 @@
   }
   #module-tasks-widget.is-fullscreen .hidden-courses-popover { top: 120px !important; }
   #module-tasks-widget.is-fullscreen .reload-progress-overlay { top: 120px !important; }
+}
+
+/* ==========================================================================
+ *  PANEL MINIMIZE / EXPAND
+ *  ========================================================================== */
+/* Panel dock: always-visible pill row above the grid ("main tabs"). Every
+   panel is listed here; a pill lights up when its panel is expanded and
+   dims when minimized. Because a collapsed panel hides its whole header,
+   this dock is the way back to an expanded layout. */
+.fs-panel-dock {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 2px 0 !important;
+  overflow-x: auto !important;
+}
+.fs-panel-dock-btn {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--text-tertiary) !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  border-radius: 999px !important;
+  padding: 3px 11px !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition: all 0.18s ease !important;
+}
+.fs-panel-dock-btn:hover { background: rgba(255, 255, 255, 0.1) !important; color: #ffffff !important; }
+.fs-panel-dock-btn.is-on {
+  background: var(--accent-soft) !important;
+  border-color: var(--primary-accent) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 8px var(--accent-glow) !important;
+}
+/* The "⇱ All" reset pill is a static action, not a state toggle — it never
+   lights up with the per-panel pills, so its look can't be confused with
+   panel visibility. */
+.fs-panel-dock-btn.fs-dock-expand-all {
+  border-style: dashed !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: var(--text-secondary) !important;
+  font-size: 10px !important;
+  padding: 3px 8px !important;
+}
+.fs-panel-dock-btn.fs-dock-expand-all:hover {
+  border-color: #ffffff !important;
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Collapsed panels remove themselves from the grid layout entirely. */
+.fullscreen-panel.is-collapsed { display: none !important; }
+
+/* Per-panel chevron toggle, floated in the header's top-right corner (headers
+   get extra right padding so titles/badges/progress never slide under it). */
+.fullscreen-panel-header { position: relative !important; padding-right: 36px !important; }
+.panel-collapse-btn {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 5 !important;
+  width: 22px !important;
+  height: 22px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-secondary) !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: all 0.18s ease !important;
+}
+.panel-collapse-btn:hover { background: rgba(255, 255, 255, 0.16) !important; color: #ffffff !important; }
+.panel-collapse-btn.is-collapsed { background: rgba(255, 255, 255, 0.14) !important; color: #ffffff !important; }
+
+/* Panel drag grip + drag feedback (see dashboard-view.js attachDragHandlers).
+   The grip is a small grab handle at the left of every panel header; only it
+   starts a drag, so text selection, the collapse chevron and toolbar buttons
+   never fight the gesture. */
+.panel-drag-handle {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  color: var(--text-tertiary) !important;
+  cursor: grab !important;
+  user-select: none !important;
+  touch-action: none !important;
+  border-radius: 6px !important;
+  transition: color 0.15s ease, background 0.15s ease !important;
+}
+.panel-drag-handle:hover { color: #ffffff !important; background: rgba(255, 255, 255, 0.08) !important; }
+.panel-drag-handle:active { cursor: grabbing !important; }
+/* Assignments (full-width hero) and Schedule (full-width bottom) are pinned —
+   no grip, no size controls. Only the four side tabs reorder between tiles. */
+.fullscreen-panel.schedule-panel .panel-drag-handle,
+.fullscreen-panel.assignments-panel .panel-drag-handle { display: none !important; }
+
+/* The panel being dragged: dimmed + a dashed accent edge so the live reflow
+   of the other panels reads clearly while you move it. */
+.fullscreen-panel.is-dragging {
+  opacity: 0.65 !important;
+  outline: 1px dashed var(--primary-accent) !important;
+  outline-offset: -2px !important;
 }

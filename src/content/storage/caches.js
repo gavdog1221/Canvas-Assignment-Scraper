@@ -11,7 +11,7 @@ export function loadLocalCache() {
       if (!raw) return null;
       const data = JSON.parse(raw);
       Object.keys(data).forEach(courseKey => {
-        data[courseKey].tasks.forEach(t => {
+        (data[courseKey].tasks || []).forEach(t => {
           if (t.dueDate) t.dueDate = new Date(t.dueDate);
         });
       });

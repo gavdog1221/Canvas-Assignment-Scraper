@@ -100,6 +100,7 @@ css/                       Dashboard widget styles, split by feature (content sc
 ├── custom-assignments.css Radial action pie + Custom Assignment Maker modal
 ├── view-grades.css        Grades tab (GPA, What-If matrix, course cards)
 ├── view-dining.css        Dining tab (menus, dinner-plate pie, dietary badges)
+├── view-schedule.css      Schedule panel (weekly timetable of current Canvas courses)
 ├── view-kanban.css        Kanban board
 ├── fullscreen.css         Fullscreen dashboard grid, panels, responsive fallbacks
 └── registration.css       WebCat autofill styles (separate content script)
