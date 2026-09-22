@@ -157,6 +157,30 @@
   min-width: 0 !important;
 }
 
+/* Three-zone middle (wide / mid): Assignments pinned TALL in the center with
+   the four side tabs flanking it — two stacked on the left, two on the right
+   (see reflowDashboardLayout). Columns and the central panel all stretch to
+   the zone's full height; Assignments keeps a stronger width share. The zone
+   takes ~2/3 of the dashboard height so Schedule keeps its familiar ~1/3
+   full-width strip below. */
+.fs-middle-zone {
+  display: flex !important;
+  flex: 2 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  gap: 12px !important;
+}
+.fs-tile-column {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  gap: 12px !important;
+}
+.fs-middle-zone .fullscreen-panel.assignments-panel { flex: 1.4 1 0 !important; }
+.fs-tile-column .fullscreen-panel { flex: 1 1 0 !important; }
+
 .fullscreen-panel {
   display: flex !important;
   flex-direction: column !important;
@@ -409,3 +433,38 @@
 }
 .panel-collapse-btn:hover { background: rgba(255, 255, 255, 0.16) !important; color: #ffffff !important; }
 .panel-collapse-btn.is-collapsed { background: rgba(255, 255, 255, 0.14) !important; color: #ffffff !important; }
+
+/* Panel drag grip + drag feedback (see dashboard-view.js attachDragHandlers).
+   The grip is a small grab handle at the left of every panel header; only it
+   starts a drag, so text selection, the collapse chevron and toolbar buttons
+   never fight the gesture. */
+.panel-drag-handle {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  color: var(--text-tertiary) !important;
+  cursor: grab !important;
+  user-select: none !important;
+  touch-action: none !important;
+  border-radius: 6px !important;
+  transition: color 0.15s ease, background 0.15s ease !important;
+}
+.panel-drag-handle:hover { color: #ffffff !important; background: rgba(255, 255, 255, 0.08) !important; }
+.panel-drag-handle:active { cursor: grabbing !important; }
+/* Assignments (full-width hero) and Schedule (full-width bottom) are pinned —
+   no grip, no size controls. Only the four side tabs reorder between tiles. */
+.fullscreen-panel.schedule-panel .panel-drag-handle,
+.fullscreen-panel.assignments-panel .panel-drag-handle { display: none !important; }
+
+/* The panel being dragged: dimmed + a dashed accent edge so the live reflow
+   of the other panels reads clearly while you move it. */
+.fullscreen-panel.is-dragging {
+  opacity: 0.65 !important;
+  outline: 1px dashed var(--primary-accent) !important;
+  outline-offset: -2px !important;
+}
