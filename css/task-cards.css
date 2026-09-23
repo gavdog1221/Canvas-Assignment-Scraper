@@ -191,6 +191,17 @@
 .doc-view-pill:hover { background: var(--primary-accent) !important; color: #000000 !important; }
 .download-pill { display: inline-flex !important; align-items: center !important; gap: 3px !important; font-size: 10px !important; font-weight: 700 !important; padding: 0 9px !important; border: none !important; background: transparent !important; color: var(--primary-accent) !important; text-decoration: none !important; white-space: nowrap !important; transition: all 0.15s ease !important; line-height: 1 !important; }
 .download-pill:hover { background: var(--primary-accent) !important; color: #000000 !important; }
+/* Submit-to-Canvas pill — sits next to the document buttons on canvas tasks
+   and opens the submission popup (components/submission-modal.js). */
+.submit-pill {
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  gap: 3px !important; font-size: 10px !important; font-weight: 700 !important; padding: 0 10px !important;
+  height: 23px !important; border-radius: 999px !important; border: 1.2px solid var(--primary-accent) !important;
+  background: var(--accent-soft) !important; color: var(--primary-accent) !important; cursor: pointer !important;
+  white-space: nowrap !important; line-height: 1 !important; flex-shrink: 0 !important;
+  transition: all 0.15s ease !important; font-family: inherit !important;
+}
+.submit-pill:hover { background: var(--primary-accent) !important; color: #000000 !important; box-shadow: 0 0 10px var(--accent-glow) !important; transform: translateY(-1px) !important; }
 .badge-tag { font-size: 10px !important; padding: 3px 8px !important; border-radius: 999px !important; font-weight: 700 !important; letter-spacing: 0.2px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
 .badge-tag.today, .badge-tag.tomorrow { background: rgba(255, 69, 58, 0.2) !important; color: #ffb4ae !important; border: 1px solid rgba(255, 69, 58, 0.4) !important; }
 .badge-tag.overdue { background: rgba(255, 69, 58, 0.3) !important; color: #ffb4ae !important; border: 1px solid rgba(255, 69, 58, 0.5) !important; }

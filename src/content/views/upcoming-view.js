@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { deleteAssignmentFromModal, ensureAssignmentModal, openAssignmentModal } from '../components/assignment-modal.js';
 import { openPdfModal } from '../components/pdf-modal.js';
+import { openSubmissionModal } from '../components/submission-modal.js';
 import { getCompletedTasks, setTaskCompleted } from '../storage/completed-tasks.js';
 import { applyCustomDueDates, effectiveDueDate, setCustomDueDate } from '../storage/custom-due-dates.js';
 import { getHiddenCourses, hideCourse } from '../storage/hidden-courses.js';
@@ -306,6 +307,13 @@ export function createTaskCard(task, now, completedMap) {
       }
     }
 
+    // Canvas tasks get an in-place submission popup (text / file / URL) next
+    // to the document buttons — custom tasks and Gradescope items have no
+    // Canvas assignment id to post to.
+    if (!task.isCustom && !task.isGradescope && task.canvasAssignmentId && task.canvasCourseId) {
+      rightBottomMeta += `<button type="button" class="submit-pill" title="${task.isSubmitted ? 'Resubmit to Canvas' : 'Submit to Canvas'}">↑ Submit</button>`;
+    }
+
     if (task.downloadUrl) {
       rightBottomMeta += `
       <div class="doc-actions-wrap">
@@ -421,6 +429,16 @@ export function createTaskCard(task, now, completedMap) {
             deleteAssignmentFromModal(modal);
           });
         }
+      }
+
+      // Hook Canvas submission popup
+      const submitBtn = card.querySelector('.submit-pill');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openSubmissionModal(task);
+        });
       }
 
       // Hook Star / Pin-to-top toggle

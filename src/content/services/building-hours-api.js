@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 
-// Building Hours — MUB, Hamel Recreation Center and Dimond Library.
+// Building Hours — MUB, Hamel Recreation Center, Dimond Library and Kingsbury
+// Library (Engineering, Math & CS).
 //
 // Every one of the three UNH sources hides its real schedule behind a
 // collapsible affordance, so grabbing visible text alone drops most of the
@@ -61,7 +62,16 @@ function expandDayLabel(label) {
   return out;
 }
 
-const DAY_TIME_RE = /([A-Z][a-z]{2,8}(?:\s*(?:-|&|–)\s*[A-Z][a-z]{2,8})?)\s*:?\s*(?:(?:(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)\s*[-–—]\s*(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?))|(closed))/gi;
+const DAY_NAME_ALT = 'Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday';
+const DAY_ONE = '(?:' + DAY_NAME_ALT + ')';
+
+// Day labels must anchor the match themselves: the UNH accordion bodies glue
+// paragraphs together in textContent ("HOURSMonday", "pmSaturday"), and a loose
+// [A-Z][a-z]{2,8} label class under the /i flag absorbed "URS" + the following
+// day name as one bogus label, silently dropping every weekday row. Explicit
+// full day names can't be corrupted by preceding text — the match just starts
+// at the day word.
+const DAY_TIME_RE = new RegExp('(' + DAY_ONE + '(?:\\s*(?:-|&|–)\\s*' + DAY_ONE + ')?)\\s*:?\\s*(?:(?:(\\d{1,2}(?::\\d{2})?\\s*[ap]\\.?m\\.?)\\s*[-–—]\\s*(\\d{1,2}(?::\\d{2})?\\s*[ap]\\.?m\\.?))|(closed))', 'gi');
 
 function parseDayRows(text) {
   const rows = [];
@@ -133,23 +143,17 @@ function parseRecHours(html) {
   };
 }
 
-// --- Dimond Library (LibCal grid JSON) -------------------------------------
+// --- Libraries (LibCal grid JSON) ------------------------------------------
 // library.unh.edu/about-us/hours renders through a LibCal widget backed by
 // https://librarycalendars.unh.edu/widget/hours/grid?iid=3647&lid=0&format=json
 // (weeks of per-location day objects keyed Sun..Sat). weeks[0] is the current
 // week. Multiple hour ranges per day (e.g. the Information Desk) all show.
-function parseLibraryHours(jsonStr) {
-  if (!jsonStr) return null;
-  let data;
-  try {
-    data = JSON.parse(jsonStr);
-  } catch (e) {
-    return null;
-  }
-  const locs = Array.isArray(data.locations) ? data.locations : [];
-  const dimond = locs.find(l => /dimond/i.test(l.name || '')) || locs[0];
-  if (!dimond) return null;
-  const week = (Array.isArray(dimond.weeks) && dimond.weeks[0]) || null;
+// lid=0 returns every location, so one fetch feeds both library cards:
+// Dimond, plus Kingsbury Library (Engineering, Math & CS) from its page at
+// library.unh.edu/locations/engineering-math-cs-library.
+function libraryCardFromLocation(loc, fallbackName, fallbackUrl) {
+  if (!loc) return null;
+  const week = (Array.isArray(loc.weeks) && loc.weeks[0]) || null;
   if (!week) return null;
 
   const rows = [];
@@ -175,11 +179,31 @@ function parseLibraryHours(jsonStr) {
   });
   if (!rows.length) return null;
   return {
-    name: 'Dimond Library',
+    name: loc.name || fallbackName,
     icon: '📚',
-    link: 'https://library.unh.edu/about-us/hours',
+    link: fallbackUrl || 'https://library.unh.edu/about-us/hours',
     sections: [{ name: 'Weekly Hours', rows }],
   };
+}
+
+function parseLibraryHours(jsonStr) {
+  if (!jsonStr) return null;
+  let data;
+  try {
+    data = JSON.parse(jsonStr);
+  } catch (e) {
+    return null;
+  }
+  const locs = Array.isArray(data.locations) ? data.locations : [];
+  const dimond = locs.find(l => /dimond/i.test(l.name || '')) || locs[0];
+  const kingsbury = locs.find(l => /kingsbury/i.test(l.name || ''));
+
+  const cards = [];
+  const d = libraryCardFromLocation(dimond, 'Dimond Library', 'https://library.unh.edu/about-us/hours');
+  if (d) cards.push(d);
+  const k = libraryCardFromLocation(kingsbury, 'Kingsbury Library', 'https://library.unh.edu/locations/engineering-math-cs-library');
+  if (k) cards.push(k);
+  return cards.length ? cards : null;
 }
 
 // Open/closed status for *right now*, computed from the row that covers the
@@ -227,8 +251,8 @@ export async function fetchBuildingHours() {
   if (mub) buildings.push(mub);
   const rec = parseRecHours(res.recHtml);
   if (rec) buildings.push(rec);
-  const lib = parseLibraryHours(res.libraryJson);
-  if (lib) buildings.push(lib);
+  const libs = parseLibraryHours(res.libraryJson);
+  if (libs) libs.forEach(lib => buildings.push(lib));
 
   const payload = { date: todayKey, buildings };
   state.buildingHoursCache = payload;
