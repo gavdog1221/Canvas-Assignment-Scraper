@@ -1,7 +1,8 @@
 import { computeBuildingStatus, fetchBuildingHours } from '../services/building-hours-api.js';
 import { escapeHTML } from '../utils/text.js';
 
-// Campus & Tools "Hours" tab — building cards (MUB, Hamel Rec, Dimond Library).
+// Campus & Tools "Hours" tab — building cards (MUB, Hamel Rec, Dimond Library,
+// Kingsbury Library).
 // Each card lists every section scraped from the source page (accordion bodies
 // and dashboard dropdowns included), highlights today's row, and links out to
 // the live source since hours shift for breaks and holidays.
@@ -18,12 +19,14 @@ export async function renderBuildingHoursView(listContainer) {
     }
 
     listContainer.innerHTML = `
+      <div class="bh-tab-scroll">
       <div class="bh-head">
       <span class="bh-title">🏢 Building Hours</span>
       <span class="bh-sub">Campus buildings and the services inside them — hours shift for breaks, so each card links to the live source.</span>
       </div>
       <div class="bh-grid">
       ${data.buildings.map(renderBuildingCard).join('')}
+      </div>
       </div>`;
   }
 

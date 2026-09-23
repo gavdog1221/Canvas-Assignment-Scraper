@@ -6,6 +6,7 @@
    turn the Options tab's data attributes into hidden tabs / quieted badges. */
 
 /* ---- shared scaffolding ---- */
+.campus-tools-body .bh-tab-scroll,
 .campus-tools-body .bus-tab-scroll,
 .campus-tools-body .ev-tab-scroll,
 .campus-tools-body .exp-tab-scroll,
@@ -18,14 +19,17 @@
   gap: 14px !important;
   padding-right: 4px !important;
 }
+.campus-tools-body .bh-tab-scroll::-webkit-scrollbar,
 .campus-tools-body .bus-tab-scroll::-webkit-scrollbar,
 .campus-tools-body .ev-tab-scroll::-webkit-scrollbar,
 .campus-tools-body .exp-tab-scroll::-webkit-scrollbar,
 .campus-tools-body .opt-tab-scroll::-webkit-scrollbar { width: 6px !important; }
+.campus-tools-body .bh-tab-scroll::-webkit-scrollbar-track,
 .campus-tools-body .bus-tab-scroll::-webkit-scrollbar-track,
 .campus-tools-body .ev-tab-scroll::-webkit-scrollbar-track,
 .campus-tools-body .exp-tab-scroll::-webkit-scrollbar-track,
 .campus-tools-body .opt-tab-scroll::-webkit-scrollbar-track { background: transparent !important; }
+.campus-tools-body .bh-tab-scroll::-webkit-scrollbar-thumb,
 .campus-tools-body .bus-tab-scroll::-webkit-scrollbar-thumb,
 .campus-tools-body .ev-tab-scroll::-webkit-scrollbar-thumb,
 .campus-tools-body .exp-tab-scroll::-webkit-scrollbar-thumb,
