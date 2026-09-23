@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { openAssignmentModal } from '../components/assignment-modal.js';
 import { closePdfModal } from '../components/pdf-modal.js';
+import { closeSubmissionModal } from '../components/submission-modal.js';
 import { closeCampusToolsModal, isCampusToolsModalOpen } from '../components/campus-tools-modal.js';
 
 export function initKeyboardShortcuts() {
@@ -22,6 +23,7 @@ export function initKeyboardShortcuts() {
           return;
         }
         closePdfModal();
+        closeSubmissionModal();
         const scModal = document.getElementById('canvas-shortcuts-modal');
         if (scModal) scModal.classList.remove('is-open');
         const amModal = document.getElementById('yace-assignment-modal');

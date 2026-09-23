@@ -193,3 +193,44 @@
   .am-row { flex-direction: column !important; }
   .am-col-narrow { flex: 1 1 auto !important; width: 100% !important; }
 }
+/* ==========================================================================
+ *  SUBMISSION POPUP (↑ Submit pill on Canvas task cards)
+ *  ========================================================================== */
+.submission-dialog { width: min(92vw, 560px) !important; max-width: 92vw !important; height: auto !important; max-height: 88vh !important; }
+.sub-meta-row { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; margin-bottom: 2px !important; }
+.sub-meta-chip { font-size: 10.5px !important; font-weight: 700 !important; padding: 3px 9px !important; border-radius: 999px !important; background: rgba(255, 255, 255, 0.07) !important; border: 1px solid rgba(255, 255, 255, 0.16) !important; color: var(--text-secondary) !important; }
+.sub-meta-chip b { color: var(--text-primary) !important; }
+.sub-meta-locked { background: rgba(255, 69, 58, 0.14) !important; border-color: rgba(255, 69, 58, 0.4) !important; color: #ffb4ae !important; }
+.sub-modes { display: flex !important; gap: 6px !important; margin: 10px 0 12px !important; flex-wrap: wrap !important; }
+.sub-mode-pill {
+  border: 1.2px solid rgba(255, 255, 255, 0.16) !important; background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--text-secondary) !important; font-size: 11.5px !important; font-weight: 700 !important;
+  padding: 7px 13px !important; border-radius: 999px !important; cursor: pointer !important;
+  transition: all 0.16s ease !important; font-family: inherit !important;
+}
+.sub-mode-pill:hover { border-color: var(--primary-accent) !important; color: var(--text-primary) !important; }
+.sub-mode-pill.is-active { background: var(--accent-soft) !important; border-color: var(--primary-accent) !important; color: var(--primary-accent) !important; box-shadow: 0 0 10px var(--accent-glow) !important; }
+.sub-mode-pill.is-disabled { opacity: 0.38 !important; cursor: not-allowed !important; }
+.sub-mode-pill.is-disabled:hover { border-color: rgba(255, 255, 255, 0.16) !important; color: var(--text-secondary) !important; }
+.sub-pane { display: none !important; flex-direction: column !important; gap: 8px !important; }
+.sub-pane.is-active { display: flex !important; }
+.sub-comment-label { margin-top: 14px !important; }
+.sub-status { min-height: 16px !important; font-size: 11.5px !important; font-weight: 600 !important; line-height: 1.4 !important; padding-top: 8px !important; color: var(--text-secondary) !important; }
+.sub-status.is-error { color: #ffb4ae !important; }
+.sub-status.is-ok { color: #63e6aa !important; }
+.sub-file-wrap {
+  display: flex !important; align-items: center !important; gap: 8px !important; cursor: pointer !important;
+  padding: 16px 14px !important; border-radius: 14px !important; border: 1.5px dashed rgba(255, 255, 255, 0.22) !important;
+  background: rgba(0, 0, 0, 0.18) !important; transition: all 0.16s ease !important; font-size: 12px !important;
+}
+.sub-file-wrap:hover { border-color: var(--primary-accent) !important; background: var(--accent-soft) !important; }
+.sub-file-input { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; overflow: hidden !important; }
+.sub-file-prompt { color: var(--text-secondary) !important; font-weight: 600 !important; }
+.sub-file-name { color: var(--primary-accent) !important; font-weight: 700 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.sub-file-hint { font-size: 10.5px !important; color: var(--text-tertiary) !important; margin-top: -2px !important; }
+.sub-success-panel { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 10px !important; padding: 22px 10px 8px !important; text-align: center !important; }
+.sub-success-icon { width: 52px !important; height: 52px !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 26px !important; color: #000000 !important; background: linear-gradient(135deg, var(--secondary-accent), var(--primary-accent)) !important; box-shadow: 0 6px 20px var(--accent-glow) !important; }
+.sub-success-title { font-size: 15px !important; font-weight: 800 !important; color: var(--text-primary) !important; }
+.sub-success-sub { font-size: 12px !important; color: var(--text-secondary) !important; line-height: 1.5 !important; max-width: 90% !important; }
+.sub-success-view { text-decoration: none !important; }
+#submission-submit-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; transform: none !important; }
