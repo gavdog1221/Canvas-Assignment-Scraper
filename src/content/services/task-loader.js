@@ -2,7 +2,7 @@ import { state } from '../state.js';
 import { origin } from '../constants.js';
 import { hideReloadProgress, showReloadProgress } from '../components/reload-progress.js';
 import { purgeDefaultCanvasElements, updateHiddenMenuButton } from '../components/widget-shell.js';
-import { fetchCanvasAnnouncements, fetchCanvasGrades, fetchGradescopeData, getCsrfToken } from '../services/canvas-api.js';
+import { fetchAllPages, fetchCanvasAnnouncements, fetchCanvasGrades, fetchGradescopeData, getCsrfToken } from '../services/canvas-api.js';
 import { saveCoursePercentagesCache, saveLocalAnnouncementsCache, saveLocalCache, saveLocalGradesCache } from '../storage/caches.js';
 import { buildGradeSnapshot, computeGradeChanges, loadGradeSnapshot, saveGradeSnapshot } from '../storage/grade-alerts.js';
 import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
@@ -176,21 +176,12 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       // can be determined from actual enrollment data instead of guessing
       // from the course's name. per_page is generous (100) so no course
       // gets truncated off a large course list.
-      let courses = [];
-      const courseRes = await fetch(`${origin}/api/v1/courses?enrollment_state=active&include[]=total_scores&include[]=term&include[]=syllabus_body&per_page=100`, {
-        credentials: 'include',
-        headers: headers
-      });
-      if (courseRes.ok) courses = await courseRes.json();
+      let courses = await fetchAllPages(`${origin}/api/v1/courses?enrollment_state=active&include[]=total_scores&include[]=term&include[]=syllabus_body&per_page=100`, headers, 5);
 
       // Fallback only if that somehow comes back empty (e.g. a permissions
       // quirk) — favorites is better than nothing.
       if (!courses || courses.length === 0) {
-        const favRes = await fetch(`${origin}/api/v1/users/self/favorites/courses?include[]=total_scores&include[]=term&include[]=syllabus_body`, {
-          credentials: 'include',
-          headers: headers
-        });
-        if (favRes.ok) courses = await favRes.json();
+        courses = await fetchAllPages(`${origin}/api/v1/users/self/favorites/courses?include[]=total_scores&include[]=term&include[]=syllabus_body&per_page=100`, headers, 5);
       }
 
       if (showLoadingUI) {
@@ -376,14 +367,8 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
 
         // 2. Full Assignments Tab Scan with Submission Status
         try {
-          const assignRes = await fetch(`${origin}/api/v1/courses/${course.id}/assignments?include[]=submission&per_page=100&order_by=due_at`, {
-            credentials: 'include',
-            headers: headers
-          });
-
-          if (assignRes.ok) {
-            const assignments = await assignRes.json();
-            if (Array.isArray(assignments)) {
+          const assignments = await fetchAllPages(`${origin}/api/v1/courses/${course.id}/assignments?include[]=submission&per_page=100&order_by=due_at`, headers, 5);
+          if (Array.isArray(assignments)) {
               for (const a of assignments) {
                 const parsed = parseAndCleanTitle(a.name, courseKey);
                 const dueDate = a.due_at ? new Date(a.due_at) : parsed.dueDate;
@@ -430,7 +415,6 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
                   });
                 }              }
             }
-          }
         } catch (e) {
           console.warn(`Assignments scan error for ${rawCourseName}`, e);
         }

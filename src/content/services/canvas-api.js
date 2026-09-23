@@ -8,6 +8,32 @@ export function getCsrfToken() {
     return match ? decodeURIComponent(match[1]) : '';
   }
 
+// Canvas List endpoints paginate at their per_page cap via Link: rel="next"
+// — the old code fetched one page and silently truncated anything beyond it
+// (a student with >100 courses, >100 assignments in a course, or >50 graded
+// submissions). Follows the pagination chain with a sanity cap so a runaway
+// loop can't hammer the API forever. Returns the flat concatenated array
+// ([] when the first request fails, so callers keep their existing fallbacks).
+export async function fetchAllPages(firstUrl, headers, maxPages = 5) {
+    const out = [];
+    let url = firstUrl;
+    for (let page = 0; url && page < maxPages; page++) {
+      try {
+        const res = await fetch(url, { credentials: 'include', headers: headers });
+        if (!res.ok) break;
+        const data = await res.json();
+        if (Array.isArray(data)) out.push(...data);
+        const link = res.headers.get('Link') || '';
+        const next = link.match(/<([^>]+)>\s*;\s*rel="?next"?/i);
+        url = next ? next[1] : null;
+      } catch (e) {
+        console.warn('[YACE] paginated fetch failed at page', page + 1, e);
+        break;
+      }
+    }
+    return out;
+  }
+
 export async function fetchGradescopeData() {
     const gsTasksByCourse = {};
     const gsGradesByCourse = {};
@@ -42,10 +68,16 @@ export async function fetchGradescopeData() {
         }
       });
 
-      await Promise.all(Array.from(courseMap.values()).map(async (course) => {
-        try {
+      // Fetch every GS course through a capped worker pool (4 lanes) instead
+      // of an unbounded Promise.all — one request per course hit gradescope
+      // with no rate limit before.
+      const gsQueue = Array.from(courseMap.values());
+      const gsWorkers = Array.from({ length: Math.min(4, gsQueue.length) }, async () => {
+        while (gsQueue.length) {
+          const course = gsQueue.shift();
+          try {
           const cRes = await fetch(course.url, { credentials: 'include' });
-          if (!cRes.ok) return;
+          if (!cRes.ok) continue;
 
           const cHtml = await cRes.text();
           const cDoc = parser.parseFromString(cHtml, 'text/html');
@@ -149,7 +181,9 @@ export async function fetchGradescopeData() {
         } catch (err) {
           console.warn(`[Gradescope] Error on ${course.name}:`, err);
         }
-      }));
+        }
+      });
+      await Promise.all(gsWorkers);
     } catch (e) {
       console.warn('[Gradescope] Error:', e);
     }
@@ -164,14 +198,12 @@ export async function fetchCanvasAnnouncements(headers, activeCourses, courseNam
       try {
         const contextParams = activeCourses.map(c => `context_codes[]=course_${c.id}`).join('&');
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const annRes = await fetch(
+        const items = await fetchAllPages(
           `${origin}/api/v1/announcements?${contextParams}&start_date=${encodeURIComponent(startDate)}&active_only=true&per_page=50`,
-                                   { credentials: 'include', headers: headers }
+          headers, 2
         );
 
-        if (annRes.ok) {
-          const items = await annRes.json();
-          if (Array.isArray(items)) {
+        if (Array.isArray(items)) {
             items.forEach(item => {
               const courseMatch = (item.context_code || '').match(/course_(\d+)/);
               const canvasCourseId = courseMatch ? parseInt(courseMatch[1], 10) : null;
@@ -197,7 +229,6 @@ export async function fetchCanvasAnnouncements(headers, activeCourses, courseNam
               });
             });
           }
-        }
       } catch (e) {
         console.warn('[Announcements] fetch error:', e);
       }
@@ -224,13 +255,7 @@ export async function fetchCanvasAnnouncements(headers, activeCourses, courseNam
 export async function fetchCanvasGrades(headers, courseNameById) {
     const grades = [];
     try {
-      const res = await fetch(`${origin}/api/v1/users/self/graded_submissions?include[]=assignment&per_page=50`, {
-        credentials: 'include',
-        headers: headers
-      });
-      if (!res.ok) return grades;
-
-      const submissions = await res.json();
+      const submissions = await fetchAllPages(`${origin}/api/v1/users/self/graded_submissions?include[]=assignment&per_page=50`, headers, 5);
       if (!Array.isArray(submissions)) return grades;
 
       submissions.forEach(sub => {

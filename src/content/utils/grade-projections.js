@@ -202,3 +202,119 @@ export function computeCourseProjection(courseKey) {
       needed,
     };
   }
+
+// ---------- Final-exam calculator -------------------------------------------
+// "What do I need on the final?" — isolates the course's final (the
+// 'final'-category syllabus slot, or the final task with points) and solves
+// for the % needed ON THAT ITEM to reach each letter tier, holding everything
+// graded so far constant:
+//   - weighted model: overall = Σ wᵢ·pctᵢ percentage-points, so the final is
+//     its own w_final slot and other still-ungraded categories are assumed to
+//     land at the current weighted average (i.e. they're ignored, which is
+//     the standard exam-calculator assumption).
+//   - equal-points model: other remaining work is assumed to score at the
+//     current achieved percentage (earned/gradedPossible); the final's share
+//     is solved for.
+// Returns null when there's no identifiable final or no graded baseline yet —
+// the generic "need on remaining" projection covers those cases instead.
+export function computeFinalExamNeeds(courseKey) {
+    const course = state.cachedCourseMap[courseKey];
+    if (!course) return null;
+
+    const weights = Array.isArray(course.resources && course.resources.gradeWeights)
+      ? course.resources.gradeWeights
+      : null;
+    const graded = buildGradedByCategory(courseKey);
+
+    if (weights && weights.length > 0) {
+      const weightByCat = {};
+      weights.forEach(w => {
+        const cat = categorizeText(w.label);
+        weightByCat[cat] = (weightByCat[cat] || 0) + (Number(w.pct) || 0);
+      });
+      const finalWeight = weightByCat['final'] || 0;
+      if (!(finalWeight > 0)) return null;
+
+      let gradedWeight = 0;
+      let weightedPoints = 0;
+      Object.keys(graded).forEach(cat => {
+        const d = graded[cat];
+        if (!d.possible) return;
+        const w = weightByCat[cat];
+        if (!w) return;
+        gradedWeight += w;
+        weightedPoints += w * (d.earned / d.possible);
+      });
+      if (!(gradedWeight > 0)) return null;
+
+      const scopeWeight = gradedWeight + finalWeight;
+      const needs = LETTER_TIERS
+        .map(t => ({ letter: t.letter, min: t.min, pct: Math.round(((t.min / 100) * scopeWeight - weightedPoints) / finalWeight * 1000) / 10 }))
+        .filter(n => n.pct > 0 && n.pct < 100);
+
+      return {
+        finalName: 'the final',
+        worthLabel: `${finalWeight}% of the grade`,
+        needs,
+      };
+    }
+
+    // Equal-points fallback.
+    const finalTask = findFinalTask(course);
+    if (!finalTask) return null;
+    const finalPoints = finalTask.points;
+    const tasks = (course.tasks || []).filter(t => t.points && t.points > 0);
+    let totalPossible = tasks.reduce((a, t) => a + t.points, 0);
+
+    let earned = 0;
+    let gradedPossible = 0;
+    (state.cachedGrades || []).forEach(g => {
+      if (g.courseKey !== courseKey) return;
+      if (g.score !== null && g.pointsPossible > 0) {
+        earned += g.score;
+        gradedPossible += g.pointsPossible;
+      }
+    });
+    Object.entries(state.whatIfScores).forEach(([, sim]) => {
+      if (sim.courseKey !== courseKey) return;
+      if (sim.score !== null && sim.pointsPossible > 0) {
+        earned += sim.score;
+        gradedPossible += sim.pointsPossible;
+      }
+    });
+    totalPossible = Math.max(totalPossible, gradedPossible);
+    if (!(gradedPossible > 0)) return null;
+
+    // Other ungraded tasks (everything except the final) are assumed to land
+    // at the current achieved percentage, so the final's score separates out.
+    const otherRemaining = Math.max(0, totalPossible - gradedPossible - finalPoints);
+    let baseEarned = earned;
+    if (otherRemaining > 0) {
+      baseEarned += otherRemaining * (earned / gradedPossible);
+    }
+
+    const needs = LETTER_TIERS
+      .map(t => ({ letter: t.letter, min: t.min, pct: Math.round((((t.min / 100) * totalPossible - baseEarned) / finalPoints) * 1000) / 10 }))
+      .filter(n => n.pct > 0 && n.pct < 100);
+
+    return {
+      finalName: finalTask.title,
+      worthLabel: `${finalPoints} pts`,
+      needs,
+    };
+  }
+
+// Pulls the course's final out of its task list: prefers a real exam ("Final
+// Exam", "Comprehensive Final", a bare trailing "Final") over Final Projects
+// that merely share the word, then falls back to the largest 'final'-category
+// item with points.
+function findFinalTask(course) {
+    const withPoints = (course.tasks || []).filter(t => t.points && t.points > 0);
+    if (!withPoints.length) return null;
+    const examLike = withPoints.filter(t =>
+      /\bfinal\s*exams?\b|\bcomprehensive\s+final\b|\bfinal\s*$/i.test(String(t.title).trim()));
+    if (examLike.length) return examLike.sort((a, b) => b.points - a.points)[0];
+    const finalCat = withPoints.filter(t => categorizeText(t.title) === 'final');
+    if (finalCat.length) return finalCat.sort((a, b) => b.points - a.points)[0];
+    return null;
+  }

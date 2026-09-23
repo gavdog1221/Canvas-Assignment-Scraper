@@ -1,7 +1,7 @@
 import { state } from '../state.js';
 import { applyGradeWeightChoice, saveWhatIfScores } from '../storage/caches.js';
 import { getCourseColors } from '../utils/colors.js';
-import { computeCourseProjection } from '../utils/grade-projections.js';
+import { computeCourseProjection, computeFinalExamNeeds } from '../utils/grade-projections.js';
 import { computeCoursePercentagesWithWhatIf, formatScoreNum, gradeTierClass, percentageToGpa } from '../utils/grades.js';
 import { escapeHTML } from '../utils/text.js';
 import { renderFilterPills } from '../views/upcoming-view.js';
@@ -138,6 +138,10 @@ export function renderGradesView(listContainer, hiddenCourses) {
           const needLine = proj && proj.needed.length > 0
           ? `Need ${proj.needed[0].pct}% on remaining for ${proj.needed[0].letter}`
           : '';
+          const finalNeed = computeFinalExamNeeds(item.courseKey);
+          const finalLine = finalNeed && finalNeed.needs.length > 0
+          ? `🎯 ${finalNeed.needs[0].pct}% on ${escapeHTML(finalNeed.finalName)} for ${finalNeed.needs[0].letter}`
+          : '';
           cCard.innerHTML = `
           <div class="cg-top-row">
           <span class="cg-name">${escapeHTML(item.courseKey)}</span>
@@ -148,6 +152,7 @@ export function renderGradesView(listContainer, hiddenCourses) {
           </div>
           <div class="cg-bar-bg"><div class="cg-bar-fill" style="width:${barPct}%"></div></div>
           ${needLine ? `<div class="cg-need-line" title="Score ~${needLine.replace('Need ', '')} on everything still ungraded">${needLine}</div>` : ''}
+          ${finalLine ? `<div class="cg-need-line" title="On the ${escapeHTML(finalNeed.finalName)} (${escapeHTML(finalNeed.worthLabel)}): score ~${finalNeed.needs.map(n => `${n.pct}% for ${n.letter}`).join(', ')}">${finalLine}</div>` : ''}
           ${weightsRow}
           `;
         } else {
@@ -251,6 +256,10 @@ export function renderGradesView(listContainer, hiddenCourses) {
             blockHtml += `<div class="whatif-need-line">🚀 Remaining work already secured for every tier.</div>`;
           } else if (!projection.graded) {
             blockHtml += `<div class="whatif-need-line">No graded work yet — nothing to project.</div>`;
+          }
+          const finalNeed = computeFinalExamNeeds(cKey);
+          if (finalNeed && finalNeed.needs.length > 0) {
+            blockHtml += `<div class="whatif-need-line">🎯 ${escapeHTML(finalNeed.finalName)} (${escapeHTML(finalNeed.worthLabel)}): ${finalNeed.needs.map(n => `<span class="whatif-need-chip" title="~${n.pct}% on the final for a ${n.letter}">${n.letter} ${n.pct}%</span>`).join('')}</div>`;
           }
           if (blockHtml) {
             const projEl = document.createElement('div');

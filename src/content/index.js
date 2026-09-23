@@ -100,6 +100,8 @@ import { hydrateSyncedStorage, installSyncMirror } from './storage/xstorage.js';
     observer.disconnect();
   }, 10000);
 
-  // Keep periodic purge for any elements that slip through
-  setInterval(purgeDefaultCanvasElements, 2500);
+  // No periodic purge loop here: the injected CSS (above) hides Canvas's own
+  // dashboard chrome with display:none, and purgeDefaultCanvasElements() runs
+  // once at injection plus once after each scan. A setInterval version scanned
+  // child.innerText (which forces a synchronous layout) every 2.5s forever.
 })();

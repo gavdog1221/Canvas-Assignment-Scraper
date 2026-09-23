@@ -1,9 +1,22 @@
 import { STORAGE_KEY_DONE } from '../constants.js';
 
+// Every render reads the completed map, so JSON.parse on each call was a hot
+// path (multiple parses per dashboard rebuild). Memoize the parsed value and
+// only re-parse when the raw localStorage string actually changed — which
+// also covers writers outside this module (the cross-origin mirror +
+// hydration in xstorage.js go through setItem too). Mutating the returned
+// object followed by a setItem later is safe: the next read sees the new raw
+// string and re-parses.
+let completedRaw;
+let completedParsed = null;
+
 export function getCompletedTasks() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_DONE) || '{}');
-    } catch { return {}; }
+    const raw = localStorage.getItem(STORAGE_KEY_DONE);
+    if (raw !== completedRaw) {
+      try { completedParsed = JSON.parse(raw || '{}'); } catch { completedParsed = {}; }
+      completedRaw = raw;
+    }
+    return completedParsed;
   }
 
 export function setTaskCompleted(taskId, isDone) {

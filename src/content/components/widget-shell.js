@@ -386,9 +386,15 @@ export async function injectWidget(container) {
       updateHiddenMenuButton();
     });
 
-    document.getElementById('task-search-input').addEventListener('input', (e) => {
+    // Debounce the re-render: state.searchQuery updates on every keystroke
+    // (so anything reading it stays current), but the full dashboard rebuild
+    // waits ~180ms — typing a query used to do one full rebuild PER KEYSTROKE.
+    const searchInput = document.getElementById('task-search-input');
+    let searchRenderTimer = null;
+    searchInput.addEventListener('input', (e) => {
       state.searchQuery = e.target.value.toLowerCase().trim();
-      renderCurrentView();
+      clearTimeout(searchRenderTimer);
+      searchRenderTimer = setTimeout(() => renderCurrentView(), 180);
     });
 
     widget.querySelectorAll('.hud-view-btn').forEach(btn => {

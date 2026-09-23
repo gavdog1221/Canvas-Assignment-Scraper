@@ -1,9 +1,18 @@
 import { STORAGE_KEY_STARRED } from '../constants.js';
 
+// Memoized getStarredTasks — the starred map is read on every render.
+// Re-parses only when the raw localStorage string changed (covers external
+// writers like the xstorage mirror/hydration setItem path too).
+let starredRaw;
+let starredParsed = null;
+
 export function getStarredTasks() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_STARRED) || '{}');
-    } catch { return {}; }
+    const raw = localStorage.getItem(STORAGE_KEY_STARRED);
+    if (raw !== starredRaw) {
+      try { starredParsed = JSON.parse(raw || '{}'); } catch { starredParsed = {}; }
+      starredRaw = raw;
+    }
+    return starredParsed;
   }
 
 export function isTaskStarred(taskId) {

@@ -3,10 +3,20 @@ import { STORAGE_KEY_HIDDEN_COURSES } from '../constants.js';
 import { updateHiddenMenuButton } from '../components/widget-shell.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 
+// Memoized getHiddenCourses — every render reads this map, and JSON.parse per
+// call was a hot path. Only re-parses when the raw localStorage string
+// changes (mirror/hydration writers in xstorage.js use setItem, so the raw
+// comparison catches them too).
+let hiddenCoursesRaw;
+let hiddenCoursesParsed = null;
+
 export function getHiddenCourses() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY_HIDDEN_COURSES) || '[]');
-    } catch { return []; }
+    const raw = localStorage.getItem(STORAGE_KEY_HIDDEN_COURSES);
+    if (raw !== hiddenCoursesRaw) {
+      try { hiddenCoursesParsed = JSON.parse(raw || '[]'); } catch { hiddenCoursesParsed = []; }
+      hiddenCoursesRaw = raw;
+    }
+    return hiddenCoursesParsed;
   }
 
 export function hideCourse(courseKey) {
