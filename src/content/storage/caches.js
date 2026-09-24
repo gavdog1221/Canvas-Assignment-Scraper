@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { STORAGE_KEY_ANNOUNCEMENTS_CACHE, STORAGE_KEY_CACHE, STORAGE_KEY_CACHE_TIME, STORAGE_KEY_COURSE_PERCENTAGES, STORAGE_KEY_GRADES_CACHE, STORAGE_KEY_GRADES_CACHE_TIME, STORAGE_KEY_WHATIF } from '../constants.js';
+import { STORAGE_KEY_ANNOUNCEMENTS_CACHE, STORAGE_KEY_ANNOUNCEMENTS_CACHE_TIME, STORAGE_KEY_CACHE, STORAGE_KEY_CACHE_TIME, STORAGE_KEY_COURSE_PERCENTAGES, STORAGE_KEY_GRADES_CACHE, STORAGE_KEY_GRADES_CACHE_TIME, STORAGE_KEY_WHATIF } from '../constants.js';
 
 export function saveWhatIfScores() {
     localStorage.setItem(STORAGE_KEY_WHATIF, JSON.stringify(state.whatIfScores));
@@ -104,4 +104,20 @@ export function saveLocalAnnouncementsCache(items) {
     } catch (e) {
       console.warn('Announcements cache write failed:', e);
     }
+  }
+
+// When the announcements cache was last refreshed — drives the standalone
+// 15-minute News refresh so it never needs a full rescan to stay current.
+export function loadLocalAnnouncementsCacheTime() {
+    try {
+      return parseInt(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS_CACHE_TIME) || '0', 10);
+    } catch {
+      return 0;
+    }
+  }
+
+export function saveLocalAnnouncementsCacheTime(ts) {
+    try {
+      localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS_CACHE_TIME, String(ts));
+    } catch (e) {}
   }

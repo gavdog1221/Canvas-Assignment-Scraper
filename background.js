@@ -599,6 +599,16 @@ function bgJoinChunks(chunks) {
     return out.buffer;
 }
 
+// FoodPro shortmenu.asp is slow and can hang. Primary attempt gets a generous
+// deadline (FoodPro may legitimately need several seconds to render the menu);
+// fallback variants race with a short deadline. A hop-level cache keyed by
+// hall+day keeps repeat calls (view re-renders, day toggles, re-opens) off the
+// slow site entirely.
+const DINING_MENU_PRIMARY_MS = 8000;
+const DINING_MENU_FALLBACK_MS = 2000;
+const DINING_MENU_CACHE_MS = 20 * 60 * 1000;
+const diningMenuCache = new Map(); // key: locationNum::dtdate -> { t, html }
+
 browser.runtime.onMessage.addListener((request) => {
     if (request.type === 'FETCH_RMP') {
         return (async () => {
@@ -654,32 +664,60 @@ browser.runtime.onMessage.addListener((request) => {
             const dateObj = request.dtdate ? new Date(request.dtdate) : new Date();
             const dtdate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
 
-            // Try with and without dtdate (FoodPro often returns 404/blank if dtdate format doesn't match its server setting)
-            const urls = [
-                `https://foodpro.unh.edu/shortmenu.asp?sName=University+Of+New+Hampshire+Hospitality+Services&locationNum=${locationNum}&locationName=${cleanLocName}&dtdate=${encodeURIComponent(dtdate)}`,
-                `https://foodpro.unh.edu/shortmenu.asp?sName=University+Of+New+Hampshire+Hospitality+Services&locationNum=${locationNum}&locationName=${cleanLocName}`,
-                `http://foodpro.unh.edu/shortmenu.asp?sName=University+Of+New+Hampshire+Hospitality+Services&locationNum=${locationNum}&locationName=${cleanLocName}&dtdate=${encodeURIComponent(dtdate)}`,
-                `http://foodpro.unh.edu/shortmenu.asp?sName=University+Of+New+Hampshire+Hospitality+Services&locationNum=${locationNum}&locationName=${cleanLocName}`
-            ];
-
-            for (const url of urls) {
-                try {
-                    const controller = new AbortController();
-                    const timer = setTimeout(() => controller.abort(), 4000);
-
-                    const res = await fetch(url, { signal: controller.signal, credentials: 'omit' });
-                    clearTimeout(timer);
-
-                    if (res.ok) {
-                        const html = await res.text();
-                        if (html && html.includes('shortmenurecipes')) {
-                            return { success: true, html };
-                        }
-                    }
-                } catch (e) {}
+            // Hop-level cache: repeated calls for the same hall+day (view
+            // re-renders, day toggling, re-opens) skip FoodPro entirely.
+            const cacheKey = locationNum + '::' + dtdate;
+            const cached = diningMenuCache.get(cacheKey);
+            if (cached && Date.now() - cached.t < DINING_MENU_CACHE_MS) {
+                return { success: true, html: cached.html };
             }
 
-            return { success: false, error: 'Could not reach FoodPro.' };
+            // FoodPro's shortmenu.asp is slow and can hang. Previously each of
+            // four URL variants was tried sequentially with a 4s abort — worst
+            // case ~16s per hall when the server stalled. Now the primary
+            // (https + dtdate) gets one generous attempt, and only failures
+            // race the remaining variants in parallel with a short deadline.
+            const base = 'shortmenu.asp?sName=University+Of+New+Hampshire+Hospitality+Services&locationNum=' + locationNum + '&locationName=' + cleanLocName;
+            const variants = [
+                'https://foodpro.unh.edu/' + base + '&dtdate=' + encodeURIComponent(dtdate),
+                'https://foodpro.unh.edu/' + base,
+                'http://foodpro.unh.edu/' + base + '&dtdate=' + encodeURIComponent(dtdate),
+                'http://foodpro.unh.edu/' + base
+            ];
+
+            const grab = async (url, ms) => {
+                try {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), ms);
+                    const res = await fetch(url, { signal: controller.signal, credentials: 'omit' });
+                    clearTimeout(timer);
+                    const html = await res.text();
+                    // Return a record even for non-ok responses: any HTTP
+                    // answer means the server is up (that day may genuinely
+                    // have no menu), while an abort/throw means unreachable.
+                    return {
+                        ok: res.ok,
+                        html: (html && html.includes('shortmenurecipes')) ? html : null,
+                        responded: true
+                    };
+                } catch (e) {
+                    return { ok: false, html: null, responded: false };
+                }
+            };
+
+            const results = [];
+            results.push(await grab(variants[0], DINING_MENU_PRIMARY_MS));
+            if (!results[0].ok || !results[0].html) {
+                results.push(...(await Promise.all(variants.slice(1).map(u => grab(u, DINING_MENU_FALLBACK_MS)))));
+            }
+            const winner = results.find(r => r.ok && r.html);
+            if (winner) {
+                diningMenuCache.set(cacheKey, { t: Date.now(), html: winner.html });
+                return { success: true, html: winner.html };
+            }
+            // Distinguish an outage from "no menu posted": any HTTP response
+            // at all means FoodPro answered, so the day is just empty.
+            return { success: false, network: !results.some(r => r.responded) };
         })();
     }
 
