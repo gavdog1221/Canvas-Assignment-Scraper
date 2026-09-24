@@ -161,46 +161,51 @@ export async function fetchCanvasAnnouncements(headers, activeCourses, courseNam
     const announcements = [];
 
     if (activeCourses && activeCourses.length > 0) {
-      try {
-        const contextParams = activeCourses.map(c => `context_codes[]=course_${c.id}`).join('&');
-        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        const annRes = await fetch(
-          `${origin}/api/v1/announcements?${contextParams}&start_date=${encodeURIComponent(startDate)}&active_only=true&per_page=50`,
-                                   { credentials: 'include', headers: headers }
-        );
-
-        if (annRes.ok) {
-          const items = await annRes.json();
-          if (Array.isArray(items)) {
-            items.forEach(item => {
-              const courseMatch = (item.context_code || '').match(/course_(\d+)/);
-              const canvasCourseId = courseMatch ? parseInt(courseMatch[1], 10) : null;
-              const rawCourseName = canvasCourseId ? courseNameById[canvasCourseId] : null;
-              const courseKey = normalizeCourseCode(rawCourseName || item.context_code || '');
-              const postedAt = item.posted_at ? new Date(item.posted_at)
-              : (item.delayed_post_at ? new Date(item.delayed_post_at) : null);
-              const plainMessage = String(item.message || '')
-              .replace(/<[^>]*>/g, ' ')
-              .replace(/&nbsp;/gi, ' ')
-              .replace(/\s{2,}/g, ' ')
-              .trim();
-
-              announcements.push({
-                id: `ann_${item.id}`,
-                title: item.title || 'Announcement',
-                message: plainMessage,
-                url: item.html_url || null,
-                postedAt: (postedAt && !isNaN(postedAt.getTime())) ? postedAt : null,
-                                 courseKey: courseKey,
-                                 courseName: rawCourseName || courseKey,
-                                 canvasCourseId: canvasCourseId
-              });
-            });
+      // Per-course fetches instead of the global /api/v1/announcements
+      // index: that single call's cross-course ordering/pagination silently
+      // drops recent posts once a term fills up, which shelled out as a News
+      // column stuck days old. One request per active course (newest few
+      // each), merged and sorted below — deterministic and always current.
+      await Promise.all((activeCourses || []).map(async (c) => {
+        if (!c || !c.id) return;
+        try {
+          const annRes = await fetch(
+            `${origin}/api/v1/courses/${c.id}/discussion_topics?only_announcements=true&order_by=recent_activity&per_page=5`,
+            { credentials: 'include', headers: headers }
+          );
+          if (!annRes.ok) {
+            console.warn('[Announcements] HTTP ' + annRes.status + ' for course ' + c.id);
+            return;
           }
+          const items = await annRes.json();
+          if (!Array.isArray(items)) return;
+          items.forEach(item => {
+            const canvasCourseId = c.id;
+            const rawCourseName = courseNameById[canvasCourseId];
+            const courseKey = normalizeCourseCode(rawCourseName || item.context_code || '');
+            const postedAt = item.posted_at ? new Date(item.posted_at)
+            : (item.delayed_post_at ? new Date(item.delayed_post_at) : null);
+            const plainMessage = String(item.message || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+
+            announcements.push({
+              id: `ann_${item.id}`,
+              title: item.title || 'Announcement',
+              message: plainMessage,
+              url: item.html_url || null,
+              postedAt: (postedAt && !isNaN(postedAt.getTime())) ? postedAt : null,
+                               courseKey: courseKey,
+                               courseName: rawCourseName || courseKey,
+                               canvasCourseId: canvasCourseId
+            });
+          });
+        } catch (e) {
+          console.warn('[Announcements] fetch error (course ' + c.id + '):', e);
         }
-      } catch (e) {
-        console.warn('[Announcements] fetch error:', e);
-      }
+      }));
     }
 
     try {
