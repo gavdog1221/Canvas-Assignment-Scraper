@@ -306,6 +306,7 @@ async function renderCourse(modal, opts) {
     <button type="button" class="doc-preview-btn-top cv-nav-btn" data-nav="modules">🗂 Modules</button>
     <button type="button" class="doc-preview-btn-top cv-nav-btn" data-nav="files">📁 Files</button>
     <button type="button" class="doc-preview-btn-top cv-nav-btn" data-nav="grades">📊 Grades</button>
+    <button type="button" class="doc-preview-btn-top cv-nav-btn" data-nav="people">👥 People</button>
     </div>
     ${syllabusHtml ? `<div class="cv-section-title">📋 Syllabus</div><div class="cv-description">${syllabusHtml}</div>` : ''}
     </div>`;
@@ -500,6 +501,261 @@ async function renderGrades(modal, opts) {
     });
   }
 
+const ROLE_PRIORITY = {
+    TeacherEnrollment: 0, TaEnrollment: 1, DesignerEnrollment: 2,
+    ObserverEnrollment: 3, StudentEnrollment: 4
+  };
+
+const ROLE_META = {
+    TeacherEnrollment: { label: 'Teacher', icon: '👩‍🏫' },
+    TaEnrollment: { label: 'TA', icon: '🧑‍🏫' },
+    DesignerEnrollment: { label: 'Designer', icon: '🎨' },
+    ObserverEnrollment: { label: 'Observer', icon: '👁' },
+    StudentEnrollment: { label: 'Student', icon: '🎓' }
+  };
+
+function roleMeta(enrollType) {
+    return ROLE_META[enrollType] || { label: enrollType || 'Member', icon: '👤' };
+  }
+
+// Short display for a section name: the trailing number becomes the section
+// ("01", "ECE 541.01" -> "Section 1"); no number ("Lab A") keeps a trimmed
+// name. Keeps chips and row meta readable instead of showing full names.
+function sectionShortLabel(name) {
+    const nameStr = String(name || '').trim();
+    const nums = nameStr.match(/\d+/g);
+    if (nums && nums.length) return 'Section ' + parseInt(nums[nums.length - 1], 10);
+    return nameStr.slice(0, 16) || '';
+  }
+
+async function renderPeople(modal, opts) {
+    const { courseId, courseKey, courseName } = opts;
+    const users = await fetchAllPages(`${origin}/api/v1/courses/${courseId}/users?per_page=100&include[]=enrollments`, apiHeaders(), 6);
+
+    // Section names for the "· Section: …" meta (lecture/recitation splits).
+    const sectionsById = new Map();
+    try {
+      const sections = await fetchAllPages(`${origin}/api/v1/courses/${courseId}/sections?per_page=100`, apiHeaders(), 3);
+      sections.forEach(s => sectionsById.set(String(s.id), s.name));
+    } catch (e) { /* section names just fall back to none */ }
+
+    setOpenTabHref(modal, `${origin}/courses/${courseId}/people`);
+    setViewerTitle(modal, courseName ? courseName + ' — People' : 'People');
+
+    const body = bodyEl(modal);
+    if (!users.length) {
+      body.innerHTML = '<div class="canvas-viewer-scroll"><p class="cv-empty">No people found in this course.</p></div>';
+      return;
+    }
+
+    // Normalize each person: keep every unique role (sorted strongest first)
+    // for the role chips, remember their enrollment sections, and pick the
+    // strongest role for sorting + counts.
+    const people = users.map(u => {
+      const enrollments = (Array.isArray(u.enrollments) ? u.enrollments : [])
+      .filter(en => en.type && en.type !== 'CourseCreatorEnrollment');
+      const roles = [];
+      const seenRoles = new Set();
+      enrollments.forEach(en => {
+        const type = String(en.type);
+        if (!seenRoles.has(type)) { seenRoles.add(type); roles.push(type); }
+      });
+      roles.sort((a, b) => (ROLE_PRIORITY[a] ?? 9) - (ROLE_PRIORITY[b] ?? 9));
+      const sectionNames = enrollments
+        .map(en => en.course_section_id != null ? String(en.course_section_id) : null)
+        .filter(s => s && sectionsById.has(s))
+        .map(s => sectionsById.get(s));
+      const primarySection = sectionNames[0] || '';
+      const secNum = parseInt((primarySection.match(/(\d+)/) || [])[1], 10);
+      const sectionLabels = sectionNames.map(sectionShortLabel);
+      return {
+        id: u.id,
+        name: u.sortable_name || u.name || 'Unnamed person',
+        displayName: u.name || u.sortable_name || 'Unnamed person',
+        avatar: u.avatar_url,
+        roleType: roles[0] || 'StudentEnrollment',
+        roles,
+        sectionNames,
+        sectionLabels,
+        primarySection,
+        secNum: isNaN(secNum) ? Infinity : secNum
+      };
+    });
+
+    // Role filter chips (Teachers / TAs / Designers / Observers / Students),
+    // each doubling as a count. Only roles actually present get a chip.
+    const roleCounts = { TeacherEnrollment: 0, TaEnrollment: 0, DesignerEnrollment: 0, ObserverEnrollment: 0, StudentEnrollment: 0 };
+    people.forEach(p => { if (roleCounts[p.roleType] != null) roleCounts[p.roleType]++; });
+    const roleLabels = { TeacherEnrollment: 'Teachers', TaEnrollment: 'TAs', DesignerEnrollment: 'Designers', ObserverEnrollment: 'Observers', StudentEnrollment: 'Students' };
+    const roleOrder = ['TeacherEnrollment', 'TaEnrollment', 'DesignerEnrollment', 'ObserverEnrollment', 'StudentEnrollment'];
+    const roleChips = roleOrder.filter(r => roleCounts[r] > 0).map(r =>
+      `<button type="button" class="cv-role-filter" data-role="${r}">${ROLE_META[r] ? ROLE_META[r].icon : '👤'} ${roleLabels[r]} (${roleCounts[r]})</button>`
+    ).join('');
+
+    // Section filter chips ("01", "02", "03", …): one per actual section,
+    // ordered numerically the same way section-sort orders rows.
+    const sectionIdx = new Map();
+    const sectionList = [];
+    people.forEach(p => {
+      p.sectionNames.forEach(sn => { if (!sectionIdx.has(sn)) { sectionIdx.set(sn, String(sectionList.length)); sectionList.push(sn); } });
+    });
+    sectionList.sort((a, b) => {
+      const an = parseInt((a.match(/(\d+)/) || [])[1], 10);
+      const bn = parseInt((b.match(/(\d+)/) || [])[1], 10);
+      if (isNaN(an) !== isNaN(bn)) return isNaN(an) ? 1 : -1;
+      return (isNaN(an) || an === bn ? 0 : an - bn) || a.localeCompare(b);
+    });
+    sectionList.forEach((sn, i) => sectionIdx.set(sn, String(i)));
+    const sectionCounts = new Array(sectionList.length).fill(0);
+    people.forEach(p => {
+      p.sectionNames.forEach(sn => { const ix = sectionIdx.get(sn); if (ix != null) sectionCounts[ix]++; });
+    });
+    // One chip per distinct label ("Section 1", "Section 2", …) so an
+    // oddly-named section ("ECE 541.01") still reads as just its number.
+    const seenSectionLabels = new Set();
+    const sectionChips = sectionList.map((sn, i) => {
+      const label = sectionShortLabel(sn);
+      if (seenSectionLabels.has(label)) return '';
+      seenSectionLabels.add(label);
+      return `<button type="button" class="cv-role-filter cv-section-filter" data-section="${i}" title="Show people in ${escapeHTML(sn)}">📋 ${escapeHTML(label)} (${sectionCounts[i]})</button>`;
+    }).join('');
+
+    const avatarHtml = (p) => {
+      // Canvas ships a stock avatar URL until the user uploads one; skip it
+      // and render a monogram circle instead.
+      if (p.avatar && !/\/images\/messages\/avatar|default-avatar|avatar-50\.png/i.test(p.avatar)) {
+        return `<img class="cv-person-avatar" src="${escapeHTML(p.avatar)}" alt="" data-avatar>`;
+      }
+      return `<span class="cv-person-avatar cv-person-avatar-fallback">${escapeHTML((p.name.charAt(0) || '?').toUpperCase())}</span>`;
+    };
+
+    body.innerHTML = `
+    <div class="canvas-viewer-scroll">
+    <div class="cv-course-row"><span class="course-tag-chip">${escapeHTML(courseKey || '')}</span> ${escapeHTML(courseName || '')}</div>
+    <h1 class="cv-title">👥 People</h1>
+    <div class="cv-people-controls">
+    <input type="text" class="cv-people-search" placeholder="🔍 Filter by name…" aria-label="Filter people by name">
+    <div class="cv-people-role-filters">
+    <button type="button" class="cv-role-filter is-active" data-role="ALL">👥 All</button>
+    ${roleChips}
+    </div>
+    ${sectionChips ? `
+    <div class="cv-people-role-filters cv-people-section-filters">
+    <button type="button" class="cv-role-filter cv-section-filter is-active" data-section="ALL">🎓 All sections</button>
+    ${sectionChips}
+    </div>` : ''}
+    <div class="cv-people-sort">
+    <label class="cv-people-sort-label" for="cv-people-sort-select">Sort</label>
+    <select id="cv-people-sort-select" class="cv-people-sort-select">
+    <option value="section" selected>Section</option>
+    <option value="role">Role</option>
+    <option value="name">Name</option>
+    </select>
+    <span class="cv-people-count"></span>
+    </div>
+    </div>
+    <div class="cv-person-list">
+    ${people.map(p => `
+      <div class="cv-person-row" data-person-name="${escapeHTML(p.name.toLowerCase())}" data-person-roles="${escapeHTML(p.roles.join(' '))}">
+      ${avatarHtml(p)}
+      <a class="cv-person-name" href="${escapeHTML(`${origin}/courses/${courseId}/users/${p.id}`)}" target="_blank" rel="noopener noreferrer">${escapeHTML(p.displayName)}</a>
+      <span class="cv-person-meta">${escapeHTML(p.sectionLabels.join(' · '))}</span>
+      <span class="cv-person-roles">${p.roles.map(r => { const m = roleMeta(r); return `<span class="cv-chip cv-person-role cv-role-${m.label.toLowerCase()}">${m.icon} ${m.label}</span>`; }).join('')}</span>
+      </div>`).join('')}
+    </div>
+    </div>`;
+
+    // Hide avatars that fail to load; never break the row layout.
+    body.querySelectorAll('img[data-avatar]').forEach(img => {
+      img.addEventListener('error', () => { img.style.display = 'none'; });
+    });
+
+    const listEl = body.querySelector('.cv-person-list');
+    const rowEls = Array.from(listEl.querySelectorAll('.cv-person-row'));
+    const search = body.querySelector('.cv-people-search');
+    const sortSelect = body.querySelector('.cv-people-sort-select');
+    const countEl = body.querySelector('.cv-people-count');
+    const activeRoles = new Set();
+    const activeSections = new Set();
+    const roleFilterButtons = Array.from(body.querySelectorAll('.cv-role-filter[data-role]'));
+    const sectionFilterButtons = Array.from(body.querySelectorAll('.cv-section-filter[data-section]'));
+
+    const sortMode = () => sortSelect ? sortSelect.value : 'section';
+
+    const comparePeople = (a, b) => {
+      const mode = sortMode();
+      if (mode === 'section') {
+        if (a.secNum !== b.secNum) return a.secNum - b.secNum;
+        const bySec = a.primarySection.localeCompare(b.primarySection);
+        return bySec || a.name.localeCompare(b.name);
+      }
+      if (mode === 'name') return a.name.localeCompare(b.name);
+      return ((ROLE_PRIORITY[a.roleType] ?? 9) - (ROLE_PRIORITY[b.roleType] ?? 9)) || a.name.localeCompare(b.name);
+    };
+
+    // Re-run on search / role-filter / sort changes: matched rows get
+    // re-sorted (appendChild moves existing nodes), unmatched rows are
+    // hidden with the CSS class (inline display can't beat the row's
+    // !important flex rule) and parked at the end.
+    const applyView = () => {
+      const q = search ? search.value.trim().toLowerCase() : '';
+      const order = [];
+      people.forEach((p, i) => {
+        const matchesRole = !activeRoles.size || p.roles.some(r => activeRoles.has(r));
+        const matchesSection = !activeSections.size || p.sectionNames.some(sn => activeSections.has(sectionIdx.get(sn)));
+        const matchesName = !q || p.name.toLowerCase().includes(q);
+        if (matchesRole && matchesSection && matchesName) order.push(i);
+      });
+      order.sort((x, y) => comparePeople(people[x], people[y]));
+      const matched = new Set(order);
+      const rest = [];
+      rowEls.forEach((row, i) => { if (!matched.has(i)) rest.push(i); });
+      [...order, ...rest].forEach(i => listEl.appendChild(rowEls[i]));
+      rowEls.forEach((row, i) => row.classList.toggle('cv-person-hidden', !matched.has(i)));
+      countEl.textContent = `${order.length} of ${people.length}`;
+    };
+
+    roleFilterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const role = btn.getAttribute('data-role');
+        if (role === 'ALL') activeRoles.clear();
+        else if (activeRoles.has(role)) activeRoles.delete(role);
+        else activeRoles.add(role);
+        roleFilterButtons.forEach(b => {
+          const r = b.getAttribute('data-role');
+          b.classList.toggle('is-active', r === 'ALL' ? !activeRoles.size : activeRoles.has(r));
+        });
+        applyView();
+      });
+    });
+
+    sectionFilterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sec = btn.getAttribute('data-section');
+        if (sec === 'ALL') {
+          activeSections.clear();
+        } else if (activeSections.has(sec)) {
+          // Clicking the already-active section clears the filter.
+          activeSections.delete(sec);
+        } else {
+          // Single-select: pick this section, drop any other.
+          activeSections.clear();
+          activeSections.add(sec);
+        }
+        sectionFilterButtons.forEach(b => {
+          const s = b.getAttribute('data-section');
+          b.classList.toggle('is-active', s === 'ALL' ? !activeSections.size : activeSections.has(s));
+        });
+        applyView();
+      });
+    });
+
+    if (search) search.addEventListener('input', applyView);
+    if (sortSelect) sortSelect.addEventListener('change', applyView);
+
+    applyView();
+  }
+
 // ---------------------------------------------------------------------------
 //  Entry point
 // ---------------------------------------------------------------------------
@@ -521,6 +777,7 @@ export function openCanvasViewer(opts) {
           case 'modules': await renderModules(modal, opts); break;
           case 'files': await renderFiles(modal, opts); break;
           case 'grades': await renderGrades(modal, opts); break;
+          case 'people': await renderPeople(modal, opts); break;
           default: throw new Error('Unknown viewer kind: ' + opts.kind);
         }
       } catch (err) {

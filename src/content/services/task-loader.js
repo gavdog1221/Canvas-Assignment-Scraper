@@ -339,6 +339,7 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
               modulesUrl: `${courseBaseUrl}/modules`,
               filesUrl: `${courseBaseUrl}/files`,
               gradesUrl: `${courseBaseUrl}/grades`,
+              peopleUrl: `${courseBaseUrl}/people`,
               homeUrl: courseBaseUrl
             }
           };

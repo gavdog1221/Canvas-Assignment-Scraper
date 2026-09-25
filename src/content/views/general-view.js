@@ -97,6 +97,7 @@ export function renderGeneralView(listContainer, hiddenCourses) {
           <button type="button" class="resource-link-pill gci-open-btn" data-preview-url="${escapeHTML(res.modulesUrl || '')}" data-preview-title="Modules" title="Preview the Modules page">🗂 Modules</button>
           <button type="button" class="resource-link-pill gci-open-btn" data-preview-url="${escapeHTML(res.filesUrl || '')}" data-preview-title="Files" title="Preview the Files page">📁 Files</button>
           <button type="button" class="resource-link-pill gci-open-btn" data-preview-url="${escapeHTML(res.gradesUrl || '')}" data-preview-title="Grades" title="Preview the Grades page">📊 Grades</button>
+          <button type="button" class="resource-link-pill gci-open-btn" data-preview-url="${escapeHTML(res.peopleUrl || '')}" data-preview-title="People" title="Preview the class roster">👥 People</button>
           <button type="button" class="resource-link-pill gci-open-btn" data-preview-url="${escapeHTML(res.homeUrl || '')}" data-preview-title="Home" title="Preview the course home page">🏠 Home</button>
         </div>
 
@@ -137,8 +138,8 @@ export function renderGeneralView(listContainer, hiddenCourses) {
     }
 
     // Resource buttons: PDFs (syllabus) keep the in-app document preview;
-    // Modules / Files / Grades / Home now render as custom YACE views built
-    // from the Canvas API instead of the raw Canvas page.
+    // Modules / Files / Grades / People / Home now render as custom YACE
+    // views built from the Canvas API instead of the raw Canvas page.
     if (course.canvasCourseId) {
       card.querySelectorAll('.gci-open-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -160,7 +161,7 @@ export function renderGeneralView(listContainer, hiddenCourses) {
                 url
               });
             }
-          } else if (previewTitle === 'Modules' || previewTitle === 'Files' || previewTitle === 'Grades') {
+          } else if (previewTitle === 'Modules' || previewTitle === 'Files' || previewTitle === 'Grades' || previewTitle === 'People') {
             openCanvasViewer({
               kind: previewTitle.toLowerCase(),
               courseId: course.canvasCourseId,

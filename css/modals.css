@@ -629,6 +629,71 @@ button.doc-preview-btn-top { cursor: pointer !important; line-height: 1.4 !impor
 .cv-grade-done { color: var(--success, #30d158) !important; background: rgba(48, 209, 88, 0.12) !important; }
 .cv-grade-pending { color: var(--primary-accent) !important; background: var(--accent-soft) !important; }
 .cv-grade-missing { color: var(--text-tertiary) !important; background: rgba(255, 255, 255, 0.06) !important; }
+/* People roster */
+.cv-person-list { display: flex !important; flex-direction: column !important; gap: 6px !important; }
+.cv-person-row {
+  display: flex !important; align-items: center !important; gap: 10px !important;
+  background: rgba(255, 255, 255, 0.045) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important; padding: 7px 12px !important; font-size: 12.5px !important; min-width: 0 !important;
+}
+.cv-person-row.cv-person-hidden { display: none !important; }
+.cv-person-avatar {
+  width: 28px !important; height: 28px !important; border-radius: 50% !important;
+  object-fit: cover !important; flex-shrink: 0 !important; background: rgba(255, 255, 255, 0.08) !important;
+}
+.cv-person-avatar-fallback {
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  font-size: 12px !important; font-weight: 800 !important; color: var(--primary-accent) !important;
+  background: var(--accent-soft) !important; border: 1px solid var(--accent-glow) !important;
+}
+.cv-person-name {
+  font-weight: 700 !important; color: var(--text-primary) !important; text-decoration: none !important;
+  min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;
+}
+.cv-person-name:hover { color: var(--primary-accent) !important; text-decoration: underline !important; }
+.cv-person-meta {
+  font-size: 11px !important; color: var(--text-tertiary) !important; white-space: nowrap !important;
+  min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important;
+}
+.cv-person-roles { margin-left: auto !important; display: flex !important; gap: 5px !important; flex-shrink: 0 !important; }
+.cv-person-role { font-size: 10px !important; padding: 2px 8px !important; }
+.cv-role-teacher { color: #ffd60a !important; background: rgba(255, 214, 10, 0.12) !important; border-color: rgba(255, 214, 10, 0.35) !important; }
+.cv-role-ta { color: #64d2ff !important; background: rgba(100, 210, 255, 0.12) !important; border-color: rgba(100, 210, 255, 0.35) !important; }
+.cv-role-designer, .cv-role-observer { color: var(--text-tertiary) !important; }
+.cv-role-student { color: var(--text-secondary) !important; }
+.cv-people-search {
+  width: 100% !important; box-sizing: border-box !important;
+  background: rgba(255, 255, 255, 0.06) !important; border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 10px !important; padding: 7px 12px !important; font-size: 12.5px !important;
+  color: var(--text-primary) !important; outline: none !important;
+}
+.cv-people-search:focus { border-color: var(--primary-accent) !important; background: rgba(255, 255, 255, 0.09) !important; }
+.cv-people-controls { display: flex !important; flex-direction: column !important; gap: 8px !important; }
+.cv-people-role-filters { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+.cv-role-filter {
+  display: inline-flex !important; align-items: center !important; gap: 5px !important;
+  font-size: 11px !important; font-weight: 700 !important; color: var(--text-secondary) !important;
+  background: rgba(255, 255, 255, 0.07) !important; border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 999px !important; padding: 3px 10px !important; cursor: pointer !important;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+.cv-role-filter:hover { background: rgba(255, 255, 255, 0.14) !important; }
+.cv-role-filter.is-active {
+  color: var(--primary-accent) !important; background: var(--accent-soft) !important;
+  border-color: var(--accent-glow) !important;
+}
+.cv-people-sort { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; }
+.cv-people-sort-label {
+  font-size: 10.5px !important; font-weight: 800 !important; text-transform: uppercase !important;
+  letter-spacing: 0.5px !important; color: var(--text-tertiary) !important;
+}
+.cv-people-sort-select {
+  background: rgba(255, 255, 255, 0.06) !important; border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 10px !important; padding: 5px 10px !important; font-size: 12px !important;
+  color: var(--text-primary) !important; outline: none !important; cursor: pointer !important;
+}
+.cv-people-sort-select:focus { border-color: var(--primary-accent) !important; }
+.cv-people-count { font-size: 11px !important; color: var(--text-tertiary) !important; font-weight: 600 !important; white-space: nowrap !important; }
 /* Loading + error states */
 .canvas-viewer-loading {
   height: 100% !important; display: flex !important; flex-direction: column !important;
