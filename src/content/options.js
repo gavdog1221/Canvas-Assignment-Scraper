@@ -2,9 +2,10 @@ import { state } from './state.js';
 import { STORAGE_KEY_OPTIONS, STORAGE_KEY_THEME, THEMES } from './constants.js';
 
 // User preferences (Campus & Tools → Options tab): which hud view tabs are
-// visible, which badge-style notifications are shown, and (via the theme
-// helpers below) the active palette. Persisted as one versioned object under
-// STORAGE_KEY_OPTIONS; state.options is hydrated in state.js at import time.
+// visible, which badge-style notifications are shown, per-course class colors,
+// and (via the theme helpers below) the active palette. Persisted as one
+// versioned object under STORAGE_KEY_OPTIONS; state.options is hydrated in
+// state.js at import time.
 
 // The hud-view buttons (top-level view switcher), keyed by state.currentTab.
 export const TAB_LABELS = {
@@ -38,7 +39,15 @@ export function getOptions() {
     ? stored.hiddenTabs.filter(t => OPTION_TAB_KEYS.includes(t))
     : [];
   const notif = Object.assign({ overdue: true, grades: true, news: true }, stored.notif || {});
-  return { hiddenTabs, notif };
+  // Class colors are opt-in. colorCourses is the master switch (default off =
+  // the current monochrome look); courseColors holds explicit per-course hex
+  // overrides keyed by courseKey, empty until the user picks one.
+  return {
+    hiddenTabs,
+    notif,
+    colorCourses: !!stored.colorCourses,
+    courseColors: Object.assign({}, stored.courseColors || {}),
+  };
 }
 
 export function saveOptions(patch) {

@@ -10,7 +10,17 @@ import {
   saveOptions,
 } from '../options.js';
 import { refreshCampusToolsPalette } from '../components/campus-tools-modal.js';
+import { getCourseColors, normalizeColorToHex } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
+import { renderCurrentView, renderFilterPills } from './upcoming-view.js';
+
+// Shared by the Class Colors controls so a toggle/pick repaints every panel
+// (task cards, grades, news, info, kanban + the filter dots) immediately.
+function applyColorOptions() {
+    state.forceDashboardRebuild = true;
+    renderFilterPills();
+    renderCurrentView();
+  }
 
 // Campus & Tools "Options" tab — theme picker (same storage key + DOM targets
 // as the header theme dock), which view tabs are visible, and which badge
@@ -24,6 +34,25 @@ export function renderOptionsView(container) {
     // News are modular draggable tiles with their own visibility controls in
     // the main UI — exposing them in Options conflicts with that.
     const tabKeys = OPTION_TAB_KEYS.filter(k => TAB_LABELS[k] !== undefined);
+
+    // Per-course color rows for the Class Colors section — one per course in
+    // the last loaded course map, so every class is reachable even when it has
+    // no assignments in the visible window yet.
+    const courses = Object.keys(state.cachedCourseMap || {}).sort();
+    const hasOptedIn = !!opts.colorCourses;
+    const courseRows = courses.map(key => {
+      const course = state.cachedCourseMap[key] || {};
+      const palette = getCourseColors(key, course.canvasCourseId);
+      const override = opts.courseColors[key];
+      const currentHex = normalizeColorToHex(override || palette.accent) || '#ffffff';
+      return `
+      <div class="opt-course-color-row">
+      <span class="cf-dot" style="background:${escapeHTML(palette.accent)}"></span>
+      <span class="opt-course-color-name" title="${escapeHTML(course.name || key)}">${escapeHTML(key)}</span>
+      <input type="color" data-course-key="${escapeHTML(key)}" value="${escapeHTML(currentHex)}" ${hasOptedIn ? '' : 'disabled'}>
+      <button type="button" class="opt-course-color-reset" data-reset-key="${escapeHTML(key)}" title="Reset to auto color" ${hasOptedIn && override ? '' : 'disabled'}>↺</button>
+      </div>`;
+    }).join('');
 
     container.innerHTML = `
     <div class="opt-view-header">
@@ -39,6 +68,20 @@ export function renderOptionsView(container) {
       <span class="opt-theme-swatch" style="--gem-color: ${escapeHTML(t.color)};"></span>
       <span class="opt-theme-name">${escapeHTML(t.label)}</span>
       </button>`).join('')}
+    </div>
+    </section>
+
+    <section class="opt-section">
+    <h3 class="opt-section-title">🌈 Class Colors</h3>
+    <p class="opt-hint">Give every course its own accent color across cards, grades, news and filters. Off keeps today's monochrome look; on, classes auto-color from your Canvas dashboard cards (with a fallback palette) until you pick one yourself.</p>
+    <div class="opt-toggles">
+    <label class="opt-toggle">
+    <input type="checkbox" data-opt="colorcourses" ${opts.colorCourses ? 'checked' : ''}>
+    <span>Color-code classes</span>
+    </label>
+    </div>
+    <div class="opt-course-colors ${opts.colorCourses ? '' : 'is-inactive'}">
+    ${courses.length ? courseRows : '<p class="opt-hint">Your courses appear here once assignments have loaded.</p>'}
     </div>
     </section>
 
@@ -110,6 +153,49 @@ export function renderOptionsView(container) {
         notif[key] = input.checked;
         saveOptions({ notif });
         applyOptions();
+      });
+    });
+
+    container.querySelectorAll('input[data-opt="colorcourses"]').forEach(input => {
+      input.addEventListener('change', () => {
+        saveOptions({ colorCourses: input.checked });
+        applyColorOptions();
+        // Rebuild the section so the per-course controls enable/disable
+        // together with the master toggle.
+        renderOptionsView(container);
+      });
+    });
+
+    container.querySelectorAll('input[data-course-key]').forEach(input => {
+      input.addEventListener('change', () => {
+        const key = input.getAttribute('data-course-key');
+        if (!key) return;
+        const courseColors = Object.assign({}, getOptions().courseColors);
+        courseColors[key] = input.value;
+        saveOptions({ courseColors });
+        applyColorOptions();
+        // Paint this row's swatch + reset button in place instead of
+        // re-rendering the section, so the scroll position survives.
+        const row = input.closest('.opt-course-color-row');
+        if (row) {
+          const dot = row.querySelector('.cf-dot');
+          if (dot) dot.style.background = input.value;
+          const reset = row.querySelector('.opt-course-color-reset');
+          if (reset) reset.disabled = false;
+        }
+      });
+    });
+
+    container.querySelectorAll('.opt-course-color-reset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-reset-key');
+        if (!key) return;
+        const courseColors = Object.assign({}, getOptions().courseColors);
+        delete courseColors[key];
+        saveOptions({ courseColors });
+        applyColorOptions();
+        // Reset restores the auto color, so rebuild the row's swatch state.
+        renderOptionsView(container);
       });
     });
   }
