@@ -301,6 +301,15 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
           const inlineWeights = (weightDists && weightDists.length)
             ? weightDists[Math.min(prevChoice, weightDists.length - 1)].weights
             : parseGradeWeightsInProse(syllabusText);
+          // A fresh parse can come up empty on a rescrape even though the
+          // weights are static (a syllabus PDF that extracts intermittently,
+          // a truncated syllabus_body, a PDF-only syllabus with an inline
+          // body that is just a download link). Never wipe a breakdown we
+          // already had: fall back to the previous run's weights — with its
+          // option set and picker choice — until a scan actually parses fresh.
+          const prevWeights = (Array.isArray(prevRes.gradeWeights) && prevRes.gradeWeights.length)
+            ? prevRes.gradeWeights : null;
+          const fallbackToPrevWeights = (!Array.isArray(inlineWeights) || !inlineWeights.length) && prevWeights;
           unifiedCourseMap[courseKey] = {
             name: rawCourseName,
             canvasCourseId: c.id,
@@ -314,11 +323,14 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
               if (!inlineWeights && syllabusText.length > 60) {
                 console.warn(`[YACE] Parsed no grade weights from inline syllabus for ${rawCourseName}. Text (${syllabusText.length} chars):\n${syllabusText.slice(0, 700)}`);
               }
-              return inlineWeights;
+              return fallbackToPrevWeights ? prevWeights : inlineWeights;
             })(),
-              gradeWeightOptions: (weightDists && weightDists.length > 1) ? weightDists : undefined,
+              gradeWeightOptions: (weightDists && weightDists.length > 1) ? weightDists
+                : fallbackToPrevWeights && Array.isArray(prevRes.gradeWeightOptions) && prevRes.gradeWeightOptions.length > 1
+                  ? prevRes.gradeWeightOptions : undefined,
               gradeWeightChoice: (weightDists && weightDists.length > 1)
-                ? Math.min(prevChoice, weightDists.length - 1) : 0,
+                ? Math.min(prevChoice, weightDists.length - 1)
+                : fallbackToPrevWeights ? (typeof prevRes.gradeWeightChoice === 'number' ? prevRes.gradeWeightChoice : 0) : 0,
               officeHours: parseOfficeHours(syllabusText),
               syllabusExcerpt: syllabusText.length > 0
                 ? (syllabusText.length > 220 ? syllabusText.slice(0, 220).trim() + '…' : syllabusText)
@@ -1043,6 +1055,18 @@ async function enrichCourseGradeWeights(courseEntry, headers, courseKey) {
       } else {
         console.warn(`[YACE] Empty text extracted from syllabus PDF for ${courseEntry.name || 'course'}:`, url);
       }
+    }
+    // Static weights must survive a rescrape where the PDF fetch/extract
+    // hiccups (flaky multi-hop fetch, scanned files, rate limits): keep the
+    // previous run's breakdown — with its option set and picker choice —
+    // rather than persisting an empty gradeWeights over known values.
+    if (!res.gradeWeights && Array.isArray(prevRes.gradeWeights) && prevRes.gradeWeights.length) {
+      res.gradeWeights = prevRes.gradeWeights;
+      res.gradeWeightOptions = (Array.isArray(prevRes.gradeWeightOptions) && prevRes.gradeWeightOptions.length > 1)
+        ? prevRes.gradeWeightOptions : undefined;
+      res.gradeWeightChoice = (typeof prevRes.gradeWeightChoice === 'number') ? prevRes.gradeWeightChoice : 0;
+      console.info(`[YACE] Rescrape kept previous grade weights for ${courseEntry.name || 'course'} (none parsed from PDFs this run)`);
+      return;
     }
     if (urls.length) {
       console.warn(`[YACE] No grade weights from any syllabus PDF for ${courseEntry.name || 'course'} — searched:`, urls);
