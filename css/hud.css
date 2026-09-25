@@ -354,16 +354,33 @@
  *  HUD COMMAND BAR (TRUE EQUAL-HEIGHT ZERO-OVERLAP DOCK)
  *  ========================================================================== */
 .widget-current-date {
-  font-size: 11px !important;
-  font-weight: 600 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
   color: var(--text-tertiary) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  padding: 3px 8px !important;
+  padding: 4px 11px !important;
   border-radius: 999px !important;
 }
 /* Wrapper is transparent in the sidebar path so the chip renders as before. */
 .widget-date-center { display: contents !important; }
+/* Dock/sidebar path: pin the date dead-center of the header instead of
+   letting flex placement drift it between the title and the wide controls row. */
+#module-tasks-widget:not(.is-fullscreen) .widget-date-center {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  display: block !important;
+  z-index: 5 !important;
+  max-width: 70% !important;
+}
+#module-tasks-widget:not(.is-fullscreen) .widget-current-date {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
 
 .hud-command-bar {
   display: flex !important;
