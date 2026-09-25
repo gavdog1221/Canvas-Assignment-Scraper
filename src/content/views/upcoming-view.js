@@ -319,9 +319,10 @@ export function createTaskCard(task, now, completedMap) {
     }
 
     // Canvas tasks get an in-place submission popup (text / file / URL) next
-    // to the document buttons — custom tasks and Gradescope items have no
-    // Canvas assignment id to post to.
-    if (!task.isCustom && !task.isGradescope && task.canvasAssignmentId && task.canvasCourseId) {
+    // to the document buttons — custom tasks and pure Gradescope items have
+    // no Canvas assignment id to post to, but a MERGED Canvas+Gradescope task
+    // does, so it keeps the Canvas submit button alongside the GS upload.
+    if (!task.isCustom && task.canvasAssignmentId && task.canvasCourseId) {
       rightBottomMeta += `<button type="button" class="submit-pill" title="${task.isSubmitted ? 'Resubmit to Canvas' : 'Submit to Canvas'}">↑ Submit</button>`;
     }
 

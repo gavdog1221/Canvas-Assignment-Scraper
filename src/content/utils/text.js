@@ -20,11 +20,21 @@ export function extractCoreAssignmentToken(title, courseKey = '') {
 
     t = t.replace(/\b(pdf|docx?|zip|pptx?|xlsx?)\b/gi, ' ')
     .replace(/(?:fall|fa|spring|sp|summer|winter)[\s_.-]*'?(?:20)?\d{2,4}\b/gi, ' ')
-    .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, ' ');
+    .replace(/\(?\s*submission\s+window\s+in\s+grade\w*\s*\)?/gi, ' ')
+    // Revision / version noise ("Revised A2", "A2 revised", glued "RevisedA2")
+    // must not change the core token — all should land in the same bucket as
+    // "Assignment 2". Two passes: word-boundary noise anywhere, then a glued
+    // prefix ("RevisedA2" → "A2") that a \b regex can't split.
+    .replace(/\b(?:revised?|rev\.?|updated?|corrected|final(?:ized|ised|e?d)?|alternate|alt\.?|redo|rework|latest?|fresh|new|v\d+)\b[\s_]*/gi, ' ')
+    .replace(/^(?:revised?|rev\.?|updated?|corrected|final(?:ized|ised|e?d)?|alternate|alt\.?|redo|rework|latest?|fresh|v\d+)/i, ' ');
     const match = t.match(/\b(hw|homework|assignment|prob(?:lem)?\s*set|pset|lab|quiz|project|exam|a)\s*(\d{1,2})\b/i);
     if (match) {
       let prefix = match[1].toLowerCase().replace(/\s+/g, '');
-      if (['hw', 'homework', 'assignment', 'problemset', 'pset', 'probset'].includes(prefix)) {
+      // "Assignment 2", "Homework 2", "HW 2", "Problem Set 2" AND the short
+      // "A2" / "A 2" all collapse to the same hw<N> token so cross-source
+      // duplicates (Canvas + Gradescope, e.g. "RevisedA2" vs "Assignment 2")
+      // merge into a single card.
+      if (['hw', 'homework', 'assignment', 'problemset', 'pset', 'probset', 'a'].includes(prefix)) {
         prefix = 'hw';
       }
       return `${prefix}${parseInt(match[2], 10)}`;
