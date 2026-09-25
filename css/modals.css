@@ -16,7 +16,7 @@
 body.yace-fullscreen-active .doc-preview-modal { z-index: 2147483647 !important; }
 .doc-preview-backdrop { position: absolute !important; inset: 0 !important; background: rgba(0, 0, 0, 0.55) !important; backdrop-filter: blur(16px) !important; }
 .doc-preview-dialog {
-  position: relative !important; z-index: 2 !important; width: 82vw !important; max-width: 1050px !important; height: 85vh !important;
+  position: relative !important; z-index: 2 !important; width: 92vw !important; max-width: 1500px !important; height: 85vh !important;
   background: linear-gradient(165deg, rgba(60, 60, 66, 0.5), rgba(20, 20, 24, 0.72)) !important;
   backdrop-filter: blur(40px) saturate(190%) !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important; border-radius: 26px !important;
@@ -53,8 +53,8 @@ button.doc-preview-btn-top { cursor: pointer !important; line-height: 1.4 !impor
    the dialog itself must not clip; the meal list scrolls inside its own
    region (#dining-menu-body) instead. */
 .campus-tools-dialog {
-  width: min(86vw, 760px) !important;
-  max-width: 86vw !important;
+  width: min(92vw, 1400px) !important;
+  max-width: 92vw !important;
   height: 88vh !important;
   overflow: visible !important;
 }
@@ -538,7 +538,7 @@ button.doc-preview-btn-top { cursor: pointer !important; line-height: 1.4 !impor
  *  (components/canvas-viewer.js) — replaces raw iframe/new-tab handoffs for
  *  assignments, announcements, course home, modules, files and grades.
  *  ========================================================================== */
-.canvas-viewer-dialog { max-width: 980px !important; }
+.canvas-viewer-dialog { max-width: 1450px !important; }
 .canvas-viewer-body {
   flex: 1 !important; min-height: 0 !important; position: relative !important;
   background:
