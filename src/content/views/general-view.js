@@ -3,6 +3,7 @@ import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { gradeTierClass, formatScoreNum, computeCoursePercentagesWithWhatIf } from '../utils/grades.js';
 import { openPdfModal } from '../components/pdf-modal.js';
+import { openCanvasViewer } from '../components/canvas-viewer.js';
 import { applyCourseFilter } from '../views/upcoming-view.js';
 
 export function renderGeneralView(listContainer, hiddenCourses) {
@@ -87,7 +88,7 @@ export function renderGeneralView(listContainer, hiddenCourses) {
       <div class="task-body">
         <div class="task-title-row">
           <span class="course-tag-chip">${escapeHTML(key)}</span>
-          <a class="mod-task-title general-course-name" href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHTML(course.name || key)} on Canvas">${escapeHTML(course.name || key)}</a>
+          <a class="mod-task-title general-course-name" href="${res.homeUrl || '#'}" target="_blank" rel="noopener noreferrer" data-canvas-open="course" title="Open ${escapeHTML(course.name || key)} on Canvas">${escapeHTML(course.name || key)}</a>
           <span class="gci-badge ${tier}">${pct !== null ? formatScoreNum(pct) + '%' : 'No grade'}</span>
         </div>
 
@@ -119,13 +120,66 @@ export function renderGeneralView(listContainer, hiddenCourses) {
       });
     }
 
-    card.querySelectorAll('.gci-open-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.getAttribute('data-preview-url');
-        if (url && url !== '#') {
-          openPdfModal(url, `${btn.getAttribute('data-preview-title')} — ${course.name || key}`);
-        }
+    // Course name opens the in-app YACE course viewer instead of a new tab.
+    const courseNameLink = card.querySelector('.general-course-name[data-canvas-open]');
+    if (courseNameLink && course.canvasCourseId) {
+      courseNameLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        openCanvasViewer({
+          kind: 'course',
+          courseId: course.canvasCourseId,
+          courseKey: key,
+          courseName: course.name,
+          syllabusPdfUrl: res.syllabusPdfUrl || null,
+          url: res.homeUrl
+        });
       });
-    });
+    }
+
+    // Resource buttons: PDFs (syllabus) keep the in-app document preview;
+    // Modules / Files / Grades / Home now render as custom YACE views built
+    // from the Canvas API instead of the raw Canvas page.
+    if (course.canvasCourseId) {
+      card.querySelectorAll('.gci-open-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const url = btn.getAttribute('data-preview-url');
+          const previewTitle = btn.getAttribute('data-preview-title') || '';
+          if (!url || url === '#') return;
+          if (previewTitle === 'Syllabus') {
+            if (/\.pdf(?:$|[?#])/i.test(url)) {
+              openPdfModal(url, `${previewTitle} — ${course.name || key}`);
+            } else {
+              // Web-course syllabus page (not a PDF) — show it through the
+              // course viewer, which renders the syllabus body in-app.
+              openCanvasViewer({
+                kind: 'course',
+                courseId: course.canvasCourseId,
+                courseKey: key,
+                courseName: course.name,
+                syllabusPdfUrl: res.syllabusPdfUrl || null,
+                url
+              });
+            }
+          } else if (previewTitle === 'Modules' || previewTitle === 'Files' || previewTitle === 'Grades') {
+            openCanvasViewer({
+              kind: previewTitle.toLowerCase(),
+              courseId: course.canvasCourseId,
+              courseKey: key,
+              courseName: course.name,
+              url
+            });
+          } else {
+            openCanvasViewer({
+              kind: 'course',
+              courseId: course.canvasCourseId,
+              courseKey: key,
+              courseName: course.name,
+              syllabusPdfUrl: res.syllabusPdfUrl || null,
+              url
+            });
+          }
+        });
+      });
+    }
   });
 }

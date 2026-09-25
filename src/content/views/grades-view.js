@@ -5,6 +5,7 @@ import { computeCourseProjection, computeFinalExamNeeds } from '../utils/grade-p
 import { computeCoursePercentagesWithWhatIf, formatScoreNum, gradeTierClass, percentageToGpa } from '../utils/grades.js';
 import { escapeHTML } from '../utils/text.js';
 import { applyCourseFilter } from '../views/upcoming-view.js';
+import { openCanvasViewer } from '../components/canvas-viewer.js';
 
 export function updateGradeChangeBadge() {
     const badge = document.getElementById('grades-change-badge');
@@ -381,6 +382,23 @@ export function createGradeCard(grade) {
       titleEl.href = grade.url;
       titleEl.target = '_blank';
       titleEl.rel = 'noopener noreferrer';
+      // Canvas grade rows open the in-app YACE assignment viewer instead of a
+      // new tab (plain href kept for middle-click).
+      const urlMatch = grade.url.match(/\/courses\/(\d+)\/assignments\/(\d+)/);
+      if (urlMatch && grade.canvasAssignmentId) {
+        titleEl.addEventListener('click', (e) => {
+          e.preventDefault();
+          openCanvasViewer({
+            kind: 'assignment',
+            courseId: urlMatch[1],
+            assignmentId: grade.canvasAssignmentId,
+            courseKey: grade.courseKey,
+            courseName: grade.courseName,
+            title: grade.title,
+            url: grade.url
+          });
+        });
+      }
     }
 
     const courseSpan = document.createElement('span');

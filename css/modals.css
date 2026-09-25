@@ -532,3 +532,114 @@ button.doc-preview-btn-top { cursor: pointer !important; line-height: 1.4 !impor
 .bh-sep { color: var(--text-tertiary) !important; }
 .bh-loading, .bh-error { padding: 18px 4px !important; font-size: 12.5px !important; color: var(--text-secondary) !important; }
 .bh-error { color: var(--danger) !important; }
+
+/* ==========================================================================
+ *  CANVAS VIEWER — custom YACE-styled renderings of Canvas pages
+ *  (components/canvas-viewer.js) — replaces raw iframe/new-tab handoffs for
+ *  assignments, announcements, course home, modules, files and grades.
+ *  ========================================================================== */
+.canvas-viewer-dialog { max-width: 980px !important; }
+.canvas-viewer-body {
+  flex: 1 !important; min-height: 0 !important; position: relative !important;
+  background:
+    radial-gradient(120% 140% at 12% 0%, var(--accent-soft, rgba(0,0,0,0)) 0%, transparent 55%),
+    rgba(0, 0, 0, 0.35) !important;
+}
+.canvas-viewer-scroll {
+  height: 100% !important; overflow-y: auto !important; overflow-x: clip !important;
+  padding: 20px 24px 28px !important; display: flex !important; flex-direction: column !important; gap: 10px !important;
+}
+.canvas-viewer-scroll::-webkit-scrollbar { width: 8px !important; }
+.canvas-viewer-scroll::-webkit-scrollbar-track { background: transparent !important; }
+.canvas-viewer-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18) !important; border-radius: 99px !important; }
+.cv-course-row { display: flex !important; align-items: center !important; gap: 8px !important; font-size: 11.5px !important; color: var(--text-secondary) !important; font-weight: 600 !important; }
+.cv-title { margin: 0 !important; font-size: 21px !important; font-weight: 800 !important; letter-spacing: -0.4px !important; line-height: 1.25 !important; color: var(--text-primary) !important; }
+.cv-chips { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+.cv-chip {
+  display: inline-flex !important; align-items: center !important; gap: 5px !important;
+  font-size: 11px !important; font-weight: 700 !important; color: var(--text-secondary) !important;
+  background: rgba(255, 255, 255, 0.07) !important; border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 999px !important; padding: 3px 10px !important; white-space: nowrap !important;
+}
+.cv-submission-line { font-size: 12px !important; color: var(--primary-accent) !important; font-weight: 600 !important; }
+.cv-section-title { font-size: 11px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; color: var(--text-tertiary) !important; margin: 10px 0 2px !important; }
+.cv-description {
+  font-size: 13px !important; line-height: 1.6 !important; color: var(--text-primary) !important;
+  background: rgba(255, 255, 255, 0.04) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important; padding: 14px 16px !important; word-wrap: break-word !important;
+}
+.cv-description p { margin: 0 0 10px !important; }
+.cv-description p:last-child { margin-bottom: 0 !important; }
+.cv-description h2, .cv-description h3 { margin: 12px 0 6px !important; font-size: 14px !important; }
+.cv-description ul, .cv-description ol { margin: 0 0 10px !important; padding-left: 22px !important; }
+.cv-description li { margin: 3px 0 !important; }
+.cv-description img { max-width: 100% !important; border-radius: 8px !important; }
+.cv-description a { color: var(--primary-accent) !important; }
+.cv-empty { font-size: 12.5px !important; color: var(--text-tertiary) !important; margin: 4px 0 !important; }
+.cv-actions-row { display: flex !important; flex-wrap: wrap !important; gap: 8px !important; margin: 4px 0 !important; }
+.cv-teacher-list { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; }
+.cv-teacher-chip {
+  font-size: 11.5px !important; font-weight: 600 !important; color: var(--text-primary) !important;
+  background: var(--accent-soft) !important; border: 1px solid var(--accent-glow) !important;
+  border-radius: 999px !important; padding: 3px 11px !important;
+}
+.cv-file-list { display: flex !important; flex-direction: column !important; gap: 6px !important; }
+.cv-file-row {
+  display: flex !important; align-items: center !important; gap: 10px !important;
+  background: rgba(255, 255, 255, 0.045) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important; padding: 8px 12px !important; font-size: 12.5px !important;
+}
+.cv-file-row.cv-file-locked { opacity: 0.65 !important; }
+.cv-file-icon { font-size: 15px !important; flex-shrink: 0 !important; }
+.cv-file-name { font-weight: 700 !important; color: var(--text-primary) !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.cv-file-meta { font-size: 11px !important; color: var(--text-tertiary) !important; min-width: 0 !important; white-space: nowrap !important; }
+.cv-file-actions { margin-left: auto !important; display: flex !important; gap: 6px !important; flex-shrink: 0 !important; }
+/* Modules */
+.cv-module { border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 14px !important; overflow: hidden !important; background: rgba(255, 255, 255, 0.03) !important; }
+.cv-module-header { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 10px !important; padding: 10px 14px !important; background: rgba(255, 255, 255, 0.05) !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; }
+.cv-module-title { font-size: 13px !important; font-weight: 800 !important; color: var(--text-primary) !important; }
+.cv-module-count { font-size: 10.5px !important; color: var(--text-tertiary) !important; font-weight: 700 !important; }
+.cv-module-empty { padding: 8px 14px !important; }
+.cv-module-items { display: flex !important; flex-direction: column !important; }
+.cv-module-item {
+  display: flex !important; align-items: center !important; gap: 9px !important;
+  padding: 8px 14px !important; font-size: 12.5px !important; cursor: default !important;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06) !important; min-width: 0 !important;
+}
+.cv-module-item:not(.cv-module-subheader):hover { background: var(--accent-soft) !important; }
+.cv-module-item:not(.cv-module-subheader) { cursor: pointer !important; }
+.cv-module-item:not(.cv-module-subheader):hover .cv-module-item-name { color: var(--primary-accent) !important; }
+.cv-module-subheader { font-size: 9.5px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; color: var(--text-tertiary) !important; background: rgba(255, 255, 255, 0.02) !important; }
+.cv-module-item-icon { font-size: 14px !important; flex-shrink: 0 !important; }
+.cv-module-item-name { font-weight: 600 !important; color: var(--text-primary) !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.cv-module-item-meta { margin-left: auto !important; display: flex !important; gap: 5px !important; flex-shrink: 0 !important; }
+.cv-lock-badge { font-size: 11px !important; }
+/* Grades table */
+.cv-grade-table { display: flex !important; flex-direction: column !important; gap: 4px !important; }
+.cv-grade-row {
+  display: flex !important; align-items: center !important; gap: 10px !important;
+  padding: 8px 12px !important; border-radius: 10px !important; font-size: 12.5px !important;
+  background: rgba(255, 255, 255, 0.035) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  cursor: pointer !important; transition: background 0.15s ease !important; min-width: 0 !important;
+}
+.cv-grade-row:hover { background: var(--accent-soft) !important; }
+.cv-grade-title { font-weight: 700 !important; color: var(--text-primary) !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.cv-grade-meta { font-size: 11px !important; color: var(--text-tertiary) !important; white-space: nowrap !important; }
+.cv-grade-status { margin-left: auto !important; font-size: 11px !important; font-weight: 800 !important; border-radius: 999px !important; padding: 2px 10px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
+.cv-grade-done { color: var(--success, #30d158) !important; background: rgba(48, 209, 88, 0.12) !important; }
+.cv-grade-pending { color: var(--primary-accent) !important; background: var(--accent-soft) !important; }
+.cv-grade-missing { color: var(--text-tertiary) !important; background: rgba(255, 255, 255, 0.06) !important; }
+/* Loading + error states */
+.canvas-viewer-loading {
+  height: 100% !important; display: flex !important; flex-direction: column !important;
+  align-items: center !important; justify-content: center !important; gap: 12px !important;
+  font-size: 12.5px !important; color: var(--text-secondary) !important;
+}
+.cv-spinner {
+  width: 26px !important; height: 26px !important; border-radius: 50% !important;
+  border: 3px solid rgba(255, 255, 255, 0.15) !important; border-top-color: var(--primary-accent) !important;
+  animation: cv-spin 0.8s linear infinite !important;
+}
+@keyframes cv-spin { to { transform: rotate(360deg); } }
+.cv-error { text-align: center !important; padding: 30px 10px !important; font-size: 13px !important; color: var(--text-primary) !important; display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important; }
+.cv-error-sub { font-size: 11px !important; color: var(--text-tertiary) !important; }

@@ -4,6 +4,7 @@ import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
 import { applyCourseFilter } from '../views/upcoming-view.js';
+import { openCanvasViewer } from '../components/canvas-viewer.js';
 
 export function getSeenAnnouncements() {
     try {
@@ -100,7 +101,7 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
       ${isFresh ? '<span class="badge-tag announce-new-pill"><span class="pulsing-dot"></span>NEW</span>' : ''}
       <span class="announcement-date">${escapeHTML(dateStr)}</span>
       </div>
-      <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer">${escapeHTML(item.title)}</a>
+      <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer" ${item.canvasCourseId && /discussion_topics\/\d+/.test(item.url || '') ? 'data-canvas-open="announcement"' : ''}>${escapeHTML(item.title)}</a>
       ${snippet ? `<div class="announcement-snippet">${escapeHTML(snippet)}</div>` : ''}
       ${isLong ? `
         <div class="announcement-full-msg">${escapeHTML(rawMsg)}</div>
@@ -120,6 +121,28 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
         }
 
         listContainer.appendChild(card);
+
+        // Announcement titles open the in-app YACE viewer (plain href kept for
+        // middle-click so the Canvas page is still one gesture away).
+        const annLink = card.querySelector('.announcement-title[data-canvas-open]');
+        if (annLink && item.canvasCourseId) {
+          const topicMatch = (item.url || '').match(/discussion_topics\/(\d+)/);
+          if (topicMatch) {
+            annLink.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openCanvasViewer({
+                kind: 'announcement',
+                courseId: item.canvasCourseId,
+                topicId: topicMatch[1],
+                courseKey: item.courseKey,
+                courseName: item.courseName,
+                title: item.title,
+                url: item.url
+              });
+            });
+          }
+        }
 
         // Clicking the course chip applies the course filter to the whole
         // dashboard (clicking the already-filtered class clears it).

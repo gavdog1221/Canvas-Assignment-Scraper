@@ -3,6 +3,7 @@ import { openAssignmentModal } from '../components/assignment-modal.js';
 import { closePdfModal } from '../components/pdf-modal.js';
 import { closeSubmissionModal } from '../components/submission-modal.js';
 import { closeCampusToolsModal, isCampusToolsModalOpen } from '../components/campus-tools-modal.js';
+import { closeCanvasViewer } from '../components/canvas-viewer.js';
 
 export function initKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
@@ -23,6 +24,7 @@ export function initKeyboardShortcuts() {
           return;
         }
         closePdfModal();
+        closeCanvasViewer();
         closeSubmissionModal();
         const scModal = document.getElementById('canvas-shortcuts-modal');
         if (scModal) scModal.classList.remove('is-open');
@@ -97,9 +99,14 @@ export function initKeyboardShortcuts() {
 
         if (e.key === 'o' || e.key === 'Enter') {
           const link = currentCard.querySelector('.mod-task-title');
-          if (link && link.classList.contains('custom-task-title')) {
+          if (!link) return;
+          if (link.dataset.canvasOpen) {
+            // In-app YACE viewer — a plain .click() runs the card's own
+            // handler (which preventDefaults and opens the viewer).
             link.click();
-          } else if (link && link.href) {
+          } else if (link.classList.contains('custom-task-title')) {
+            link.click();
+          } else if (link.href) {
             window.open(link.href, '_blank');
           }
           return;

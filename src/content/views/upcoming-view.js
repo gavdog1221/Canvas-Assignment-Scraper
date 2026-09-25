@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { deleteAssignmentFromModal, ensureAssignmentModal, openAssignmentModal } from '../components/assignment-modal.js';
 import { openPdfModal } from '../components/pdf-modal.js';
 import { openSubmissionModal } from '../components/submission-modal.js';
+import { openCanvasViewer } from '../components/canvas-viewer.js';
 import { getCompletedTasks, setTaskCompleted } from '../storage/completed-tasks.js';
 import { applyCustomDueDates, effectiveDueDate, setCustomDueDate } from '../storage/custom-due-dates.js';
 import { getHiddenCourses, hideCourse } from '../storage/hidden-courses.js';
@@ -372,7 +373,7 @@ export function createTaskCard(task, now, completedMap) {
     <div class="task-body">
     <div class="task-title-row">
     <button type="button" class="star-btn ${isStarred ? 'is-starred' : ''}" title="${isStarred ? 'Unpin from top' : 'Pin to top'}">★</button>
-    <a class="mod-task-title ${task.isCustom ? 'custom-task-title' : ''}" href="${task.isCustom ? 'javascript:void(0)' : task.url}" ${task.isCustom ? '' : 'target="_blank"'} title="${task.notes ? escapeHTML(task.notes) : ''}">${escapeHTML(task.title)}</a>
+    <a class="mod-task-title ${task.isCustom ? 'custom-task-title' : ''}" href="${task.isCustom ? 'javascript:void(0)' : task.url}" ${task.isCustom ? '' : 'target="_blank"'} ${!task.isCustom && task.canvasCourseId && task.canvasAssignmentId ? 'data-canvas-open="assignment"' : ''} title="${task.notes ? escapeHTML(task.notes) : ''}">${escapeHTML(task.title)}</a>
     ${pointsHtml}
     </div>
     <div class="task-meta-row">
@@ -455,6 +456,25 @@ export function createTaskCard(task, now, completedMap) {
             deleteAssignmentFromModal(modal);
           });
         }
+      }
+
+      // Canvas assignment titles open the in-app YACE viewer instead of a
+      // new tab (the href stays so middle-click/ctrl+click still works).
+      const cvTitle = card.querySelector('.mod-task-title[data-canvas-open]');
+      if (cvTitle && task.canvasCourseId && task.canvasAssignmentId) {
+        cvTitle.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCanvasViewer({
+            kind: 'assignment',
+            courseId: task.canvasCourseId,
+            assignmentId: task.canvasAssignmentId,
+            courseKey: task.courseKey,
+            courseName: task.courseName,
+            title: task.title,
+            url: task.url
+          });
+        });
       }
 
       // Hook Canvas submission popup
