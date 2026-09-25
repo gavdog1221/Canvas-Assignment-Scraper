@@ -78,6 +78,7 @@ export function deduplicateCourseMap(courseMap, allGrades = []) {
               target.dueDate = candidate.dueDate;
               target.isUndatedHw = false;
             }
+            if (!target.lateDate && candidate.lateDate) target.lateDate = candidate.lateDate;
             if (!target.moduleName && candidate.moduleName) target.moduleName = candidate.moduleName;
             if (candidate.isGradescope) target.isGradescope = true;
 

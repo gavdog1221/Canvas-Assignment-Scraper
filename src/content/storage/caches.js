@@ -13,6 +13,7 @@ export function loadLocalCache() {
       Object.keys(data).forEach(courseKey => {
         (data[courseKey].tasks || []).forEach(t => {
           if (t.dueDate) t.dueDate = new Date(t.dueDate);
+          if (t.lateDate) t.lateDate = new Date(t.lateDate);
         });
       });
       return data;

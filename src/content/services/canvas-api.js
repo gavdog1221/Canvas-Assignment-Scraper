@@ -34,6 +34,31 @@ export async function fetchAllPages(firstUrl, headers, maxPages = 5) {
     return out;
   }
 
+// Conservative parse of a Gradescope due cell's visible text for a submission
+// WINDOW — e.g. "Sep 22 – Sep 24" or "9/22 - 9/24". Used only as a fallback
+// when the row exposes no <time datetime> elements at all. Returns epoch-ms
+// dates for every bound found (caller takes the latest as the due date).
+function parseGradescopeWindowDates(text) {
+    const year = new Date().getFullYear();
+    const monthRe = /([a-zA-Z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*(?:[-–—]|to|through)\s*([a-zA-Z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?/i;
+    const m = text.match(monthRe);
+    if (m) {
+      const a = new Date(`${m[1]} ${m[2]}, ${year}`).getTime();
+      const b = new Date(`${m[3]} ${m[4]}, ${year}`).getTime();
+      if (!isNaN(a) && !isNaN(b)) return [a, b];
+    }
+    const numRe = /(\d{1,2})[\/\.\-](\d{1,2})(?:[\/\.\-](\d{2,4}))?\s*(?:[-–—]|to|through)\s*(\d{1,2})[\/\.\-](\d{1,2})(?:[\/\.\-](\d{2,4}))?/i;
+    const n = text.match(numRe);
+    if (n) {
+      const yearA = n[3] ? (n[3].length === 2 ? '20' + n[3] : n[3]) : String(year);
+      const yearB = n[6] ? (n[6].length === 2 ? '20' + n[6] : n[6]) : yearA;
+      const a = new Date(`${n[1]}/${n[2]}/${yearA}`).getTime();
+      const b = new Date(`${n[4]}/${n[5]}/${yearB}`).getTime();
+      if (!isNaN(a) && !isNaN(b)) return [a, b];
+    }
+    return [];
+  }
+
 export async function fetchGradescopeData(hiddenCourseKeys = []) {
     const gsTasksByCourse = {};
     const gsGradesByCourse = {};
@@ -138,15 +163,29 @@ export async function fetchGradescopeData(hiddenCourseKeys = []) {
 
             const hasActiveSubmission = /submitted/i.test(statusText) && !/no submission/i.test(statusText);
 
+            // Assignments can open a submission WINDOW ("Sep 22 – Sep 24"): the row's
+            // due chart may carry BOTH datetimes, and querySelector only returns
+            // the FIRST match. Keep the range: the window OPEN bound is the due
+            // date (Sep 22) and the CLOSE bound is the late date (Sep 24).
+            // When no datetime elements exist (dates rendered as plain text),
+            // fall back to a conservative text-range parse.
             let dueDate = null;
-            const dueTimeTag = row.querySelector('time.submissionTimeChart--dueDate:not([aria-label*="Late"])');
-            if (dueTimeTag && dueTimeTag.getAttribute('datetime')) {
-              dueDate = new Date(dueTimeTag.getAttribute('datetime'));
-            } else {
-              const anyDueTag = row.querySelector('time.submissionTimeChart--dueDate');
-              if (anyDueTag && anyDueTag.getAttribute('datetime')) {
-                dueDate = new Date(anyDueTag.getAttribute('datetime'));
-              }
+            let gsLateDate = null;
+            const gsDueTimes = [];
+            row.querySelectorAll('time[datetime]').forEach(tag => {
+              const v = tag.getAttribute('datetime');
+              if (!v) return;
+              const d = new Date(v);
+              if (!isNaN(d.getTime())) gsDueTimes.push(d.getTime());
+            });
+            if (!gsDueTimes.length) {
+              gsDueTimes.push(...parseGradescopeWindowDates(row.innerText || ''));
+            }
+            if (gsDueTimes.length) {
+              const earliest = Math.min(...gsDueTimes);
+              const latest = Math.max(...gsDueTimes);
+              dueDate = new Date(earliest);
+              if (latest > earliest) gsLateDate = new Date(latest);
             }
 
             const cleanedGs = parseAndCleanTitle(title, courseKey);
@@ -156,6 +195,7 @@ export async function fetchGradescopeData(hiddenCourseKeys = []) {
                        url: url,
                        gradescopeUploadUrl: uploadUrl,
                        dueDate: dueDate,
+                       lateDate: gsLateDate,
                        points: null,
                        isUndatedHw: !dueDate,
                        isGradescope: true,

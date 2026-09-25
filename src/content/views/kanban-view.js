@@ -89,6 +89,17 @@ export function renderKanbanView(container) {
       ? dueDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
       : '';
 
+    // Submission window: same-day deadlines stay clean, but a window spanning
+    // days ("due Sep 22, late Sep 24") shows the late bound on the card.
+    let lateNote = '';
+    if (task.lateDate && dueDate) {
+      const late = task.lateDate;
+      if (!isNaN(late.getTime()) && localDateKey(late) !== localDateKey(dueDate)) {
+        lateNote = ` · Late ${late.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}`;
+      }
+    }
+    const timeLabelWithLate = `${timeLabel}${lateNote}`;
+
     card.innerHTML = `
       <label class="kanban-card-checkbox">
         <input type="checkbox" ${isDone ? 'checked' : ''} />
@@ -97,7 +108,7 @@ export function renderKanbanView(container) {
         <span class="kanban-card-title">${escapeHTML(task.title)}</span>
         <div class="kanban-card-meta">
           <span class="kanban-card-course">${escapeHTML(courseKey)}</span>
-          ${timeLabel ? `<span class="kanban-card-time">${escapeHTML(timeLabel)}</span>` : ''}
+          ${timeLabelWithLate ? `<span class="kanban-card-time">${escapeHTML(timeLabelWithLate)}</span>` : ''}
           ${task.points ? `<span class="kanban-card-pts">${task.points}pt</span>` : ''}
         </div>
       </div>

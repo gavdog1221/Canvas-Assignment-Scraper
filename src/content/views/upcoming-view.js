@@ -300,6 +300,18 @@ export function createTaskCard(task, now, completedMap) {
       statusBadgeHtml = `<span class="date-badge-wrap">${editBtnHtml}<span class="badge-tag undated-chip">⚠ NO DUE DATE</span></span>`;
     }
 
+    // Gradescope submission window: the due date is the window OPEN (e.g.
+    // Sep 22) and the late date is the window CLOSE (e.g. Sep 24) — surface
+    // both so the range survives the scrape. Same-day windows (due = late)
+    // collapse back to a single date.
+    if (task.lateDate && dueDate) {
+      const late = task.lateDate;
+      if (!isNaN(late.getTime()) && localDateKey(late) !== localDateKey(dueDate)) {
+        const lateStr = late.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        dueLabel = dueLabel ? `${dueLabel} · Late ${lateStr}` : `Late ${lateStr}`;
+      }
+    }
+
     if (task.isSubmitted) {
       statusBadgeHtml += ` <span class="badge-tag submitted-badge" title="Draft or file already submitted, awaiting evaluation">✓ Submitted</span>`;
     }
