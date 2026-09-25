@@ -34,7 +34,7 @@ export async function fetchAllPages(firstUrl, headers, maxPages = 5) {
     return out;
   }
 
-export async function fetchGradescopeData() {
+export async function fetchGradescopeData(hiddenCourseKeys = []) {
     const gsTasksByCourse = {};
     const gsGradesByCourse = {};
 
@@ -63,6 +63,9 @@ export async function fetchGradescopeData() {
         let name = titleEl.innerText.split('\n')[0].trim().replace(/\s+/g, ' ');
 
         if (!isCurrentSemesterCourse(name)) return;
+        // Hidden courses aren't scraped anywhere else — skip their per-course
+        // page fetch here too (it's one request per Gradescope course).
+        if (hiddenCourseKeys.includes(normalizeCourseCode(name))) return;
         if (!courseMap.has(courseId) && name) {
           courseMap.set(courseId, { id: courseId, name: name, url: fullUrl });
         }

@@ -3,6 +3,7 @@ import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { gradeTierClass, formatScoreNum, computeCoursePercentagesWithWhatIf } from '../utils/grades.js';
 import { openPdfModal } from '../components/pdf-modal.js';
+import { applyCourseFilter } from '../views/upcoming-view.js';
 
 export function renderGeneralView(listContainer, hiddenCourses) {
   listContainer.innerHTML = '';
@@ -104,6 +105,19 @@ export function renderGeneralView(listContainer, hiddenCourses) {
       `;
 
     listContainer.appendChild(card);
+
+    // Clicking the course chip applies the course filter to the whole
+    // dashboard (clicking the already-filtered class clears it).
+    const chip = card.querySelector('.course-tag-chip');
+    if (chip) {
+      chip.title = state.activeCourseFilter === key
+      ? 'Showing only this class — click to clear'
+      : 'Show only this class';
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        applyCourseFilter(key);
+      });
+    }
 
     card.querySelectorAll('.gci-open-btn').forEach(btn => {
       btn.addEventListener('click', () => {

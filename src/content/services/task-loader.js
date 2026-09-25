@@ -4,6 +4,7 @@ import { hideReloadProgress, showReloadProgress } from '../components/reload-pro
 import { purgeDefaultCanvasElements, updateHiddenMenuButton } from '../components/widget-shell.js';
 import { fetchAllPages, fetchCanvasAnnouncements, fetchCanvasGrades, fetchGradescopeData, getCsrfToken } from '../services/canvas-api.js';
 import { saveCoursePercentagesCache, saveLocalAnnouncementsCache, saveLocalCache, saveLocalGradesCache } from '../storage/caches.js';
+import { getHiddenCourses } from '../storage/hidden-courses.js';
 import { buildGradeSnapshot, computeGradeChanges, loadGradeSnapshot, saveGradeSnapshot } from '../storage/grade-alerts.js';
 import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
 import { mergeCustomTasksIntoCourseMap } from '../storage/custom-assignments.js';
@@ -167,7 +168,13 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       };
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
 
-      const gradescopePromise = fetchGradescopeData();
+      // Hidden courses are intentionally never scraped: they're filtered out
+      // of the course list below, so no modules / assignments / syllabus-PDF
+      // fetch, no announcements, no grades, and no Gradescope page fetch
+      // happens for them — a real win when several classes are hidden.
+      const hiddenCourseKeys = getHiddenCourses();
+
+      const gradescopePromise = fetchGradescopeData(hiddenCourseKeys);
 
       // Pull EVERY actively-enrolled course, not just ones the student has
       // starred as a favorite — favoriting is a manual, easy-to-forget step,
@@ -195,10 +202,11 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         const termWindowResult = isCourseInActiveTermWindow(course);
         if (termWindowResult !== null) return termWindowResult;
         const rawName = course.course_code || course.name;
+        if (hiddenCourseKeys.includes(normalizeCourseCode(rawName))) return false;
         return isCurrentSemesterCourse(rawName);
       });
 
-      console.info('[YACE] scan begin —', (courses || []).length, 'courses fetched,', activeCourses.length, 'active');
+      console.info('[YACE] scan begin —', (courses || []).length, 'courses fetched,', activeCourses.length, 'active', hiddenCourseKeys.length ? `(${hiddenCourseKeys.length} hidden, unscraped)` : '');
 
       const unifiedCourseMap = {};
       const courseNameById = {};
@@ -464,7 +472,11 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       updateAnnouncementBadge();
 
       const { tasksByCourse: gsCourseMap, gradesByCourse: gsGradesByCourse } = await gradescopePromise;
+      // fetchGradescopeData already skips hidden courses — this guard is a
+      // safety net in case hidden flags changed mid-scan.
+      const hiddenSet = new Set(hiddenCourseKeys);
       Object.keys(gsCourseMap).forEach(gsKey => {
+        if (hiddenSet.has(gsKey)) return;
         if (!unifiedCourseMap[gsKey]) {
           unifiedCourseMap[gsKey] = { name: gsCourseMap[gsKey].name, canvasCourseId: null, tasks: [] };
         }
@@ -476,9 +488,15 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
       }
 
       // 4. Grades Consolidation
+      // courseNameById only contains visible courses, so fetchCanvasGrades
+      // drops submissions for hidden ones (its `if (!rawCourseName) return`
+      // guard) — no hidden grades cached, planned, or alerted on.
       const canvasGrades = await fetchCanvasGrades(headers, courseNameById);
       const gsGradesFlat = [];
-      Object.values(gsGradesByCourse).forEach(entry => gsGradesFlat.push(...entry.grades));
+      Object.entries(gsGradesByCourse).forEach(([gsKey, entry]) => {
+        if (hiddenSet.has(gsKey)) return;
+        gsGradesFlat.push(...entry.grades);
+      });
 
       const allGrades = mergeGradeSources(canvasGrades, gsGradesFlat).sort((a, b) => {
         if (a.gradedAt && b.gradedAt) return b.gradedAt - a.gradedAt;

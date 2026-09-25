@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { STORAGE_KEY_HIDDEN_COURSES } from '../constants.js';
 import { updateHiddenMenuButton } from '../components/widget-shell.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
+import { loadTasks } from '../services/task-loader.js';
 
 // Memoized getHiddenCourses — every render reads this map, and JSON.parse per
 // call was a hot path. Only re-parses when the raw localStorage string
@@ -51,4 +52,8 @@ export function unhideCourse(courseKey) {
     // Unhiding a course must refresh every panel that filters by it.
     state.forceDashboardRebuild = true;
     renderCurrentView();
+    // Hidden courses are skipped entirely by the scrape, so a restored course
+    // has no cached data to show — kick a background rescan to bring it back
+    // (assignments, grades, and announcements).
+    loadTasks(false);
   }

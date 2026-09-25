@@ -4,7 +4,7 @@ import { getCourseColors } from '../utils/colors.js';
 import { computeCourseProjection, computeFinalExamNeeds } from '../utils/grade-projections.js';
 import { computeCoursePercentagesWithWhatIf, formatScoreNum, gradeTierClass, percentageToGpa } from '../utils/grades.js';
 import { escapeHTML } from '../utils/text.js';
-import { renderFilterPills } from '../views/upcoming-view.js';
+import { applyCourseFilter } from '../views/upcoming-view.js';
 
 export function updateGradeChangeBadge() {
     const badge = document.getElementById('grades-change-badge');
@@ -169,9 +169,7 @@ export function renderGradesView(listContainer, hiddenCourses) {
         }
 
         cCard.addEventListener('click', () => {
-          state.activeCourseFilter = isActiveFilter ? 'ALL' : item.courseKey;
-          renderFilterPills();
-          renderGradesView(listContainer, hiddenCourses);
+          applyCourseFilter(item.courseKey);
         });
 
         // Distribution picker (multi-distribution syllabi). Stop the card's

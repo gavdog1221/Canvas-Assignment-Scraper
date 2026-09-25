@@ -155,6 +155,21 @@ export function updateProgressBar() {
     countEl.innerText = `${completed}/${total} this week`;
   }
 
+// One entry point for every "filter by class" interaction (the filter
+// dropdown, grade cards, and the course chips on task cards / announcements /
+// info cards). A course filter is GLOBAL — forceDashboardRebuild makes every
+// scrape-derived panel (News / Recent Grades / Grades / Info) rebuild with the
+// filter applied. Before, a filter change only re-rendered the Assignments
+// list while the other panels kept showing every course, which made the
+// filter look broken.
+export function applyCourseFilter(courseKey) {
+    // 'ALL' always clears the filter; any other key toggles that course on/off.
+    state.activeCourseFilter = (courseKey === 'ALL' || state.activeCourseFilter === courseKey) ? 'ALL' : courseKey;
+    state.forceDashboardRebuild = true;
+    renderFilterPills();
+    renderCurrentView();
+  }
+
 export function renderFilterPills() {
     const menu = document.getElementById('course-filter-menu');
     const label = document.getElementById('course-filter-label');
@@ -174,10 +189,8 @@ export function renderFilterPills() {
     allItem.innerHTML = `<span>All Courses</span>`;
     allItem.addEventListener('click', (e) => {
       e.stopPropagation();
-      state.activeCourseFilter = 'ALL';
       menu.classList.remove('open');
-      renderFilterPills();
-      renderCurrentView();
+      applyCourseFilter('ALL');
     });
     menu.appendChild(allItem);
 
@@ -192,10 +205,8 @@ export function renderFilterPills() {
 
       item.querySelector('.cf-item-left').addEventListener('click', (e) => {
         e.stopPropagation();
-        state.activeCourseFilter = k;
         menu.classList.remove('open');
-        renderFilterPills();
-        renderCurrentView();
+        applyCourseFilter(k);
       });
 
       item.querySelector('.cf-remove').addEventListener('click', (e) => {
@@ -382,6 +393,20 @@ export function createTaskCard(task, now, completedMap) {
       ` : ''}
       </div>
       `;
+
+      // Clicking the class chip applies the course filter to the whole
+      // dashboard (clicking the already-filtered class clears it).
+      const courseChip = card.querySelector('.course-tag-chip');
+      if (courseChip) {
+        courseChip.title = state.activeCourseFilter === task.courseKey
+        ? 'Showing only this class — click to clear'
+        : 'Show only this class';
+        courseChip.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          applyCourseFilter(task.courseKey);
+        });
+      }
 
       // Hook PDF Preview Modal Trigger
       const viewBtn = card.querySelector('.doc-view-pill');

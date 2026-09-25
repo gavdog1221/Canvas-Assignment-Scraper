@@ -136,6 +136,7 @@
   letter-spacing: 0.1px !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
+  cursor: pointer !important;
 }
 
 .due-indicator {

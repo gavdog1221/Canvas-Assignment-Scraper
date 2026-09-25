@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { STORAGE_KEY_SEEN_ANNOUNCEMENTS } from '../constants.js';
 import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
+import { applyCourseFilter } from '../views/upcoming-view.js';
 
 export function getSeenAnnouncements() {
     try {
@@ -101,5 +102,18 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
         }
 
         listContainer.appendChild(card);
+
+        // Clicking the course chip applies the course filter to the whole
+        // dashboard (clicking the already-filtered class clears it).
+        const chip = card.querySelector('.course-tag-chip');
+        if (chip) {
+          chip.title = state.activeCourseFilter === item.courseKey
+          ? 'Showing only this class — click to clear'
+          : 'Show only this class';
+          chip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            applyCourseFilter(item.courseKey);
+          });
+        }
     });
   }

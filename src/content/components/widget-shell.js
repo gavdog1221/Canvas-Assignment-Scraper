@@ -433,12 +433,12 @@ export async function injectWidget(container) {
             showReloadProgress(`Scan still running (${mins} min elapsed)...`, 50);
           }
           // When the 5-minute cache window lapses, kick a background rescan
-          // of just the mandatory data (assignments + grades) — never
-          // announcements. Guarded so two poll ticks can't stack scans.
+          // of assignments + grades + announcements. Guarded so two poll
+          // ticks can't stack scans.
           const lastCacheTime = parseInt(localStorage.getItem(STORAGE_KEY_CACHE_TIME) || '0', 10);
           if (now - lastCacheTime >= 5 * 60 * 1000 && !backgroundScanInFlight) {
             backgroundScanInFlight = true;
-            loadTasks(false, { refreshAnnouncements: false }).finally(() => {
+            loadTasks(false).finally(() => {
               backgroundScanInFlight = false;
             });
           }
@@ -480,7 +480,9 @@ export async function injectWidget(container) {
           renderCurrentView();
 
           if (!isCacheFresh) {
-            loadTasks(false, { refreshAnnouncements: false });
+            // Stale cache: render from cache, then background-rescan
+            // assignments + grades + announcements for fresh data.
+            loadTasks(false);
           }
         } else {
           loadTasks(true);
