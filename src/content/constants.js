@@ -23,6 +23,7 @@ export const STORAGE_KEY_CUSTOM_DUE = 'canvas_mod_tasks_custom_due_v1';
 export const STORAGE_KEY_RMP_CACHE = 'canvas_mod_tasks_rmp_cache_v1';
 export const STORAGE_KEY_GRADE_SNAPSHOT = 'canvas_mod_tasks_grade_snapshot_v1';
 export const STORAGE_KEY_WHATS_NEW = 'canvas_mod_tasks_whats_new_v1';
+export const STORAGE_KEY_NOTIFICATION_HISTORY = 'canvas_mod_tasks_notifications_v1';
 export const STORAGE_KEY_OPTIONS = 'canvas_mod_tasks_options_v1';
 export const STORAGE_KEY_EVENTS_CACHE = 'canvas_mod_tasks_events_cache_v1';
 export const STORAGE_KEY_DINING_MENUS = 'canvas_mod_tasks_dining_menus_v1';

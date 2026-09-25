@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { STORAGE_KEY_WHATS_NEW } from '../constants.js';
 import { buildGradeSnapshot, computeGradeChanges, gradeKey } from './grade-alerts.js';
+import { addNotifications } from './notification-history.js';
 
 // What's-new baseline: every successful data scan snapshots the current set
 // of task ids, announcement ids, and graded entries so the next scan (or next
@@ -88,6 +89,14 @@ export function computeWhatsNew() {
     saveBaseline(buildBaseline());
 
     if (!newAssignments.length && !newUpdates.length && !gradeTotal) return null;
+
+    // Log what's about to be toasted into the 🔔 bell history so it survives
+    // the banner's auto-dismiss (see storage/notification-history.js).
+    addNotifications([
+      ...newAssignments.map(t => ({ id: `asg:${t.id}`, kind: 'assignment', courseKey: t.courseKey, courseName: t.courseName, title: t.title })),
+      ...newUpdates.map(a => ({ id: `upd:${a.id}`, kind: 'update', courseKey: a.courseKey, courseName: a.courseName, title: a.title })),
+      ...grades.map(g => ({ id: `grd:${g.courseKey}::${g.title}::${g.pointsPossible}::${g.score}`, kind: 'grade', courseKey: g.courseKey, courseName: g.courseName, title: g.title, score: g.score, pointsPossible: g.pointsPossible, pct: g.pct, oldScore: g.oldScore, isNew: !!g.isNew }))
+    ]);
 
     return {
       assignments: newAssignments,

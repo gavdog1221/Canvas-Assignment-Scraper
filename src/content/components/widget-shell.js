@@ -20,6 +20,7 @@ import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announc
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { refreshDashboardView } from '../views/dashboard-view.js';
 import { maybeShowWhatsNewBanner } from './whats-new-banner.js';
+import { updateBellBadge } from '../views/notifications-view.js';
 
 // News (announcements) have their own freshness window — the background
 // rescans deliberately skip them, so this drives a cheap standalone refresh
@@ -131,6 +132,10 @@ export async function injectWidget(container) {
     <button type="button" class="icon-btn notes-btn" id="toggle-notes-btn" title="Sticky Notes" aria-haspopup="dialog" aria-expanded="false">
     <svg class="notes-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
     <span class="campus-tools-label">Notes</span>
+    </button>
+    <button type="button" class="icon-btn campus-tools-btn" data-tool="notifications" title="Recent Notifications" aria-haspopup="dialog" aria-expanded="false">
+    <span class="campus-tools-icon">🔔</span><span class="campus-tools-label">Alerts</span>
+    <span class="bell-badge" id="bell-badge" style="display:none;"></span>
     </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
@@ -546,6 +551,7 @@ export async function injectWidget(container) {
       initKeyboardShortcuts();
       initNotesPopover();
       maybeShowWhatsNewBanner();
+      updateBellBadge();
   }
 
 export function updateHiddenMenuButton() {

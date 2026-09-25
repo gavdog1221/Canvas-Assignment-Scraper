@@ -202,3 +202,13 @@ box-shadow: 0 0 10px var(--accent-glow) !important;
   border-radius: 50% !important; background: var(--primary-accent) !important;
   box-shadow: 0 0 6px var(--primary-accent), 0 0 0 2px rgba(20, 20, 24, 0.7) !important; pointer-events: none !important;
 }
+/* 🔔 bell button: count pill for unread recent notifications. */
+.campus-tools-btn[data-tool="notifications"] { position: relative !important; }
+.bell-badge {
+  position: absolute !important; top: -3px !important; right: -3px !important;
+  background: var(--primary-accent) !important; color: #000000 !important;
+  font-size: 8.5px !important; font-weight: 900 !important; line-height: 1 !important;
+  padding: 1px 3px !important; min-width: 13px !important; justify-content: center !important;
+  border-radius: 99px !important; box-shadow: 0 0 6px var(--accent-glow), 0 0 0 2px rgba(20, 20, 24, 0.7) !important;
+  pointer-events: none !important;
+}

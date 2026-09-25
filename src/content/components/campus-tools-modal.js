@@ -17,10 +17,11 @@ import { renderExportView } from '../views/export-view.js';
 import { renderOptionsView } from '../views/options-view.js';
 import { renderRegistrationView } from '../views/registration-view.js';
 import { renderRmpView } from '../views/rmp-view.js';
+import { renderNotificationsView } from '../views/notifications-view.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
 
 // Which tab shows next time the modal opens
-// ('food' | 'registration' | 'rmp' | 'buildings' | 'bus' | 'events' | 'export' | 'options').
+// ('food' | 'registration' | 'rmp' | 'buildings' | 'bus' | 'events' | 'notifications' | 'export' | 'options').
 let activeTool = 'food';
 
 // Reflect state.isDrawerOpen + the active tool on every 🍽/🧑‍🏫/🎓 header
@@ -74,6 +75,8 @@ function renderTool() {
       renderBusView(body);
     } else if (activeTool === 'events') {
       renderEventsView(body);
+    } else if (activeTool === 'notifications') {
+      renderNotificationsView(body);
     } else if (activeTool === 'export') {
       renderExportView(body);
     } else if (activeTool === 'options') {
@@ -114,6 +117,7 @@ export function openCampusToolsModal(tool) {
       <button type="button" class="campus-tools-tab" data-tool="buildings" role="tab">🏢 Hours</button>
       <button type="button" class="campus-tools-tab" data-tool="bus" role="tab">🚌 Bus</button>
       <button type="button" class="campus-tools-tab" data-tool="events" role="tab">🗓️ Events</button>
+      <button type="button" class="campus-tools-tab" data-tool="notifications" role="tab">🔔 Alerts</button>
       <button type="button" class="campus-tools-tab" data-tool="export" role="tab">📅 Export</button>
       <button type="button" class="campus-tools-tab" data-tool="options" role="tab">⚙️ Options</button>
       </div>

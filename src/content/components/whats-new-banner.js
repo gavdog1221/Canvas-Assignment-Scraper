@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { computeWhatsNew } from '../storage/whats-new.js';
 import { escapeHTML } from '../utils/text.js';
+import { updateBellBadge } from '../views/notifications-view.js';
 
 // What's-new toast banner: a transient, top-center strip appended to <body>
 // announcing assignments/updates/grades that appeared since the extension last
@@ -72,6 +73,9 @@ function buildGroup(label, icon, items, total, row) {
 export function maybeShowWhatsNewBanner() {
     const diff = computeWhatsNew();
     if (!diff) return;
+
+    // New items landed in the bell history — refresh its unread badge.
+    updateBellBadge();
 
     const groups = [];
     if (diff.assignments.length) groups.push(buildGroup('New assignments', '📚', diff.assignments, diff.assignments.length, assignmentRow));
