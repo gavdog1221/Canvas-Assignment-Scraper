@@ -2,6 +2,7 @@ import { state } from '../state.js';
 import { STORAGE_KEY_SEEN_ANNOUNCEMENTS } from '../constants.js';
 import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
+import { getHiddenCourses } from '../storage/hidden-courses.js';
 import { applyCourseFilter } from '../views/upcoming-view.js';
 
 export function getSeenAnnouncements() {
@@ -30,6 +31,23 @@ export function updateAnnouncementBadge() {
     } else {
       badge.style.display = 'none';
     }
+  }
+
+// Targeted re-render after a background announcements refresh — touches only
+// the News dashboard panel and the announcements tab (if active), never the
+// whole grid, so scroll/what-if state in the other panels is preserved.
+export function refreshAnnouncementsPanels() {
+    const hiddenCourses = getHiddenCourses();
+    const newsBody = document.querySelector('#module-tasks-list .fullscreen-panel.news-panel .fullscreen-panel-body');
+    console.info('[YACE] announcements panels: news found =', !!newsBody,
+      '| tab =', state.currentTab, '| fullscreen =', state.isFullscreen,
+      '| cached =', (state.cachedAnnouncements || []).length);
+    if (newsBody) renderAnnouncementsView(newsBody, hiddenCourses);
+    if (state.currentTab === 'announcements' && !state.isFullscreen) {
+      const list = document.getElementById('module-tasks-list');
+      if (list) renderAnnouncementsView(list, hiddenCourses);
+    }
+    updateAnnouncementBadge();
   }
 
 export function renderAnnouncementsView(listContainer, hiddenCourses) {

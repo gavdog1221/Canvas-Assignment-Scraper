@@ -5,8 +5,8 @@ import { openAssignmentModal } from '../components/assignment-modal.js';
 import { openShortcutsModal } from '../components/shortcuts-modal.js';
 import { toggleCampusToolsModal } from '../components/campus-tools-modal.js';
 import { initKeyboardShortcuts } from '../handlers/keyboard-shortcuts.js';
-import { deduplicateCourseMap, loadTasks } from '../services/task-loader.js';
-import { loadCoursePercentagesCache, loadLocalAnnouncementsCache, loadLocalCache, loadLocalGradesCache } from '../storage/caches.js';
+import { deduplicateCourseMap, loadTasks, refreshAnnouncementsOnly } from '../services/task-loader.js';
+import { loadCoursePercentagesCache, loadLocalAnnouncementsCache, loadLocalAnnouncementsCacheTime, loadLocalCache, loadLocalGradesCache } from '../storage/caches.js';
 import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
 import { mergeCustomTasksIntoCourseMap } from '../storage/custom-assignments.js';
 import { applyCustomDueDates } from '../storage/custom-due-dates.js';
@@ -19,6 +19,11 @@ import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announc
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { refreshDashboardView } from '../views/dashboard-view.js';
 import { maybeShowWhatsNewBanner } from './whats-new-banner.js';
+
+// News (announcements) have their own freshness window — the background
+// rescans deliberately skip them, so this drives a cheap standalone refresh
+// that keeps the News column current without a full rescan.
+const ANNOUNCEMENTS_FRESH_MS = 5 * 60 * 1000;
 
 export function purgeDefaultCanvasElements() {
     const selectors = [
@@ -414,6 +419,11 @@ export async function injectWidget(container) {
       // started by the poll must not stack with a previous one.
       let lastListRefresh = 0;
       let backgroundScanInFlight = false;
+      let announceRefreshInFlight = false;
+      // Load-time assignment scans (see the cache render path below) run on
+      // every page load but are throttled so quick page-to-page navigation
+      // can't stack several heavy scans back to back.
+      let lastLoadScanAt = 0;
       setInterval(() => {
         if (document.getElementById('module-tasks-widget')) {
           updateProgressBar();
@@ -440,6 +450,16 @@ export async function injectWidget(container) {
             backgroundScanInFlight = true;
             loadTasks(false).finally(() => {
               backgroundScanInFlight = false;
+            });
+          }
+          // News gets an extra dedicated refresh on its own window — the
+          // scans above already include announcements, but this fast-path
+          // keeps the News column current even while a full scan is in
+          // flight (5 minutes in the poll; every page load).
+          if (now - loadLocalAnnouncementsCacheTime() >= ANNOUNCEMENTS_FRESH_MS && !announceRefreshInFlight) {
+            announceRefreshInFlight = true;
+            refreshAnnouncementsOnly().finally(() => {
+              announceRefreshInFlight = false;
             });
           }
         }
@@ -479,10 +499,17 @@ export async function injectWidget(container) {
           renderWorkloadStrip();
           renderCurrentView();
 
-          if (!isCacheFresh) {
-            // Stale cache: render from cache, then background-rescan
-            // assignments + grades + announcements for fresh data.
-            loadTasks(false);
+          // Recheck for new/changed assignments on every page load, not just
+          // after the 5-minute cache lapses — the UI already rendered from
+          // cache above, so this runs quietly in the background and updates
+          // panels when it finishes. Throttled + in-flight-guarded.
+          // Announcements are included so the News column never goes stale.
+          if (Date.now() - lastLoadScanAt >= 3 * 60 * 1000 && !backgroundScanInFlight) {
+            lastLoadScanAt = Date.now();
+            backgroundScanInFlight = true;
+            loadTasks(false).finally(() => {
+              backgroundScanInFlight = false;
+            });
           }
         } else {
           loadTasks(true);
@@ -494,6 +521,12 @@ export async function injectWidget(container) {
         state.cachedCourseMap = {};
         loadTasks(true);
       }
+
+      // Keep News fresh on every page load — the standalone refresh fetches
+      // its own live course list + per-course announcements (no dependency on
+      // the cache render above) and self-throttles to once a minute, so rapid
+      // reloads can't spam the APIs.
+      refreshAnnouncementsOnly();
 
       initKeyboardShortcuts();
       maybeShowWhatsNewBanner();

@@ -3,7 +3,7 @@ import { origin } from '../constants.js';
 import { hideReloadProgress, showReloadProgress } from '../components/reload-progress.js';
 import { purgeDefaultCanvasElements, updateHiddenMenuButton } from '../components/widget-shell.js';
 import { fetchAllPages, fetchCanvasAnnouncements, fetchCanvasGrades, fetchGradescopeData, getCsrfToken } from '../services/canvas-api.js';
-import { saveCoursePercentagesCache, saveLocalAnnouncementsCache, saveLocalCache, saveLocalGradesCache } from '../storage/caches.js';
+import { loadLocalAnnouncementsCacheTime, saveCoursePercentagesCache, saveLocalAnnouncementsCache, saveLocalAnnouncementsCacheTime, saveLocalCache, saveLocalGradesCache } from '../storage/caches.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
 import { buildGradeSnapshot, computeGradeChanges, loadGradeSnapshot, saveGradeSnapshot } from '../storage/grade-alerts.js';
 import { autoCompleteSubmittedTasks } from '../storage/completed-tasks.js';
@@ -12,7 +12,7 @@ import { applyCustomDueDates } from '../storage/custom-due-dates.js';
 import { isCourseInActiveTermWindow, isCurrentSemesterCourse, localDateKey } from '../utils/dates.js';
 import { extractCoreAssignmentToken, findSyllabusPdfUrl, generateTaskId, normalizeCourseCode, parseAndCleanTitle, parseGradeWeightDistributions, parseGradeWeights, parseGradeWeightsInProse, parseOfficeHours, parseSyllabusInstructors } from '../utils/text.js';
 import { extractPdfText, probePdfStreams } from '../utils/pdf.js';
-import { updateAnnouncementBadge } from '../views/announcements-view.js';
+import { refreshAnnouncementsPanels, updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { maybeShowWhatsNewBanner } from '../components/whats-new-banner.js';
 
@@ -128,6 +128,74 @@ export function mergeGradeSources(canvasGrades, gsGrades) {
     });
 
     return merged;
+  }
+
+// Standalone announcements refresh — the 15-minute News staleness guard. It
+// fetches its own current active-course list (one cheap call) instead of
+// trusting the last scan's course map, so announcements from courses added
+// since that scan show up too, and it works even before the first scan has
+// populated cachedCourseMap. Runs on a timer and after page load, with no
+// full rescan and no dependency on the manual ↻.
+export async function refreshAnnouncementsOnly() {
+    // Self-throttle against reload loops: callers run this on every page
+    // load, and while the refresh is cheap it is not free — never more often
+    // than once a minute.
+    const lastRefresh = loadLocalAnnouncementsCacheTime();
+    if (Date.now() - lastRefresh < 60 * 1000) return;
+    try {
+      const csrfToken = getCsrfToken();
+      const headers = {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      };
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+      const courseNameById = {};
+      const activeCourses = [];
+      try {
+        const courseRes = await fetch(`${origin}/api/v1/courses?enrollment_state=active&per_page=100`, {
+          credentials: 'include',
+          headers: headers
+        });
+        if (courseRes.ok) {
+          const courses = await courseRes.json();
+          (courses || []).forEach(c => {
+            if (!c.id) return;
+            activeCourses.push({ id: c.id });
+            courseNameById[c.id] = c.course_code || c.name;
+          });
+        }
+      } catch (e) {
+        console.warn('[YACE] announcements refresh: course list fetch failed:', e);
+      }
+      if (!activeCourses.length) {
+        console.info('[YACE] announcements refresh: no active courses available');
+        return;
+      }
+
+      const items = await fetchCanvasAnnouncements(headers, activeCourses, courseNameById);
+      if (items.length > 0) {
+        state.cachedAnnouncements = items;
+        saveLocalAnnouncementsCache(items);
+        updateAnnouncementBadge();
+        refreshAnnouncementsPanels();
+        // Diagnostic: show the newest fetched items so a stale-from-source
+        // result (new announcements missing from the API response) is
+        // distinguishable from a display problem.
+        const top = items.slice(0, 8).map(a =>
+          (a.postedAt ? a.postedAt.toLocaleString() : 'NO-DATE') + ' | ' + a.courseKey + ' | ' + (a.title || '').slice(0, 50)
+        );
+        const nullDates = items.filter(a => !a.postedAt).length;
+        console.info('[YACE] announcements refresh: ' + activeCourses.length + ' courses → ' + items.length + ' items (' + nullDates + ' missing dates)\n' + top.join('\n'));
+      } else {
+        // An all-empty result usually means the endpoint failed (fetchCanvas
+        // swallows errors) — keep the last good set rather than wiping News.
+        console.info('[YACE] announcements refresh: 0 items for ' + activeCourses.length + ' courses — keeping ' + (state.cachedAnnouncements || []).length + ' cached');
+      }
+      saveLocalAnnouncementsCacheTime(Date.now());
+    } catch (err) {
+      console.warn('[YACE] announcements refresh failed:', err);
+    }
   }
 
 export async function loadTasks(showLoadingUI = true, opts = {}) {
@@ -468,6 +536,7 @@ export async function loadTasks(showLoadingUI = true, opts = {}) {
         const newAnnouncements = await announcementsPromise;
         state.cachedAnnouncements = newAnnouncements;
         saveLocalAnnouncementsCache(newAnnouncements);
+        saveLocalAnnouncementsCacheTime(Date.now());
       }
       updateAnnouncementBadge();
 

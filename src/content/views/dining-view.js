@@ -112,6 +112,26 @@ export async function renderDiningView(listContainer) {
         menuBody.appendChild(statusBanner);
       }
 
+      // A real fetch failure (FoodPro unreachable/timeout) is different from a
+      // day with no menu posted — say so and offer a retry that bypasses the
+      // rate-limited failure cache.
+      if ((data && data.status) ? data.status[state.activeDiningHall] === 'error' : false) {
+        if (pieWrap) pieWrap.style.display = 'none';
+        const errMsg = document.createElement('div');
+        errMsg.className = 'mod-empty-msg';
+        errMsg.innerHTML = `Couldn't load the menu — FoodPro is unreachable right now.<br><span class="dining-retry-link" style="color:var(--primary-accent); cursor:pointer; font-size:11px; font-weight:700; margin-top:6px; display:inline-block;">Retry ↗</span>`;
+        menuBody.appendChild(errMsg);
+        const retryBtn = errMsg.querySelector('.dining-retry-link');
+        if (retryBtn) {
+          retryBtn.addEventListener('click', async () => {
+            retryBtn.textContent = 'Retrying…';
+            const fresh = await ensureDiningMenusForDate(dateObj, { force: true });
+            renderActiveHall(fresh, dateObj);
+          });
+        }
+        return;
+      }
+
       if (meals.length === 0) {
         if (pieWrap) pieWrap.style.display = 'none';
         const emptyMsg = document.createElement('div');
@@ -288,6 +308,23 @@ export async function renderDiningView(listContainer) {
       }
     }
 
+    // Lightweight placeholder for a day whose fetch hasn't finished yet — shows
+    // the "X menu" banner immediately so the toggle feels instant instead of
+    // leaving the previous day's food on screen during a cold fetch.
+    function renderDayLoading(dateObj) {
+      const menuBody = document.getElementById('dining-menu-body');
+      if (!menuBody) return;
+      menuBody.innerHTML = '';
+      const statusBanner = document.createElement('div');
+      statusBanner.className = 'dining-status-banner';
+      statusBanner.innerHTML = `<span class="status-indicator-text">${escapeHTML(dateObj.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }))} menu</span>`;
+      menuBody.appendChild(statusBanner);
+      const loading = document.createElement('div');
+      loading.className = 'mod-empty-msg';
+      loading.innerText = 'Loading menus…';
+      menuBody.appendChild(loading);
+    }
+
     const pills = listContainer.querySelectorAll('.dining-pill[data-hall]');
     pills.forEach(pill => {
       pill.addEventListener('click', () => {
@@ -301,6 +338,8 @@ export async function renderDiningView(listContainer) {
 
     // Today / Tomorrow toggle — FoodPro serves other days via dtdate, so a
     // peek just re-fetches with tomorrow's date (cached per day on fetch).
+    // Both days are prefetched on first render below, so this usually resolves
+    // from cache instantly; a cold fetch shows a placeholder immediately.
     const dayPills = listContainer.querySelectorAll('.dining-day-pills .dining-pill[data-dayoffset]');
     dayPills.forEach(pill => {
       pill.addEventListener('click', async () => {
@@ -309,10 +348,20 @@ export async function renderDiningView(listContainer) {
         state.activeDiningDayOffset = parseInt(pill.getAttribute('data-dayoffset'), 10);
         state.activeStationFilter = '__DEFAULT__';
         activeDate = dateForOffset(state.activeDiningDayOffset);
+        if (!state.diningByDateCache[activeDate.toDateString()]) {
+          renderDayLoading(activeDate);
+        }
         activeData = await ensureDiningMenusForDate(activeDate);
         renderActiveHall(activeData, activeDate);
       });
     });
+
+    // Kick off both days at once — FoodPro is slow, so starting tomorrow's
+    // fetch in parallel with today's means the toggle is a cache hit by the
+    // time the user gets there. Deduping in dining-api means the awaited call
+    // below and these fire-and-forget calls share one request per day.
+    ensureDiningMenusForDate(dateForOffset(0)).catch(() => {});
+    ensureDiningMenusForDate(dateForOffset(1)).catch(() => {});
 
     activeDate = dateForOffset(state.activeDiningDayOffset);
     activeData = await ensureDiningMenusForDate(activeDate);
