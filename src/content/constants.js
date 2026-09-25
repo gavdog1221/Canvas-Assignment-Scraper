@@ -29,6 +29,11 @@ export const STORAGE_KEY_ANNOUNCEMENTS_CACHE_TIME = 'canvas_mod_tasks_announceme
 export const STORAGE_KEY_SCHEDULE_CACHE = 'canvas_mod_tasks_schedule_cache_v1';
 export const STORAGE_KEY_DASHBOARD_PANELS = 'canvas_mod_tasks_dashboard_panels_v1';
 export const STORAGE_KEY_DASHBOARD_PANEL_ORDER = 'canvas_mod_tasks_dashboard_panel_order_v1';
+export const STORAGE_KEY_NOTES = 'canvas_mod_tasks_notes_v1';
+
+// Sticky-note accent hues (hex) shown as color dots on each note; the first
+// one repeats the popover's overall accent so new notes blend in.
+export const NOTE_COLORS = ['#ffd60a', '#ff9f0a', '#ff3b5c', '#5e5ce6', '#30d158', '#64d2ff'];
 
 export const CUSTOM_COLOR_PRESETS = ['#0a84ff', '#ff375f', '#30d158', '#ff9f0a', '#bf5af2', '#ff2d55', '#ffd60a', '#64d2ff'];
 

@@ -15,6 +15,7 @@ import { scrapeCanvasDashboardColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { hydrateSyncedStorage } from '../storage/xstorage.js';
 import { showReloadProgress } from './reload-progress.js';
+import { initNotesPopover } from './notes-popover.js';
 import { markAnnouncementsSeen, updateAnnouncementBadge } from '../views/announcements-view.js';
 import { renderCurrentView, renderFilterPills, renderWorkloadStrip, updateProgressBar } from '../views/upcoming-view.js';
 import { refreshDashboardView } from '../views/dashboard-view.js';
@@ -127,6 +128,10 @@ export async function injectWidget(container) {
     <button type="button" class="icon-btn campus-tools-btn" data-tool="options" title="Options — theme, tabs, notifications" aria-haspopup="dialog" aria-expanded="false">
     <span class="campus-tools-icon">⚙️</span><span class="campus-tools-label">Options</span>
     </button>
+    <button type="button" class="icon-btn notes-btn" id="toggle-notes-btn" title="Sticky Notes" aria-haspopup="dialog" aria-expanded="false">
+    <svg class="notes-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
+    <span class="campus-tools-label">Notes</span>
+    </button>
     <button class="icon-btn" id="toggle-shortcuts-btn" title="View Keyboard Shortcuts">⌨</button>
 
     <!-- Theme Swatch Palette Dock -->
@@ -156,6 +161,16 @@ export async function injectWidget(container) {
     <button class="hidden-popover-close" id="close-hidden-courses-btn" title="Close">✕</button>
     </div>
     <div class="hidden-pills-list" id="hidden-pills-container"></div>
+    </div>
+
+    <div class="notes-popover" id="notes-popover">
+    <div class="notes-popover-header">
+    <span class="notes-popover-title">📝 Sticky Notes</span>
+    <button type="button" class="notes-add-btn" title="New note">＋ New</button>
+    <button type="button" class="notes-popover-close" title="Close">✕</button>
+    </div>
+    <div class="notes-list" id="notes-list"></div>
+    <p class="notes-empty" id="notes-empty">Nothing here yet — hit ＋ New to jot something down.</p>
     </div>
 
     <div class="workload-strip" id="workload-strip-container"></div>
@@ -529,6 +544,7 @@ export async function injectWidget(container) {
       refreshAnnouncementsOnly();
 
       initKeyboardShortcuts();
+      initNotesPopover();
       maybeShowWhatsNewBanner();
   }
 

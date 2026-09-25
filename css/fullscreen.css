@@ -56,15 +56,19 @@
 #module-tasks-widget.is-fullscreen .widget-controls.is-overflow-open { overflow: visible !important; }
 #module-tasks-widget.is-fullscreen .icon-btn { padding: 5px 8px !important; font-size: 12px !important; min-height: 32px !important; white-space: nowrap !important; flex-shrink: 0 !important; gap: 3px !important; }
 #module-tasks-widget.is-fullscreen .icon-btn.eye-btn { min-width: 34px !important; }
-#module-tasks-widget.is-fullscreen .campus-tools-btn { padding: 5px 7px !important; font-size: 11px !important; gap: 0 !important; }
+#module-tasks-widget.is-fullscreen .campus-tools-btn,
+#module-tasks-widget.is-fullscreen .notes-btn { padding: 5px 7px !important; font-size: 11px !important; gap: 0 !important; }
 /* Icon-only campus tools in fullscreen: the text labels (Food / Prof / Reg /
-   Hours / Bus / Events / Export / Options) are dropped so every header button
-   fits on one row without clipping; the icon + title tooltip carry the rest. */
+   Hours / Bus / Events / Export / Options / Notes) are dropped so every header
+   button fits on one row without clipping; the icon + title tooltip carry the
+   rest. */
 #module-tasks-widget.is-fullscreen .campus-tools-btn .campus-tools-icon { font-size: 15px !important; line-height: 1 !important; }
-#module-tasks-widget.is-fullscreen .campus-tools-btn .campus-tools-label { display: none !important; }
+#module-tasks-widget.is-fullscreen .campus-tools-btn .campus-tools-label,
+#module-tasks-widget.is-fullscreen .notes-btn .campus-tools-label { display: none !important; }
 #module-tasks-widget.is-fullscreen .theme-dock-trigger { padding: 6px 10px !important; min-height: 32px !important; gap: 5px !important; }
 #module-tasks-widget.is-fullscreen .theme-trigger-swatch { width: 14px !important; height: 14px !important; }
 #module-tasks-widget.is-fullscreen .campus-tools-btn .campus-tools-icon { font-size: 16px !important; }
+#module-tasks-widget.is-fullscreen .notes-btn .notes-icon { width: 16px !important; height: 16px !important; }
 
 /* The day ribbon and search row no longer occupy shell grid slots; they are
    moved into the top of the center Assignments panel (see the dashboard grid
@@ -123,6 +127,16 @@
   position: absolute !important;
   top: 58px !important; left: 14px !important; right: 14px !important;
   z-index: 9999 !important;
+  margin: 0 !important;
+}
+
+/* Sticky-notes popover floats top-right under the Notes button in fullscreen
+   (a post-it anchored to the header), instead of becoming a grid row. */
+#module-tasks-widget.is-fullscreen .notes-popover {
+  position: absolute !important;
+  top: 58px !important; right: 14px !important;
+  width: 320px !important; max-width: calc(100% - 28px) !important;
+  z-index: 9996 !important;
   margin: 0 !important;
 }
 
