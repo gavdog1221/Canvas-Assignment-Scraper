@@ -19,6 +19,13 @@
 }
 .announcement-card:hover { background: rgba(255, 255, 255, 0.09) !important; transform: translateX(2px) translateY(-2px) !important; border-color: var(--task-course-accent) !important; box-shadow: var(--shadow-card-hover), 0 0 16px var(--task-course-glow) !important; }
 .announcement-card.announcement-unseen { border-left-width: 4px !important; }
+/* Starred announcements highlight like starred tasks: accent left border +
+   glow, and the star itself stays lit. */
+.announcement-card.is-starred { border-left-color: var(--primary-accent) !important; box-shadow: var(--shadow-card), 0 0 14px var(--accent-glow) !important; }
+/* The star itself is gold when pinned (or hovered), not the theme accent. */
+.announcement-card.is-starred .announcement-star,
+.announcement-card .announcement-star:hover { color: #ffd60a !important; }
+.announcement-star { font-size: 13px !important; margin-left: 2px !important; }
 .announcement-top-row { display: flex !important; align-items: center !important; flex-wrap: wrap !important; row-gap: 4px !important; gap: 7px !important; width: 100% !important; }
 .announcement-date { margin-left: auto !important; font-size: 11px !important; font-weight: 600 !important; color: var(--text-tertiary) !important; flex-shrink: 0 !important; }
 .announcement-title { display: block !important; font-size: 13.5px !important; font-weight: 600 !important; color: var(--text-primary) !important; text-decoration: none !important; word-break: break-word !important; line-height: 1.35 !important; transition: color 0.15s ease !important; }

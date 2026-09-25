@@ -14,6 +14,7 @@ export const STORAGE_KEY_COURSE_PERCENTAGES = 'canvas_mod_tasks_course_pcts_v1';
 export const STORAGE_KEY_WHATIF = 'canvas_mod_tasks_whatif_scores_v1';
 export const STORAGE_KEY_DOM_COLORS = 'canvas_mod_tasks_dom_colors_v2';
 export const STORAGE_KEY_STARRED = 'canvas_mod_tasks_starred_v1';
+export const STORAGE_KEY_STARRED_ANNOUNCEMENTS = 'canvas_mod_tasks_starred_announcements_v1';
 export const STORAGE_KEY_MINIMIZED = 'canvas_mod_tasks_minimized_v1';
 export const STORAGE_KEY_ANNOUNCEMENTS_CACHE = 'canvas_mod_tasks_announcements_cache_v1';
 export const STORAGE_KEY_SEEN_ANNOUNCEMENTS = 'canvas_mod_tasks_seen_announcements_v1';

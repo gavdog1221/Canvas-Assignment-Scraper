@@ -3,6 +3,7 @@ import { STORAGE_KEY_SEEN_ANNOUNCEMENTS } from '../constants.js';
 import { getCourseColors } from '../utils/colors.js';
 import { escapeHTML } from '../utils/text.js';
 import { getHiddenCourses } from '../storage/hidden-courses.js';
+import { getStarredAnnouncements, isAnnouncementStarred, toggleStarredAnnouncement, withStarredAnnouncementsFirst } from '../storage/starred-announcements.js';
 import { applyCourseFilter } from '../views/upcoming-view.js';
 import { openCanvasViewer } from '../components/canvas-viewer.js';
 
@@ -66,6 +67,12 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
       );
     }
 
+    // Starred announcements pin to the top (same as starred assignments).
+    // The cached list is already newest-first, so a stable starred-first sort
+    // preserves relative date order within each group.
+    const starredMap = getStarredAnnouncements();
+    items.sort(withStarredAnnouncementsFirst(() => 0, starredMap));
+
     if (items.length === 0) {
       listContainer.innerHTML = state.searchQuery
       ? `<div class="mod-empty-msg">No announcements match "${escapeHTML(state.searchQuery)}"</div>`
@@ -80,13 +87,14 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
       const card = document.createElement('div');
       const isUnseen = !seen[item.id];
       const isFresh = !!item.postedAt && (now - item.postedAt.getTime()) < 48 * 60 * 60 * 1000;
+      const isStarred = isAnnouncementStarred(item.id);
 
       const coursePalette = getCourseColors(item.courseKey, item.canvasCourseId);
       card.style.setProperty('--task-course-accent', coursePalette.accent);
       card.style.setProperty('--task-course-glow', coursePalette.glow);
       card.style.setProperty('--task-course-soft', coursePalette.soft);
 
-      card.className = `announcement-card ${isFresh ? 'announcement-fresh' : ''} ${isUnseen ? 'announcement-unseen' : ''}`;
+      card.className = `announcement-card ${isFresh ? 'announcement-fresh' : ''} ${isUnseen ? 'announcement-unseen' : ''} ${isStarred ? 'is-starred' : ''}`;
 
       const dateStr = item.postedAt
       ? item.postedAt.toLocaleDateString([], { month: 'short', day: 'numeric' })
@@ -100,6 +108,7 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
       <span class="course-tag-chip">${escapeHTML(item.courseKey)}</span>
       ${isFresh ? '<span class="badge-tag announce-new-pill"><span class="pulsing-dot"></span>NEW</span>' : ''}
       <span class="announcement-date">${escapeHTML(dateStr)}</span>
+      <button type="button" class="star-btn announcement-star ${isStarred ? 'is-starred' : ''}" title="${isStarred ? 'Unpin from top' : 'Pin to top'}">★</button>
       </div>
       <a class="announcement-title" href="${item.url || '#'}" target="_blank" rel="noopener noreferrer" ${item.canvasCourseId && /discussion_topics\/\d+/.test(item.url || '') ? 'data-canvas-open="announcement"' : ''}>${escapeHTML(item.title)}</a>
       ${snippet ? `<div class="announcement-snippet">${escapeHTML(snippet)}</div>` : ''}
@@ -117,6 +126,19 @@ export function renderAnnouncementsView(listContainer, hiddenCourses) {
             const isExpanded = card.classList.toggle('is-expanded');
             expandBtn.innerText = isExpanded ? '▲' : '▼';
             expandBtn.title = isExpanded ? 'Show less' : 'Read full announcement';
+          });
+        }
+
+        // Star / Pin-to-top toggle — same behavior as assignment cards: the
+        // click flips the starred map and re-renders the News panel and the
+        // announcements tab so starred items bubble to the top.
+        const starBtn = card.querySelector('.announcement-star');
+        if (starBtn) {
+          starBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleStarredAnnouncement(item.id);
+            refreshAnnouncementsPanels();
           });
         }
 

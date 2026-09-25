@@ -152,8 +152,8 @@
  *  STAR / PIN-TO-TOP
  *  ========================================================================== */
 .star-btn { background: transparent !important; border: none !important; color: rgba(255, 255, 255, 0.28) !important; font-size: 15px !important; line-height: 1 !important; padding: 0 !important; margin: 0 !important; cursor: pointer !important; flex-shrink: 0 !important; transition: color 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1) !important; }
-.star-btn:hover { color: var(--primary-accent) !important; transform: scale(1.2) !important; }
-.star-btn.is-starred { color: var(--primary-accent) !important; }
+.star-btn:hover { color: #ffd60a !important; transform: scale(1.2) !important; }
+.star-btn.is-starred { color: #ffd60a !important; }
 .mod-task-card.is-starred { border-left-color: var(--primary-accent) !important; box-shadow: var(--shadow-card), 0 0 14px var(--accent-glow) !important; }
 .mod-task-card.is-starred:hover { border-color: var(--primary-accent) !important; box-shadow: var(--shadow-card-hover), 0 0 18px var(--accent-glow) !important; }
 
